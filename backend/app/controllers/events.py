@@ -14,26 +14,7 @@ def get_sources_store() -> SourcesStore:
 class EventsController(Controller):
     path = "/api/events"
 
-    @get()
-    async def list_events(
-        self,
-        start: str | None = Parameter(default=None),
-        end: str | None = Parameter(default=None),
-        id: str | None = Parameter(default=None),
-    ) -> list[Event] | Event:
-        store = get_sources_store()
-        sources = store.list_sources()
-        if id:
-            event_id = id.strip()
-            events, _, _ = aggregate_events_todos(sources)
-            for e in events:
-                if e.id == event_id:
-                    return e
-            raise NotFoundException(detail="Event not found")
-        events, _, _ = aggregate_events_todos(sources, start=start, end=end)
-        return events
-
-    @post("/create")
+    @post()
     async def create_event(self, data: EventCreate) -> Event:
         store = get_sources_store()
         source = store.get_source(data.source_id)
@@ -58,6 +39,25 @@ class EventsController(Controller):
         if not created:
             raise MethodNotAllowedException(detail="Failed to create event")
         return created
+
+    @get()
+    async def list_events(
+        self,
+        start: str | None = Parameter(default=None),
+        end: str | None = Parameter(default=None),
+        id: str | None = Parameter(default=None),
+    ) -> list[Event] | Event:
+        store = get_sources_store()
+        sources = store.list_sources()
+        if id:
+            event_id = id.strip()
+            events, _, _ = aggregate_events_todos(sources)
+            for e in events:
+                if e.id == event_id:
+                    return e
+            raise NotFoundException(detail="Event not found")
+        events, _, _ = aggregate_events_todos(sources, start=start, end=end)
+        return events
 
     @patch()
     async def update_event(

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { $effect } from 'svelte';
   import type { Event, Todo } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
   import { formatInTimezone } from '$lib/date';
@@ -62,6 +63,15 @@
   }
 
   const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  // When switching to month view, sync focused day to selected date so Enter works without re-focusing a cell
+  $effect(() => {
+    if (app.calendarView !== 'month') return;
+    const d = selectedDate;
+    const idx = startPad + d.getDate() - 1;
+    app.setFocusedDayDate(d);
+    app.setFocusedDayIndex(idx);
+  });
 </script>
 
 <div id="calendar-view" class="p-4" role="application" aria-label="Calendar">
@@ -86,8 +96,13 @@
               class:selected={isSelected(d)}
               tabindex={app.focusedDayIndex === i ? 0 : -1}
               data-day-index={i}
+              onfocus={() => {
+                app.setFocusedDayIndex(i);
+                app.setFocusedDayDate(d);
+              }}
               onclick={() => {
                 app.setSelectedDate(d);
+                app.setFocusedDayDate(d);
                 onSelectDay?.(d);
               }}
               onkeydown={(e) => {

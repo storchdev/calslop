@@ -14,20 +14,7 @@ def get_sources_store() -> SourcesStore:
 class TodosController(Controller):
     path = "/api/todos"
 
-    @get()
-    async def list_todos(self, id: str | None = Parameter(default=None)) -> list[Todo] | Todo:
-        store = get_sources_store()
-        sources = store.list_sources()
-        _, todos, _ = aggregate_events_todos(sources)
-        if id:
-            todo_id = id.strip()
-            for t in todos:
-                if t.id == todo_id:
-                    return t
-            raise NotFoundException(detail="Todo not found")
-        return todos
-
-    @post("/create")
+    @post()
     async def create_todo(self, data: TodoCreate) -> Todo:
         store = get_sources_store()
         source = store.get_source(data.source_id)
@@ -50,6 +37,19 @@ class TodosController(Controller):
         if not created:
             raise MethodNotAllowedException(detail="Failed to create todo")
         return created
+
+    @get()
+    async def list_todos(self, id: str | None = Parameter(default=None)) -> list[Todo] | Todo:
+        store = get_sources_store()
+        sources = store.list_sources()
+        _, todos, _ = aggregate_events_todos(sources)
+        if id:
+            todo_id = id.strip()
+            for t in todos:
+                if t.id == todo_id:
+                    return t
+            raise NotFoundException(detail="Todo not found")
+        return todos
 
     @patch()
     async def update_todo(

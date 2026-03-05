@@ -14,6 +14,8 @@ class AppStore {
   focusedEventIndex = $state<number>(-1);
   focusedTodoIndex = $state<number>(-1);
   focusedDayIndex = $state<number>(-1);
+  /** Date for the currently focused day cell (month view); used for Enter → day view */
+  focusedDayDate = $state<Date | null>(null);
   modalOpen = $state<'event' | 'todo' | 'shortcuts' | null>(null);
   editingId = $state<string | null>(null);
   hasUnsyncedChanges = $state(false);
@@ -64,6 +66,10 @@ class AppStore {
 
   setFocusedDayIndex(i: number) {
     this.focusedDayIndex = i;
+  }
+
+  setFocusedDayDate(d: Date | null) {
+    this.focusedDayDate = d;
   }
 
   setModalOpen(m: 'event' | 'todo' | 'shortcuts' | null) {

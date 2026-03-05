@@ -39,6 +39,14 @@
     }
     if (app.modalOpen) return; // no other global shortcuts when modal open
 
+    if (app.viewMode === 'calendar' && app.calendarView === 'month' && key === 'enter') {
+      const dateToUse = app.focusedDayDate ?? app.selectedDate;
+      app.setSelectedDate(dateToUse);
+      app.setCalendarView('day');
+      e.preventDefault();
+      return;
+    }
+
     // h/j/k/l and arrows: navigate in calendar view (use calendar math to avoid DST bugs)
     if (app.viewMode === 'calendar' && !e.repeat) {
       const d = app.selectedDate;

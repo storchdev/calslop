@@ -1,17 +1,29 @@
-from litestar import Litestar
-from litestar.config.cors import CORSConfig
+from flask import Flask, jsonify
+from flask_cors import CORS
+from pydantic import ValidationError
 
-from app.controllers.events import EventsController
-from app.controllers.todos import TodosController
-from app.controllers.sources import SourcesController
+from app.routes import events_bp, todos_bp, sources_bp
 
-cors_config = CORSConfig(
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+app = Flask(__name__)
+CORS(
+    app,
+    origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_headers=["*"],
+    supports_credentials=True,
 )
 
-app = Litestar(
-    route_handlers=[EventsController, TodosController, SourcesController],
-    cors_config=cors_config,
-)
+app.register_blueprint(events_bp, url_prefix="/api/events")
+app.register_blueprint(todos_bp, url_prefix="/api/todos")
+app.register_blueprint(sources_bp, url_prefix="/api/sources")
+
+
+@app.errorhandler(400)
+@app.errorhandler(404)
+@app.errorhandler(405)
+def http_error(e):
+    return jsonify(detail=getattr(e, "description", str(e))), e.code
+
+
+@app.errorhandler(ValidationError)
+def validation_error(e: ValidationError):
+    return jsonify(detail=e.errors()[0].get("msg", str(e))), 400

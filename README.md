@@ -1,6 +1,6 @@
 # Calslop
 
-A keyboard-first calendar and todo organizer with Svelte 5 (SvelteKit) frontend and Python Litestar backend.
+A keyboard-first calendar and todo organizer with Svelte 5 (SvelteKit) frontend and Python Flask backend.
 
 ## Features
 
@@ -16,7 +16,7 @@ A keyboard-first calendar and todo organizer with Svelte 5 (SvelteKit) frontend 
 ```bash
 cd backend
 uv sync   # or: pip install -e .
-uv run uvicorn app.main:app --reload --port 8000
+uv run flask --app app.main run --port 8000
 ```
 
 Source config is stored in `~/.config/calslop/sources.json`. To use a different directory (e.g. for development), set `CALSLOP_DATA_DIR` to that path.
@@ -41,7 +41,7 @@ Open http://localhost:5173 . The dev server proxies `/api` to the backend.
 
 ## Project layout
 
-- `backend/` – Litestar API: sources CRUD, events/todos aggregation from ICS URL, local folder, and CalDAV; write support for local folder and CalDAV.
+- `backend/` – Flask API: sources CRUD, events/todos aggregation from ICS URL, local folder, and CalDAV; write support for local folder and CalDAV.
 - `frontend/` – SvelteKit (Svelte 5) app: calendar (month/day), todo list, modals for create/edit, theme switcher, global keyboard shortcuts.
 
 ## API

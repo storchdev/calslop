@@ -118,12 +118,12 @@
       return;
     }
     if (target instanceof HTMLSelectElement) {
-      if (e.shiftKey && e.key === 'j') {
+      if (e.shiftKey && e.key.toLowerCase() === 'j') {
         e.preventDefault();
         cycleSelect(target, 1);
         return;
       }
-      if (e.shiftKey && e.key === 'k') {
+      if (e.shiftKey && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         cycleSelect(target, -1);
         return;
