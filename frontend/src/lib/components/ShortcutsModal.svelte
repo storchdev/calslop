@@ -33,9 +33,11 @@
       <dt class="font-mono font-semibold">L / Right</dt>
       <dd class="m-0">Next day (calendar)</dd>
       <dt class="font-mono font-semibold">J / Down</dt>
-      <dd class="m-0">Next day / focus next item</dd>
+      <dd class="m-0">Next week (calendar) / focus next item (todos)</dd>
       <dt class="font-mono font-semibold">K / Up</dt>
-      <dd class="m-0">Previous day / focus previous item</dd>
+      <dd class="m-0">Previous week (calendar) / focus previous item (todos)</dd>
+      <dt class="font-mono font-semibold">Shift+H/J/K/L</dt>
+      <dd class="m-0">Month view: change month. Day view: change week</dd>
       <dt class="font-mono font-semibold">?</dt>
       <dd class="m-0">Show this shortcuts list</dd>
       <dt class="font-mono font-semibold">Escape</dt>

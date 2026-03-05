@@ -5,11 +5,12 @@
 
   interface Props {
     todoId: string | null;
+    initialTodo?: Todo | null;
     onclose: () => void;
     onsave: () => void;
   }
 
-  let { todoId, onclose, onsave }: Props = $props();
+  let { todoId, initialTodo = null, onclose, onsave }: Props = $props();
 
   let summary = $state('');
   let completed = $state(false);
@@ -22,6 +23,13 @@
 
   $effect(() => {
     if (todoId) {
+      if (initialTodo && initialTodo.id === todoId) {
+        summary = initialTodo.summary;
+        completed = initialTodo.completed;
+        due = initialTodo.due ? initialTodo.due.slice(0, 10) : '';
+        description = initialTodo.description ?? '';
+        return;
+      }
       getTodo(todoId).then((t) => {
         summary = t.summary;
         completed = t.completed;

@@ -38,14 +38,33 @@
     }
     if (app.modalOpen) return; // no other global shortcuts when modal open
 
-    // h/j/k/l and arrows: change selected day in calendar view
+    // h/j/k/l and arrows: navigate in calendar view
     if (app.viewMode === 'calendar' && !e.repeat) {
       const d = app.selectedDate;
+      const shift = e.shiftKey;
+      const isMonthView = app.calendarView === 'month';
       let next: Date | null = null;
-      if (key === 'h' || key === 'arrowleft') next = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
-      if (key === 'l' || key === 'arrowright') next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
-      if (key === 'j' || key === 'arrowdown') next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
-      if (key === 'k' || key === 'arrowup') next = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
+
+      if (shift) {
+        // Shift: month in month view, week in day view
+        if (isMonthView) {
+          if (key === 'h' || key === 'arrowleft') next = new Date(d.getFullYear(), d.getMonth() - 1, d.getDate());
+          if (key === 'l' || key === 'arrowright') next = new Date(d.getFullYear(), d.getMonth() + 1, d.getDate());
+          if (key === 'j' || key === 'arrowdown') next = new Date(d.getFullYear(), d.getMonth() + 1, d.getDate());
+          if (key === 'k' || key === 'arrowup') next = new Date(d.getFullYear(), d.getMonth() - 1, d.getDate());
+        } else {
+          if (key === 'h' || key === 'arrowleft') next = new Date(d.getTime() - 7 * 24 * 60 * 60 * 1000);
+          if (key === 'l' || key === 'arrowright') next = new Date(d.getTime() + 7 * 24 * 60 * 60 * 1000);
+          if (key === 'j' || key === 'arrowdown') next = new Date(d.getTime() + 7 * 24 * 60 * 60 * 1000);
+          if (key === 'k' || key === 'arrowup') next = new Date(d.getTime() - 7 * 24 * 60 * 60 * 1000);
+        }
+      } else {
+        // No shift: h/l = day, j/k = week
+        if (key === 'h' || key === 'arrowleft') next = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
+        if (key === 'l' || key === 'arrowright') next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+        if (key === 'j' || key === 'arrowdown') next = new Date(d.getTime() + 7 * 24 * 60 * 60 * 1000);
+        if (key === 'k' || key === 'arrowup') next = new Date(d.getTime() - 7 * 24 * 60 * 60 * 1000);
+      }
       if (next) {
         app.setSelectedDate(next);
         e.preventDefault();

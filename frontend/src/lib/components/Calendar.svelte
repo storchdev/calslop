@@ -53,6 +53,9 @@
 <div id="calendar-view" class="p-4" role="application" aria-label="Calendar">
   {#if app.calendarView === 'month'}
     <div>
+      <h2 class="text-xl font-semibold mb-3 text-[var(--text)]">
+        {selectedDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+      </h2>
       <div class="grid grid-cols-7 gap-1 mb-1 text-xs text-[var(--text-muted)]">
         {#each dayLabels as label}
           <span>{label}</span>

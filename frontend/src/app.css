@@ -159,12 +159,17 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   font-size: 0.875rem;
 }
 
-.form-row input, .form-row textarea {
+.form-row input, .form-row textarea, .form-row select {
   width: 100%;
   padding: 0.5rem;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg);
+  color: var(--text);
+}
+
+select, select option {
+  background-color: var(--bg);
   color: var(--text);
 }
 
