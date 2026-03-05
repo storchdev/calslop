@@ -71,10 +71,10 @@ class LocalFolderDriver(SourceDriver):
     def create_event(self, source: Source, event: Event) -> Event | None:
         path_str = source.config.get("path")
         if not path_str:
-            return None
+            raise ValueError("Missing path in source config")
         path = Path(path_str)
         if not path.is_dir():
-            return None
+            raise ValueError(f"Path is not a directory: {path_str}")
         stem = uuid.uuid4().hex
         uid = stem
         event_id = f"{source.id}::{stem}::{uid}"

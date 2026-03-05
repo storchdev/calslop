@@ -112,12 +112,12 @@ class CalDAVDriver(SourceDriver):
     def create_event(self, source: Source, event: Event) -> Event | None:
         client = self._get_client(source)
         if not client:
-            return None
+            raise ValueError("CalDAV connection failed (check URL and credentials)")
         try:
             principal = client.principal()
             calendars = principal.calendars()
             if not calendars:
-                return None
+                raise ValueError("No calendars found on CalDAV account")
             cal = calendars[0]
             from app.services.ical_utils import event_to_ical
             ical_str = event_to_ical(event).decode("utf-8")
@@ -125,8 +125,10 @@ class CalDAVDriver(SourceDriver):
             if new_ev and hasattr(new_ev, "id"):
                 event = Event(**{**event.model_dump(), "id": f"{source.id}::{getattr(new_ev, 'id', event.id)}"})
             return event
-        except Exception:
-            return None
+        except ValueError:
+            raise
+        except Exception as e:
+            raise ValueError(f"CalDAV save failed: {e}") from e
 
     def update_event(self, source: Source, event: Event) -> Event | None:
         # CalDAV update: fetch event by id, save back with new data

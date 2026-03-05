@@ -12,7 +12,19 @@ def get_sources_store() -> SourcesStore:
 events_bp = Blueprint("events", __name__)
 
 
-@events_bp.route("", methods=["POST"])
+@events_bp.route("", methods=["GET", "POST", "PATCH", "DELETE"])
+def events_handler():
+    if request.method == "POST":
+        return create_event()
+    if request.method == "GET":
+        return list_events()
+    if request.method == "PATCH":
+        return update_event()
+    if request.method == "DELETE":
+        return delete_event()
+    abort(405, description="Method not allowed")
+
+
 def create_event():
     data = request.get_json()
     if not data:
@@ -37,13 +49,15 @@ def create_event():
         recurrence=body.recurrence,
         url=body.url,
     )
-    created = driver.create_event(source, event)
+    try:
+        created = driver.create_event(source, event)
+    except Exception as e:
+        abort(400, description=str(e))
     if not created:
-        abort(405, description="Failed to create event")
+        abort(400, description="Failed to create event (check source config and permissions)")
     return jsonify(created.model_dump(mode="json")), 201
 
 
-@events_bp.route("", methods=["GET"])
 def list_events():
     start = request.args.get("start")
     end = request.args.get("end")
@@ -61,7 +75,6 @@ def list_events():
     return jsonify([e.model_dump(mode="json") for e in events])
 
 
-@events_bp.route("", methods=["PATCH"])
 def update_event():
     id_param = request.args.get("id")
     if not id_param:
@@ -100,7 +113,6 @@ def update_event():
     return jsonify(updated.model_dump(mode="json"))
 
 
-@events_bp.route("", methods=["DELETE"])
 def delete_event():
     id_param = request.args.get("id")
     if not id_param:

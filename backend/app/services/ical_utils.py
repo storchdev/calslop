@@ -1,5 +1,6 @@
 """Parse icalendar components into Event/Todo DTOs."""
-from datetime import date, datetime
+import uuid
+from datetime import date, datetime, timezone
 from zoneinfo import ZoneInfo
 
 import icalendar
@@ -132,9 +133,13 @@ def event_to_ical(event: Event) -> bytes:
     cal.add("prodid", "-//Calslop//EN")
     cal.add("version", "2.0")
     vevent = icalendar.Event()
-    # uid: use the part after last ::
-    uid = event.id.split("::")[-1] if "::" in event.id else event.id
+    # UID is required; use part after :: or generate one for new events
+    uid = event.id.split("::")[-1] if (event.id and "::" in event.id) else (event.id or "")
+    if not uid or not uid.strip():
+        uid = f"calslop-{uuid.uuid4().hex}@calslop"
     vevent.add("uid", uid)
+    # DTSTAMP is required by RFC 5545 and many CalDAV servers
+    vevent.add("dtstamp", datetime.now(timezone.utc))
     vevent.add("summary", event.title)
     vevent.add("dtstart", event.start)
     vevent.add("dtend", event.end)

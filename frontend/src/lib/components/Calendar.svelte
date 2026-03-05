@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { $effect } from 'svelte';
   import type { Event, Todo } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
   import { formatInTimezone } from '$lib/date';
