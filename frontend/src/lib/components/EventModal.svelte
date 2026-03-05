@@ -156,6 +156,18 @@
       submit();
       return;
     }
+    if (editingId && e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      if (confirm('Delete this event?')) {
+        deleteEvent(editingId).then(() => {
+          onsave();
+          onclose();
+        }).catch((err) => {
+          error = err instanceof Error ? err.message : 'Failed to delete';
+        });
+      }
+      return;
+    }
     if (target instanceof HTMLSelectElement) {
       if (e.shiftKey && e.key.toLowerCase() === 'j') {
         e.preventDefault();
@@ -239,14 +251,13 @@
       </div>
       <input type="datetime-local" bind:value={end} disabled={allDay} bind:this={endEl} />
     </div>
-    <div class="form-row">
+    <div class="form-row form-row-checkbox">
       <div class="form-row-header">
         <span class="field-label">All day</span>
         <span class="field-shortcut">A</span>
       </div>
-      <label class="inline-flex items-center gap-2 cursor-pointer">
+      <label class="checkbox-label">
         <input type="checkbox" bind:checked={allDay} bind:this={allDayEl} />
-        <span>All day</span>
       </label>
     </div>
     <div class="form-row">
@@ -275,25 +286,34 @@
       <textarea bind:value={description} rows="3" bind:this={descriptionEl}></textarea>
     </div>
     <div class="form-actions">
-      <button class="btn btn-primary" onclick={submit} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+      <div class="form-action-with-hint">
+        <button class="btn btn-primary" onclick={submit} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        <span class="action-hint">Ctrl+Enter</span>
+      </div>
       {#if editingId}
-        <button
-          class="btn btn-ghost"
-          type="button"
-          disabled={saving}
-          onclick={async () => {
-            if (!confirm('Delete this event?')) return;
-            try {
-              await deleteEvent(editingId);
-              onsave();
-              onclose();
-            } catch (e) {
-              error = e instanceof Error ? e.message : 'Failed to delete';
-            }
-          }}
-        >Delete</button>
+        <div class="form-action-with-hint">
+          <button
+            class="btn btn-ghost"
+            type="button"
+            disabled={saving}
+            onclick={async () => {
+              if (!confirm('Delete this event?')) return;
+              try {
+                await deleteEvent(editingId);
+                onsave();
+                onclose();
+              } catch (e) {
+                error = e instanceof Error ? e.message : 'Failed to delete';
+              }
+            }}
+          >Delete</button>
+          <span class="action-hint">Ctrl+Shift+D</span>
+        </div>
       {/if}
-      <button class="btn btn-ghost" onclick={onclose} type="button">Cancel</button>
+      <div class="form-action-with-hint">
+        <button class="btn btn-ghost" onclick={onclose} type="button">Cancel</button>
+        <span class="action-hint">Esc</span>
+      </div>
     </div>
   </div>
 </div>

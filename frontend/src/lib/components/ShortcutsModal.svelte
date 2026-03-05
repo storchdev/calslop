@@ -33,9 +33,11 @@
       <dt class="font-mono font-semibold">L / Right</dt>
       <dd class="m-0">Next day (calendar)</dd>
       <dt class="font-mono font-semibold">J / Down</dt>
-      <dd class="m-0">Month: next week. Day: next day. Todos: focus next</dd>
+      <dd class="m-0">Month: next week. Day view: next event/todo. Todos: focus next</dd>
       <dt class="font-mono font-semibold">K / Up</dt>
-      <dd class="m-0">Month: previous week. Day: previous day. Todos: focus prev</dd>
+      <dd class="m-0">Month: previous week. Day view: previous event/todo. Todos: focus prev</dd>
+      <dt class="font-mono font-semibold">X or Space</dt>
+      <dd class="m-0">Todos: toggle focused todo completed</dd>
       <dt class="font-mono font-semibold">Shift+H/J/K/L</dt>
       <dd class="m-0">Month view: change month. Day view: change week</dd>
       <dt class="font-mono font-semibold">V</dt>
@@ -47,7 +49,7 @@
       <dt class="font-mono font-semibold">Escape</dt>
       <dd class="m-0">Close modal</dd>
       <dt class="font-mono font-semibold">Event/todo modals</dt>
-      <dd class="m-0">Focus modal first (keys work). In text fields type normally. Single key (T, S, …) jumps to field. Ctrl+Enter save. Shift+J / Shift+K cycle dropdown options.</dd>
+      <dd class="m-0">Ctrl+Enter save, Ctrl+Shift+D delete (when editing), Esc cancel. Single key (T, S, …) jumps to field. Shift+J / Shift+K cycle dropdown options.</dd>
     </dl>
     <div class="form-actions">
       <button class="btn btn-primary" onclick={onclose} type="button">Close</button>

@@ -10,6 +10,8 @@ class AppStore {
   calendarView = $state<CalendarView>('month');
   calendarDensity = $state<CalendarDensity>('balanced');
   showTodosOnCalendar = $state<boolean>(true);
+  /** When false, hide completed todos in the todo list view */
+  showCompletedTodos = $state<boolean>(true);
   selectedDate = $state<Date>(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   focusedEventIndex = $state<number>(-1);
   focusedTodoIndex = $state<number>(-1);
@@ -46,6 +48,14 @@ class AppStore {
 
   toggleShowTodosOnCalendar() {
     this.showTodosOnCalendar = !this.showTodosOnCalendar;
+  }
+
+  setShowCompletedTodos(show: boolean) {
+    this.showCompletedTodos = show;
+  }
+
+  toggleShowCompletedTodos() {
+    this.showCompletedTodos = !this.showCompletedTodos;
   }
 
   setSelectedDate(d: Date) {

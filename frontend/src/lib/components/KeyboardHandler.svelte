@@ -64,16 +64,15 @@
         } else {
           if (key === 'h' || key === 'arrowleft') next = addDays(d, -7);
           if (key === 'l' || key === 'arrowright') next = addDays(d, 7);
+          // j/k in day view are for events/todos, not week
           if (key === 'j' || key === 'arrowdown') next = addDays(d, 7);
           if (key === 'k' || key === 'arrowup') next = addDays(d, -7);
         }
       } else {
         if (key === 'h' || key === 'arrowleft') next = addDays(d, -1);
         if (key === 'l' || key === 'arrowright') next = addDays(d, 1);
-        if (isDayView) {
-          if (key === 'j' || key === 'arrowdown') next = addDays(d, 1);
-          if (key === 'k' || key === 'arrowup') next = addDays(d, -1);
-        } else {
+        // In day view, j/k are used for moving between events/todos; only h/l change the day
+        if (!isDayView) {
           if (key === 'j' || key === 'arrowdown') next = addDays(d, 7);
           if (key === 'k' || key === 'arrowup') next = addDays(d, -7);
         }

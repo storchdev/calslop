@@ -117,6 +117,18 @@
       submit();
       return;
     }
+    if (todoId && e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      if (confirm('Delete this todo?')) {
+        deleteTodo(todoId).then(() => {
+          onsave();
+          onclose();
+        }).catch((err) => {
+          error = err instanceof Error ? err.message : 'Failed to delete';
+        });
+      }
+      return;
+    }
     if (target instanceof HTMLSelectElement) {
       if (e.shiftKey && e.key.toLowerCase() === 'j') {
         e.preventDefault();
@@ -177,14 +189,13 @@
       </div>
       <input type="text" bind:value={summary} bind:this={summaryEl} />
     </div>
-    <div class="form-row">
+    <div class="form-row form-row-checkbox">
       <div class="form-row-header">
         <span class="field-label">Completed</span>
         <span class="field-shortcut">C</span>
       </div>
-      <label class="inline-flex items-center gap-2 cursor-pointer">
+      <label class="checkbox-label">
         <input type="checkbox" bind:checked={completed} bind:this={completedEl} />
-        <span>Completed</span>
       </label>
     </div>
     <div class="form-row">
@@ -202,25 +213,34 @@
       <textarea bind:value={description} rows="3" bind:this={descriptionEl}></textarea>
     </div>
     <div class="form-actions">
-      <button class="btn btn-primary" onclick={submit} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+      <div class="form-action-with-hint">
+        <button class="btn btn-primary" onclick={submit} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        <span class="action-hint">Ctrl+Enter</span>
+      </div>
       {#if todoId}
-        <button
-          class="btn btn-ghost"
-          type="button"
-          disabled={saving}
-          onclick={async () => {
-            if (!confirm('Delete this todo?')) return;
-            try {
-              await deleteTodo(todoId);
-              onsave();
-              onclose();
-            } catch (e) {
-              error = e instanceof Error ? e.message : 'Failed to delete';
-            }
-          }}
-        >Delete</button>
+        <div class="form-action-with-hint">
+          <button
+            class="btn btn-ghost"
+            type="button"
+            disabled={saving}
+            onclick={async () => {
+              if (!confirm('Delete this todo?')) return;
+              try {
+                await deleteTodo(todoId);
+                onsave();
+                onclose();
+              } catch (e) {
+                error = e instanceof Error ? e.message : 'Failed to delete';
+              }
+            }}
+          >Delete</button>
+          <span class="action-hint">Ctrl+Shift+D</span>
+        </div>
       {/if}
-      <button class="btn btn-ghost" onclick={onclose} type="button">Cancel</button>
+      <div class="form-action-with-hint">
+        <button class="btn btn-ghost" onclick={onclose} type="button">Cancel</button>
+        <span class="action-hint">Esc</span>
+      </div>
     </div>
   </div>
 </div>

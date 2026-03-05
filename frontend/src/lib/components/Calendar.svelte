@@ -71,6 +71,24 @@
     app.setFocusedDayDate(d);
     app.setFocusedDayIndex(idx);
   });
+
+  // Day view: keep focused item index in range; set to 0 when there are items and index was invalid
+  $effect(() => {
+    if (app.calendarView !== 'day') return;
+    const dayEvents = events.filter((e) => {
+      const d = new Date(e.start);
+      return d.getDate() === selectedDate.getDate() && d.getMonth() === selectedDate.getMonth() && d.getFullYear() === selectedDate.getFullYear();
+    });
+    const dayTodos = showTodos ? todosForDay(selectedDate) : [];
+    const dayItems = [...dayEvents.map((e) => ({ type: 'event' as const, event: e, sort: new Date(e.start).getTime() })), ...dayTodos.map((t) => ({ type: 'todo' as const, todo: t, sort: new Date(t.due ?? 0).getTime() }))].sort((a, b) => a.sort - b.sort);
+    if (dayItems.length === 0) {
+      app.setFocusedEventIndex(-1);
+      return;
+    }
+    if (app.focusedEventIndex < 0 || app.focusedEventIndex >= dayItems.length) {
+      app.setFocusedEventIndex(0);
+    }
+  });
 </script>
 
 <div id="calendar-view" class="p-4" role="application" aria-label="Calendar">
@@ -222,7 +240,30 @@
                   class:focused={app.focusedEventIndex === i}
                   class:line-through={item.event.cancelled}
                   tabindex={app.focusedEventIndex === i ? 0 : -1}
+                  data-day-item-index={i}
+                  onfocus={() => app.setFocusedEventIndex(i)}
                   onclick={() => onSelectEvent?.(item.event)}
+                  onkeydown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      onSelectEvent?.(item.event);
+                      return;
+                    }
+                    if (e.key === 'j' || e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      if (i < dayItems.length - 1) {
+                        app.setFocusedEventIndex(i + 1);
+                        (e.currentTarget as HTMLElement).parentElement?.nextElementSibling?.querySelector('[data-day-item-index]')?.focus();
+                      }
+                    }
+                    if (e.key === 'k' || e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      if (i > 0) {
+                        app.setFocusedEventIndex(i - 1);
+                        (e.currentTarget as HTMLElement).parentElement?.previousElementSibling?.querySelector('[data-day-item-index]')?.focus();
+                      }
+                    }
+                  }}
                 >
                   {item.event.all_day ? 'All day' : formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)} – {item.event.title}
                 </button>
@@ -232,7 +273,32 @@
                 <button
                   type="button"
                   class="event-item italic text-[var(--text-muted)]"
+                  class:focused={app.focusedEventIndex === i}
+                  tabindex={app.focusedEventIndex === i ? 0 : -1}
+                  data-day-item-index={i}
+                  onfocus={() => app.setFocusedEventIndex(i)}
                   onclick={() => onSelectTodo?.(item.todo)}
+                  onkeydown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      onSelectTodo?.(item.todo);
+                      return;
+                    }
+                    if (e.key === 'j' || e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      if (i < dayItems.length - 1) {
+                        app.setFocusedEventIndex(i + 1);
+                        (e.currentTarget as HTMLElement).parentElement?.nextElementSibling?.querySelector('[data-day-item-index]')?.focus();
+                      }
+                    }
+                    if (e.key === 'k' || e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      if (i > 0) {
+                        app.setFocusedEventIndex(i - 1);
+                        (e.currentTarget as HTMLElement).parentElement?.previousElementSibling?.querySelector('[data-day-item-index]')?.focus();
+                      }
+                    }
+                  }}
                 >
                   {#if item.todo.completed}
                     <span class="mr-1.5 opacity-70" aria-hidden="true">✓</span>

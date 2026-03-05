@@ -10,10 +10,32 @@
   }
 
   let { todos, onToggle, onSelect }: Props = $props();
+
+  const visibleTodos = $derived(app.showCompletedTodos ? todos : todos.filter((t) => !t.completed));
+
+  // Keep focused index in range when visible list changes
+  $effect(() => {
+    if (visibleTodos.length === 0) {
+      app.setFocusedTodoIndex(-1);
+      return;
+    }
+    if (app.focusedTodoIndex < 0 || app.focusedTodoIndex >= visibleTodos.length) {
+      app.setFocusedTodoIndex(0);
+    }
+  });
 </script>
 
 <div id="todo-view" class="p-4" role="list">
-  {#each todos as todo, i}
+  <div class="flex items-center gap-2 mb-3">
+    <button
+      type="button"
+      class="btn btn-ghost text-sm"
+      onclick={() => app.toggleShowCompletedTodos()}
+    >
+      {app.showCompletedTodos ? 'Hide completed' : 'Show completed'}
+    </button>
+  </div>
+  {#each visibleTodos as todo, i}
     <div
       role="listitem"
       class="todo-item flex items-center gap-2"
@@ -23,9 +45,13 @@
       onclick={() => onSelect?.(todo)}
       onkeydown={(e) => {
         if (e.key === 'Enter') onSelect?.(todo);
+        if (e.key === ' ' || e.key === 'x' || e.key === 'X') {
+          e.preventDefault();
+          onToggle?.(todo);
+        }
         if (e.key === 'j' || e.key === 'ArrowDown') {
           e.preventDefault();
-          if (i < todos.length - 1) {
+          if (i < visibleTodos.length - 1) {
             app.setFocusedTodoIndex(i + 1);
             (e.currentTarget.nextElementSibling as HTMLElement)?.focus();
           }
@@ -55,7 +81,7 @@
       {/if}
     </div>
   {/each}
-  {#if todos.length === 0}
+  {#if visibleTodos.length === 0}
     <p class="text-[var(--text-muted)]">No todos.</p>
   {/if}
 </div>
