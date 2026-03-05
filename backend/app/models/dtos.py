@@ -1,0 +1,89 @@
+from datetime import datetime
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field
+
+
+class Event(BaseModel):
+    id: str
+    source_id: str
+    title: str
+    start: datetime
+    end: datetime
+    all_day: bool = False
+    description: str | None = None
+    recurrence: str | None = None
+    location: str | None = None
+    url: str | None = None
+
+
+class Todo(BaseModel):
+    id: str
+    source_id: str
+    summary: str
+    completed: bool = False
+    due: datetime | None = None
+    description: str | None = None
+    priority: int | None = None
+
+
+SourceType = Literal["ics_url", "local_folder", "caldav"]
+
+
+class Source(BaseModel):
+    id: str
+    type: SourceType
+    name: str
+    enabled: bool = True
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class SourceCreate(BaseModel):
+    type: SourceType
+    name: str
+    enabled: bool = True
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class SourceUpdate(BaseModel):
+    name: str | None = None
+    enabled: bool | None = None
+    config: dict[str, Any] | None = None
+
+
+class EventCreate(BaseModel):
+    source_id: str
+    title: str
+    start: datetime
+    end: datetime
+    all_day: bool = False
+    description: str | None = None
+    location: str | None = None
+    url: str | None = None
+
+
+class EventUpdate(BaseModel):
+    title: str | None = None
+    start: datetime | None = None
+    end: datetime | None = None
+    all_day: bool | None = None
+    description: str | None = None
+    location: str | None = None
+    url: str | None = None
+
+
+class TodoCreate(BaseModel):
+    source_id: str
+    summary: str
+    completed: bool = False
+    due: datetime | None = None
+    description: str | None = None
+    priority: int | None = None
+
+
+class TodoUpdate(BaseModel):
+    summary: str | None = None
+    completed: bool | None = None
+    due: datetime | None = None
+    description: str | None = None
+    priority: int | None = None
