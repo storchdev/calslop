@@ -64,10 +64,14 @@ class CalDAVDriver(SourceDriver):
             try:
                 todo_lists = getattr(principal, "todo_sets", lambda: [])()
                 if not todo_lists and hasattr(principal, "calendars"):
-                    # Some servers put todos in calendars
+                    # Some servers put todos in calendars. Request include_completed=True so completed tasks are returned.
                     for cal in principal.calendars():
                         try:
-                            todos_fetched = getattr(cal, "todos", lambda: [])()
+                            todos_method = getattr(cal, "todos", None) or getattr(cal, "get_todos", None)
+                            if callable(todos_method):
+                                todos_fetched = todos_method(include_completed=True)
+                            else:
+                                todos_fetched = []
                             for t in todos_fetched:
                                 if hasattr(t, "data") and t.data:
                                     ics_data = t.data
@@ -86,7 +90,7 @@ class CalDAVDriver(SourceDriver):
                 else:
                     for ts in todo_lists:
                         try:
-                            todos_fetched = ts.todos()
+                            todos_fetched = ts.todos(include_completed=True) if hasattr(ts, "todos") else []
                             for t in todos_fetched:
                                 if hasattr(t, "data") and t.data:
                                     ics_data = t.data
@@ -196,7 +200,8 @@ class CalDAVDriver(SourceDriver):
         try:
             principal = client.principal()
             for cal in principal.calendars():
-                for t in getattr(cal, "todos", lambda: [])():
+                todos_fn = getattr(cal, "todos", None) or getattr(cal, "get_todos", None)
+                for t in (todos_fn(include_completed=True) if callable(todos_fn) else []):
                     if self._todo_ids_match(todo.id, t):
                         from app.services.ical_utils import todo_to_ical
                         t.icalendar_instance = icalendar.Calendar.from_ical(todo_to_ical(todo))
@@ -204,7 +209,7 @@ class CalDAVDriver(SourceDriver):
                         return todo
             # Also try todo_sets (some servers store todos in task lists, not calendars)
             for ts in getattr(principal, "todo_sets", lambda: [])():
-                for t in getattr(ts, "todos", lambda: [])():
+                for t in (ts.todos(include_completed=True) if hasattr(ts, "todos") else []):
                     if self._todo_ids_match(todo.id, t):
                         from app.services.ical_utils import todo_to_ical
                         t.icalendar_instance = icalendar.Calendar.from_ical(todo_to_ical(todo))
@@ -220,12 +225,14 @@ class CalDAVDriver(SourceDriver):
         try:
             principal = self._get_client(source).principal()
             for cal in principal.calendars():
-                for t in getattr(cal, "todos", lambda: [])():
+                todos_fn = getattr(cal, "todos", None) or getattr(cal, "get_todos", None)
+                cal_todos = (todos_fn(include_completed=True) if callable(todos_fn) else [])
+                for t in cal_todos:
                     if self._todo_ids_match(todo_id, t):
                         t.delete()
                         return True
             for ts in getattr(principal, "todo_sets", lambda: [])():
-                for t in getattr(ts, "todos", lambda: [])():
+                for t in (ts.todos(include_completed=True) if hasattr(ts, "todos") else []):
                     if self._todo_ids_match(todo_id, t):
                         t.delete()
                         return True

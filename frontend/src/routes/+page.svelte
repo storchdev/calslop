@@ -156,7 +156,12 @@
     />
   </div>
 {:else}
-  <TodoList todos={todos} onToggle={handleToggleTodo} onSelect={handleSelectTodo} />
+  <TodoList
+    todos={todos}
+    showCompleted={app.showCompletedTodos}
+    onToggle={handleToggleTodo}
+    onSelect={handleSelectTodo}
+  />
 {/if}
 
 {#if app.hasUnsyncedChanges}

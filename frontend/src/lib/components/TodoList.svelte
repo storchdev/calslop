@@ -5,13 +5,15 @@
 
   interface Props {
     todos: Todo[];
+    showCompleted?: boolean;
     onToggle?: (todo: Todo) => void;
     onSelect?: (todo: Todo) => void;
   }
 
-  let { todos, onToggle, onSelect }: Props = $props();
+  let { todos, showCompleted = true, onToggle, onSelect }: Props = $props();
 
-  const visibleTodos = $derived(app.showCompletedTodos ? todos : todos.filter((t) => !t.completed));
+  const visibleTodos = $derived(showCompleted ? todos : todos.filter((t) => !t.completed));
+  const completedCount = $derived(todos.filter((t) => t.completed).length);
 
   // Keep focused index in range when visible list changes
   $effect(() => {
@@ -33,9 +35,12 @@
       onclick={() => app.toggleShowCompletedTodos()}
       title="Toggle show completed todos (S)"
     >
-      {app.showCompletedTodos ? 'Hide completed' : 'Show completed'}
+      {showCompleted ? 'Hide completed' : 'Show completed'}
     </button>
     <span class="text-xs text-[var(--text-muted)] font-mono">S</span>
+    <span class="text-xs text-[var(--text-muted)]" title="Total and completed count in current data">
+      ({todos.length} total, {completedCount} completed)
+    </span>
   </div>
   {#each visibleTodos as todo, i}
     <div
