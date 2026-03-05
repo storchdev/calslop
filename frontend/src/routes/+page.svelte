@@ -16,6 +16,7 @@
   let loading = $state(false);
   let syncing = $state(false);
   let selectedTodo = $state<Todo | null>(null);
+  let selectedEvent = $state<Event | null>(null);
 
   $effect(() => {
     if (data?.events) events = data.events;
@@ -157,6 +158,7 @@
       todos={todos}
       selectedDate={app.selectedDate}
       onSelectEvent={(ev) => {
+        selectedEvent = ev;
         app.setEditingId(ev.id);
         app.setModalOpen('event');
       }}
@@ -186,7 +188,11 @@
 {/if}
 
 {#if app.modalOpen === 'event'}
-  <EventModal onclose={() => { app.setModalOpen(null); app.setEditingId(null); }} onsave={refresh} />
+  <EventModal
+    initialEvent={selectedEvent}
+    onclose={() => { app.setModalOpen(null); app.setEditingId(null); selectedEvent = null; }}
+    onsave={refresh}
+  />
 {:else if app.modalOpen === 'todo'}
   <TodoModal
     todoId={app.editingId}

@@ -6,11 +6,12 @@
   import { toLocalDatetimeInput } from '$lib/date';
 
   interface Props {
+    initialEvent?: Event | null;
     onclose: () => void;
     onsave: () => void;
   }
 
-  let { onclose, onsave }: Props = $props();
+  let { initialEvent = null, onclose, onsave }: Props = $props();
 
   let title = $state('');
   let start = $state('');
@@ -37,15 +38,26 @@
   $effect(() => {
     const tz = app.timezone || undefined;
     if (editingId) {
-      getEvent(editingId).then((e) => {
-        title = e.title;
-        start = toLocalDatetimeInput(e.start, tz);
-        end = toLocalDatetimeInput(e.end, tz);
-        allDay = e.all_day;
-        description = e.description ?? '';
-        location = e.location ?? '';
-        recurrence = e.recurrence ?? '';
-      });
+      const prefill = initialEvent?.id === editingId ? initialEvent : null;
+      if (prefill) {
+        title = prefill.title;
+        start = toLocalDatetimeInput(prefill.start, tz);
+        end = toLocalDatetimeInput(prefill.end, tz);
+        allDay = prefill.all_day;
+        description = prefill.description ?? '';
+        location = prefill.location ?? '';
+        recurrence = prefill.recurrence ?? '';
+      } else {
+        getEvent(editingId).then((e) => {
+          title = e.title;
+          start = toLocalDatetimeInput(e.start, tz);
+          end = toLocalDatetimeInput(e.end, tz);
+          allDay = e.all_day;
+          description = e.description ?? '';
+          location = e.location ?? '';
+          recurrence = e.recurrence ?? '';
+        });
+      }
     } else {
       const d = app.selectedDate;
       title = '';
