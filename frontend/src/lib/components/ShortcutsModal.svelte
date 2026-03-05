@@ -33,11 +33,13 @@
       <dt class="font-mono font-semibold">L / Right</dt>
       <dd class="m-0">Next day (calendar)</dd>
       <dt class="font-mono font-semibold">J / Down</dt>
-      <dd class="m-0">Month: next week. Day view: next event/todo. Todos: focus next</dd>
+      <dd class="m-0">Month: next week. Day view: next event/todo (jump). Todos: focus next</dd>
       <dt class="font-mono font-semibold">K / Up</dt>
-      <dd class="m-0">Month: previous week. Day view: previous event/todo. Todos: focus prev</dd>
+      <dd class="m-0">Month: previous week. Day view: previous event/todo (jump). Todos: focus prev</dd>
+      <dt class="font-mono font-semibold">j / k</dt>
+      <dd class="m-0">Day view: scroll timeline down / up</dd>
       <dt class="font-mono font-semibold">X or Space</dt>
-      <dd class="m-0">Todos: toggle focused todo completed</dd>
+      <dd class="m-0">Todos / Day view: toggle focused todo completed</dd>
       <dt class="font-mono font-semibold">S</dt>
       <dd class="m-0">Todo view: toggle show/hide completed todos</dd>
       <dt class="font-mono font-semibold">Shift+H/J/K/L</dt>

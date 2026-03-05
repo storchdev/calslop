@@ -5,8 +5,8 @@ export function getTimeZoneOption(tz: string): string | undefined {
   return tz === '' ? undefined : tz;
 }
 
-/** Parse ISO string; if no Z or offset, treat as UTC (backend often sends naive UTC). */
-function parseUtcIfNeeded(iso: string): Date {
+/** Parse ISO string; if no Z or offset, treat as UTC (backend often sends naive UTC). Use for display and timeline positioning. */
+export function parseUtcIfNeeded(iso: string): Date {
   const s = iso.trim();
   if (/z$/i.test(s) || /[+-]\d{2}:?\d{2}$/.test(s)) return new Date(s);
   return new Date(s + 'Z');
@@ -40,6 +40,21 @@ export function formatInTimezone(
 ): string {
   const tz = timeZone && timeZone !== '' ? timeZone : undefined;
   return parseUtcIfNeeded(iso).toLocaleString(undefined, { ...options, timeZone: tz });
+}
+
+/**
+ * Minutes from midnight (00:00) for the given ISO datetime in the specified timezone.
+ * Used for positioning events/todos on the day timeline.
+ */
+export function getMinutesFromMidnight(iso: string, timeZone?: string): number {
+  const d = parseUtcIfNeeded(iso);
+  const tz = timeZone && timeZone !== '' ? timeZone : undefined;
+  const opts: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: 'numeric', hour12: false };
+  if (tz) (opts as { timeZone?: string }).timeZone = tz;
+  const parts = new Intl.DateTimeFormat('en-CA', opts).formatToParts(d);
+  const hour = parseInt(parts.find((p) => p.type === 'hour')?.value ?? '0', 10);
+  const minute = parseInt(parts.find((p) => p.type === 'minute')?.value ?? '0', 10);
+  return hour * 60 + minute;
 }
 
 /**

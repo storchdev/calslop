@@ -39,34 +39,62 @@
     }
     if (app.modalOpen) return; // no other global shortcuts when modal open
 
-    // Day view: j/k move focus between events/todos, Enter opens focused item (work even when focus is not on the list)
+    // Day view: J/K jump between events/todos, j/k scroll timeline, Enter open edit, x toggle todo
     if (app.viewMode === 'calendar' && app.calendarView === 'day') {
       const dayItems = Array.from(document.querySelectorAll('[data-day-item-index]'));
-      if (dayItems.length > 0) {
-        if (key === 'j' || key === 'arrowdown') {
-          e.preventDefault();
+      const scrollEl = document.querySelector('[data-day-timeline-scroll]') as HTMLElement | null;
+      const scrollAmount = 80;
+
+      if (e.key === 'J' || (e.key === 'j' && e.shiftKey)) {
+        e.preventDefault();
+        if (dayItems.length > 0) {
           const curr = app.focusedEventIndex;
           const next = curr < 0 ? 0 : Math.min(curr + 1, dayItems.length - 1);
           app.setFocusedEventIndex(next);
-          (dayItems[next] as HTMLElement)?.focus();
-          return;
+          const el = dayItems[next] as HTMLElement;
+          el?.focus();
+          el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
-        if (key === 'k' || key === 'arrowup') {
-          e.preventDefault();
+        return;
+      }
+      if (e.key === 'K' || (e.key === 'k' && e.shiftKey)) {
+        e.preventDefault();
+        if (dayItems.length > 0) {
           const curr = app.focusedEventIndex;
           const next = curr < 0 ? dayItems.length - 1 : Math.max(0, curr - 1);
           app.setFocusedEventIndex(next);
-          (dayItems[next] as HTMLElement)?.focus();
-          return;
+          const el = dayItems[next] as HTMLElement;
+          el?.focus();
+          el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
-        if (key === 'enter') {
-          const curr = app.focusedEventIndex;
-          if (curr >= 0 && curr < dayItems.length) {
-            e.preventDefault();
-            (dayItems[curr] as HTMLElement)?.click();
-            return;
-          }
+        return;
+      }
+      if (e.key === 'j' && !e.shiftKey) {
+        e.preventDefault();
+        if (scrollEl) scrollEl.scrollTop = Math.min(scrollEl.scrollHeight - scrollEl.clientHeight, scrollEl.scrollTop + scrollAmount);
+        return;
+      }
+      if (e.key === 'k' && !e.shiftKey) {
+        e.preventDefault();
+        if (scrollEl) scrollEl.scrollTop = Math.max(0, scrollEl.scrollTop - scrollAmount);
+        return;
+      }
+      if (e.key === 'x') {
+        const active = document.activeElement as HTMLElement | null;
+        const todoId = active?.getAttribute?.('data-day-item-todo-id');
+        if (todoId) {
+          e.preventDefault();
+          window.dispatchEvent(new CustomEvent('calslop-toggle-day-todo', { detail: { todoId } }));
         }
+        return;
+      }
+      if (key === 'enter' && dayItems.length > 0) {
+        const curr = app.focusedEventIndex;
+        if (curr >= 0 && curr < dayItems.length) {
+          e.preventDefault();
+          (dayItems[curr] as HTMLElement)?.click();
+        }
+        return;
       }
     }
 

@@ -50,6 +50,12 @@
 
   onMount(() => {
     refresh();
+    function onToggleDayTodo(ev: CustomEvent<{ todoId: string }>) {
+      const todo = todos.find((t) => t.id === ev.detail.todoId);
+      if (todo) handleToggleTodo(todo);
+    }
+    window.addEventListener('calslop-toggle-day-todo', onToggleDayTodo as EventListener);
+    return () => window.removeEventListener('calslop-toggle-day-todo', onToggleDayTodo as EventListener);
   });
 
   function handleToggleTodo(todo: Todo) {

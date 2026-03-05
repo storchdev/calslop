@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Event, Todo } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
-  import { formatInTimezone } from '$lib/date';
+  import { formatInTimezone, parseUtcIfNeeded } from '$lib/date';
 
   interface Props {
     events: Event[];
@@ -56,7 +56,7 @@
   function todosForDay(d: Date): Todo[] {
     return todos.filter((t) => {
       if (!t.due) return false;
-      const due = new Date(t.due);
+      const due = parseUtcIfNeeded(t.due);
       return due.getDate() === d.getDate() && due.getMonth() === d.getMonth() && due.getFullYear() === d.getFullYear();
     });
   }
@@ -72,15 +72,65 @@
     app.setFocusedDayIndex(idx);
   });
 
+  const ROW_HEIGHT = 60;
+  const MIN_BLOCK_HEIGHT = 24;
+
+  const dayStartMs = $derived(
+    new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate()).getTime()
+  );
+  const dayEndMs = $derived(dayStartMs + 24 * 60 * 60 * 1000);
+
+  const dayEventsAll = $derived(
+    events.filter((e) => {
+      const start = parseUtcIfNeeded(e.start).getTime();
+      const end = parseUtcIfNeeded(e.end).getTime();
+      return start < dayEndMs && end > dayStartMs;
+    })
+  );
+  const dayTodosAll = $derived(showTodos ? todosForDay(selectedDate) : []);
+
+  const allDayEvents = $derived(dayEventsAll.filter((e) => e.all_day));
+  const timedEvents = $derived(
+    dayEventsAll
+      .filter((e) => !e.all_day)
+      .map((e) => {
+        const startMs = parseUtcIfNeeded(e.start).getTime();
+        const endMs = parseUtcIfNeeded(e.end).getTime();
+        const startMin = Math.max(0, (startMs - dayStartMs) / 60000);
+        const endMin = Math.min(24 * 60, (endMs - dayStartMs) / 60000);
+        return { type: 'event' as const, event: e, startMin, endMin };
+      })
+  );
+
+  function isDueAtMidnight(iso: string): boolean {
+    const d = parseUtcIfNeeded(iso);
+    return d.getUTCHours() === 0 && d.getUTCMinutes() === 0;
+  }
+
+  const allDayTodos = $derived(dayTodosAll.filter((t) => t.due && isDueAtMidnight(t.due)));
+  const timedTodos = $derived(
+    dayTodosAll
+      .filter((t) => t.due && !isDueAtMidnight(t.due))
+      .map((t) => {
+        const dueMs = parseUtcIfNeeded(t.due!).getTime();
+        const startMin = (dueMs - dayStartMs) / 60000;
+        const endMin = Math.min(24 * 60, startMin + 0.25);
+        return { type: 'todo' as const, todo: t, startMin, endMin };
+      })
+  );
+
+  const allDayItems = $derived([
+    ...allDayEvents.map((e) => ({ type: 'event' as const, event: e })),
+    ...allDayTodos.map((t) => ({ type: 'todo' as const, todo: t })),
+  ]);
+  const timedItemsSorted = $derived(
+    [...timedEvents, ...timedTodos].sort((a, b) => a.startMin - b.startMin)
+  );
+  const dayItems = $derived([...allDayItems, ...timedItemsSorted]);
+
   // Day view: keep focused item index in range; set to 0 when there are items and index was invalid
   $effect(() => {
     if (app.calendarView !== 'day') return;
-    const dayEvents = events.filter((e) => {
-      const d = new Date(e.start);
-      return d.getDate() === selectedDate.getDate() && d.getMonth() === selectedDate.getMonth() && d.getFullYear() === selectedDate.getFullYear();
-    });
-    const dayTodos = showTodos ? todosForDay(selectedDate) : [];
-    const dayItems = [...dayEvents.map((e) => ({ type: 'event' as const, event: e, sort: new Date(e.start).getTime() })), ...dayTodos.map((t) => ({ type: 'todo' as const, todo: t, sort: new Date(t.due ?? 0).getTime() }))].sort((a, b) => a.sort - b.sort);
     if (dayItems.length === 0) {
       app.setFocusedEventIndex(-1);
       return;
@@ -173,13 +223,11 @@
                           {item.event.all_day ? '' : formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)} {item.event.title}
                         </div>
                       {:else}
-                        <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center gap-0.5 leading-none" title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
+                        <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center gap-0.5 leading-none italic text-[var(--text-muted)]" class:line-through={item.todo.completed} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
+                          <span class="min-w-0 truncate">{item.todo.due ? formatInTimezone(item.todo.due, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined) : '–'} {item.todo.summary}</span>
                           {#if item.todo.completed}
-                            <span class="opacity-70 shrink-0" aria-hidden="true">✓</span>
-                          {:else}
-                            <span class="opacity-70 border border-current rounded w-3 h-3 inline-block shrink-0" aria-hidden="true"></span>
+                            <span class="opacity-80 shrink-0" aria-hidden="true">✓</span>
                           {/if}
-                          {item.todo.due ? formatInTimezone(item.todo.due, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined) : '–'} {item.todo.summary}
                         </div>
                       {/if}
                     {/each}
@@ -227,100 +275,114 @@
       </div>
     </div>
   {:else}
-    {#if true}
-      {@const dayEvents = events.filter((e) => {
-        const d = new Date(e.start);
-        return d.getDate() === selectedDate.getDate() && d.getMonth() === selectedDate.getMonth() && d.getFullYear() === selectedDate.getFullYear();
-      })}
-      {@const dayTodos = showTodos ? todosForDay(selectedDate) : []}
-      {@const dayItems = [...dayEvents.map((e) => ({ type: 'event' as const, event: e, sort: new Date(e.start).getTime() })), ...dayTodos.map((t) => ({ type: 'todo' as const, todo: t, sort: new Date(t.due ?? 0).getTime() }))].sort((a, b) => a.sort - b.sort)}
-      <div>
-        <h3 class="mb-3">{selectedDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
-        <ul class="list-none p-0 m-0">
-          {#each dayItems as item, i}
-            {#if item.type === 'event'}
-              <li class="mb-1">
+    <!-- Day view: 24h timeline -->
+    <div class="day-view flex flex-col flex-1 min-h-0">
+      <h3 class="day-view-title shrink-0 mb-2">{selectedDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+
+      {#if allDayItems.length > 0}
+        <div class="day-view-allday shrink-0 mb-2">
+          <span class="day-view-allday-label">All day</span>
+          <div class="day-view-allday-items">
+            {#each allDayItems as item, i}
+              {#if item.type === 'event'}
                 <button
                   type="button"
-                  class="event-item"
+                  class="day-event day-event-block"
                   class:focused={app.focusedEventIndex === i}
                   class:line-through={item.event.cancelled}
                   tabindex={app.focusedEventIndex === i ? 0 : -1}
                   data-day-item-index={i}
                   onfocus={() => app.setFocusedEventIndex(i)}
                   onclick={() => onSelectEvent?.(item.event)}
-                  onkeydown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      onSelectEvent?.(item.event);
-                      return;
-                    }
-                    if (e.key === 'j' || e.key === 'ArrowDown') {
-                      e.preventDefault();
-                      if (i < dayItems.length - 1) {
-                        app.setFocusedEventIndex(i + 1);
-                        (e.currentTarget as HTMLElement).parentElement?.nextElementSibling?.querySelector('[data-day-item-index]')?.focus();
-                      }
-                    }
-                    if (e.key === 'k' || e.key === 'ArrowUp') {
-                      e.preventDefault();
-                      if (i > 0) {
-                        app.setFocusedEventIndex(i - 1);
-                        (e.currentTarget as HTMLElement).parentElement?.previousElementSibling?.querySelector('[data-day-item-index]')?.focus();
-                      }
-                    }
-                  }}
                 >
-                  {item.event.all_day ? 'All day' : formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)} – {item.event.title}
+                  {item.event.title}
                 </button>
-              </li>
-            {:else}
-              <li class="mb-1">
+              {:else}
                 <button
                   type="button"
-                  class="event-item italic text-[var(--text-muted)]"
+                  class="day-todo day-todo-block"
                   class:focused={app.focusedEventIndex === i}
+                  class:completed={item.todo.completed}
                   tabindex={app.focusedEventIndex === i ? 0 : -1}
                   data-day-item-index={i}
+                  data-day-item-todo-id={item.todo.id}
                   onfocus={() => app.setFocusedEventIndex(i)}
                   onclick={() => onSelectTodo?.(item.todo)}
-                  onkeydown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      onSelectTodo?.(item.todo);
-                      return;
-                    }
-                    if (e.key === 'j' || e.key === 'ArrowDown') {
-                      e.preventDefault();
-                      if (i < dayItems.length - 1) {
-                        app.setFocusedEventIndex(i + 1);
-                        (e.currentTarget as HTMLElement).parentElement?.nextElementSibling?.querySelector('[data-day-item-index]')?.focus();
-                      }
-                    }
-                    if (e.key === 'k' || e.key === 'ArrowUp') {
-                      e.preventDefault();
-                      if (i > 0) {
-                        app.setFocusedEventIndex(i - 1);
-                        (e.currentTarget as HTMLElement).parentElement?.previousElementSibling?.querySelector('[data-day-item-index]')?.focus();
-                      }
-                    }
-                  }}
                 >
-                  {#if item.todo.completed}
-                    <span class="mr-1.5 opacity-70" aria-hidden="true">✓</span>
-                  {:else}
-                    <span class="mr-1.5 opacity-70 border border-current rounded w-3.5 h-3.5 inline-block shrink-0 align-middle" aria-hidden="true"></span>
-                  {/if}
-                  {formatInTimezone(item.todo.due ?? '', { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)} – {item.todo.summary}
+                  <span class="day-todo-checkbox" aria-hidden="true">
+                    {#if item.todo.completed}✓{:else}<span class="checkbox-empty"></span>{/if}
+                  </span>
+                  <span class="day-todo-label">{item.todo.summary}</span>
                 </button>
-              </li>
+              {/if}
+            {/each}
+          </div>
+        </div>
+      {/if}
+
+      <div class="day-view-timeline-wrap flex-1 min-h-0 flex flex-col" data-day-timeline-scroll>
+        <div class="day-view-timeline" style="height: {24 * ROW_HEIGHT}px;">
+          {#each Array(24) as _, hour}
+            <div class="day-view-hour" style="height: {ROW_HEIGHT}px;">
+              <span class="day-view-hour-label">
+                {hour === 0 ? '12am' : hour < 12 ? `${hour}am` : hour === 12 ? '12pm' : `${hour - 12}pm`}
+              </span>
+            </div>
+          {/each}
+
+          {#each timedItemsSorted as item, idx}
+            {@const i = allDayItems.length + idx}
+            {@const topPx = item.startMin / 60 * ROW_HEIGHT}
+            {@const heightPx = Math.max(MIN_BLOCK_HEIGHT, (item.endMin - item.startMin) / 60 * ROW_HEIGHT)}
+            {#if item.type === 'event'}
+              <button
+                type="button"
+                class="day-event day-event-timed"
+                class:focused={app.focusedEventIndex === i}
+                class:line-through={item.event.cancelled}
+                tabindex={app.focusedEventIndex === i ? 0 : -1}
+                data-day-item-index={i}
+                style="top: {topPx}px; height: {heightPx}px;"
+                onfocus={() => app.setFocusedEventIndex(i)}
+                onclick={() => onSelectEvent?.(item.event)}
+              >
+                <span class="day-event-time">
+                  {formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
+                  {#if item.event.end}
+                    – {formatInTimezone(item.event.end, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
+                  {/if}
+                </span>
+                <span class="day-event-title">{item.event.title}</span>
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="day-todo day-todo-timed"
+                class:focused={app.focusedEventIndex === i}
+                class:completed={item.todo.completed}
+                tabindex={app.focusedEventIndex === i ? 0 : -1}
+                data-day-item-index={i}
+                data-day-item-todo-id={item.todo.id}
+                style="top: {topPx}px; height: {heightPx}px;"
+                onfocus={() => app.setFocusedEventIndex(i)}
+                onclick={() => onSelectTodo?.(item.todo)}
+              >
+                <span class="day-todo-checkbox" aria-hidden="true">
+                  {#if item.todo.completed}✓{:else}<span class="checkbox-empty"></span>{/if}
+                </span>
+                <span class="day-todo-time">
+                  {formatInTimezone(item.todo.due ?? '', { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
+                </span>
+                <span class="day-todo-label">{item.todo.summary}</span>
+              </button>
             {/if}
           {/each}
-        </ul>
-        {#if dayItems.length === 0}
-          <p class="text-[var(--text-muted)]">No events or todos this day.</p>
-        {/if}
+        </div>
       </div>
-    {/if}
+
+      {#if dayItems.length === 0}
+        <p class="text-[var(--text-muted)] shrink-0 mt-2">No events or todos this day.</p>
+      {/if}
+    </div>
   {/if}
 </div>

@@ -156,6 +156,181 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   text-decoration: line-through;
 }
 
+/* Day view timeline */
+.day-view-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.day-view-timeline-wrap {
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.day-view-timeline {
+  position: relative;
+  min-height: 100%;
+}
+
+.day-view-hour {
+  display: flex;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+  padding-left: 0.25rem;
+}
+
+.day-view-hour-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  width: 2.5rem;
+  flex-shrink: 0;
+}
+
+.day-view-allday {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.day-view-allday-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  width: 2.5rem;
+  flex-shrink: 0;
+}
+
+.day-view-allday-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  flex: 1;
+}
+
+.day-event {
+  cursor: pointer;
+  border: none;
+  text-align: left;
+  padding: 0.375rem 0.5rem;
+  border-radius: 4px;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elevated));
+  color: var(--text);
+}
+
+.day-event:hover,
+.day-event.focused {
+  background: color-mix(in srgb, var(--accent) 20%, var(--bg-elevated));
+}
+
+.day-event.focused {
+  box-shadow: var(--focus-ring);
+}
+
+.day-event-block {
+  font-size: 0.875rem;
+}
+
+.day-event-timed {
+  position: absolute;
+  left: 2.75rem;
+  right: 0.5rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.day-event-time {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.day-event-title {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.day-todo {
+  cursor: pointer;
+  border: 1px dashed var(--border);
+  text-align: left;
+  padding: 0.375rem 0.5rem;
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.day-todo:hover,
+.day-todo.focused {
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
+}
+
+.day-todo.focused {
+  box-shadow: var(--focus-ring);
+}
+
+.day-todo.completed .day-todo-label {
+  text-decoration: line-through;
+  opacity: 0.8;
+}
+
+.day-todo-checkbox {
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+}
+
+.day-todo.completed .day-todo-checkbox {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.day-todo-block .day-todo-label {
+  font-size: 0.875rem;
+}
+
+.day-todo-timed {
+  position: absolute;
+  left: 2.75rem;
+  right: 0.5rem;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.day-todo-time {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.day-todo-timed .day-todo-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
