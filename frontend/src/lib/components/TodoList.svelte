@@ -11,11 +11,11 @@
   let { todos, onToggle, onSelect }: Props = $props();
 </script>
 
-<div id="todo-view" class="todo-list" role="list">
+<div id="todo-view" class="p-4" role="list">
   {#each todos as todo, i}
     <div
       role="listitem"
-      class="todo-item"
+      class="todo-item flex items-center gap-2"
       class:completed={todo.completed}
       class:focused={app.focusedTodoIndex === i}
       tabindex={app.focusedTodoIndex === i ? 0 : -1}
@@ -45,45 +45,13 @@
         onclick={(e) => e.stopPropagation()}
         aria-label="Toggle completed"
       />
-      <span class="todo-summary">{todo.summary}</span>
+      <span class="flex-1">{todo.summary}</span>
       {#if todo.due}
-        <span class="todo-due">{new Date(todo.due).toLocaleDateString()}</span>
+        <span class="text-sm text-[var(--text-muted)]">{new Date(todo.due).toLocaleDateString()}</span>
       {/if}
     </div>
   {/each}
   {#if todos.length === 0}
-    <p class="text-muted">No todos.</p>
+    <p class="text-[var(--text-muted)]">No todos.</p>
   {/if}
 </div>
-
-<style>
-  .todo-list {
-    padding: 1rem;
-  }
-  .todo-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: 4px;
-    cursor: pointer;
-    border: 1px solid transparent;
-  }
-  .todo-item:hover,
-  .todo-item:focus {
-    background: var(--bg-elevated);
-  }
-  .todo-item.focused {
-    box-shadow: 0 0 0 2px var(--accent);
-  }
-  .todo-summary {
-    flex: 1;
-  }
-  .todo-due {
-    font-size: 0.875rem;
-    color: var(--text-muted);
-  }
-  .text-muted {
-    color: var(--text-muted);
-  }
-</style>

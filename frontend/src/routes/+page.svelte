@@ -47,10 +47,11 @@
   }
 </script>
 
-<div class="view-switcher">
+<div class="flex gap-2 py-2 px-4 border-b border-[var(--border)]">
   <button
     class="btn btn-ghost"
-    class:active={app.viewMode === 'calendar'}
+    class:bg-[var(--bg-elevated)]={app.viewMode === 'calendar'}
+    class:font-semibold={app.viewMode === 'calendar'}
     onclick={() => app.setViewMode('calendar')}
     type="button"
   >
@@ -58,7 +59,8 @@
   </button>
   <button
     class="btn btn-ghost"
-    class:active={app.viewMode === 'todo'}
+    class:bg-[var(--bg-elevated)]={app.viewMode === 'todo'}
+    class:font-semibold={app.viewMode === 'todo'}
     onclick={() => app.setViewMode('todo')}
     type="button"
   >
@@ -67,7 +69,8 @@
   {#if app.viewMode === 'calendar'}
     <button
       class="btn btn-ghost"
-      class:active={app.calendarView === 'month'}
+      class:bg-[var(--bg-elevated)]={app.calendarView === 'month'}
+      class:font-semibold={app.calendarView === 'month'}
       onclick={() => app.setCalendarView('month')}
       type="button"
     >
@@ -75,7 +78,8 @@
     </button>
     <button
       class="btn btn-ghost"
-      class:active={app.calendarView === 'day'}
+      class:bg-[var(--bg-elevated)]={app.calendarView === 'day'}
+      class:font-semibold={app.calendarView === 'day'}
       onclick={() => app.setCalendarView('day')}
       type="button"
     >
@@ -85,7 +89,7 @@
 </div>
 
 {#if loading}
-  <p class="loading">Loading…</p>
+  <p class="p-4 text-[var(--text-muted)]">Loading…</p>
 {:else if app.viewMode === 'calendar'}
   <Calendar
     events={events}
@@ -110,20 +114,3 @@
 {:else if app.modalOpen === 'shortcuts'}
   <ShortcutsModal onclose={() => app.setModalOpen(null)} />
 {/if}
-
-<style>
-  .view-switcher {
-    display: flex;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    border-bottom: 1px solid var(--border);
-  }
-  .view-switcher .btn.active {
-    background: var(--bg-elevated);
-    font-weight: 600;
-  }
-  .loading {
-    padding: 1rem;
-    color: var(--text-muted);
-  }
-</style>

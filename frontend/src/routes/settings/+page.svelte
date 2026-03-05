@@ -80,28 +80,28 @@
   <title>Settings – Calslop</title>
 </svelte:head>
 
-<div class="settings">
+<div class="p-4 max-w-[600px]">
   <h1>Settings</h1>
   <p><a href="/">← Back to calendar</a></p>
 
   <h2>Calendar &amp; todo sources</h2>
   {#if error}
-    <p class="error">{error}</p>
+    <p class="text-red-600">{error}</p>
   {/if}
   {#if loading}
     <p>Loading…</p>
   {:else}
-    <ul class="sources-list">
+    <ul class="list-none p-0">
       {#each sources as s}
-        <li>
-          <span class="source-name">{s.name}</span>
-          <span class="source-type">{s.type}</span>
+        <li class="flex items-center gap-3 py-2 border-b border-[var(--border)]">
+          <span class="font-semibold">{s.name}</span>
+          <span class="text-[var(--text-muted)] text-sm">{s.type}</span>
           <button class="btn btn-ghost" onclick={() => remove(s.id)} type="button">Remove</button>
         </li>
       {/each}
     </ul>
     {#if adding}
-      <form class="add-form" onsubmit={(e) => { e.preventDefault(); addSource(); }}>
+      <form class="mt-4" onsubmit={(e) => { e.preventDefault(); addSource(); }}>
         <div class="form-row">
           <label for="new-name">Name</label>
           <input id="new-name" type="text" bind:value={newName} placeholder="My calendar" />
@@ -135,34 +135,3 @@
     {/if}
   {/if}
 </div>
-
-<style>
-  .settings {
-    padding: 1rem;
-    max-width: 600px;
-  }
-  .sources-list {
-    list-style: none;
-    padding: 0;
-  }
-  .sources-list li {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .source-name {
-    font-weight: 600;
-  }
-  .source-type {
-    color: var(--text-muted);
-    font-size: 0.875rem;
-  }
-  .add-form {
-    margin-top: 1rem;
-  }
-  .error {
-    color: #dc2626;
-  }
-</style>

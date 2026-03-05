@@ -15,12 +15,22 @@
   let end = $state('');
   let allDay = $state(false);
   let description = $state('');
+  let location = $state('');
+  let recurrence = $state('');
   let sourceId = $state('');
   let sources = $state<{ id: string; name: string; type: string }[]>([]);
   let error = $state('');
   let saving = $state(false);
 
   const editingId = $derived(app.editingId);
+
+  const repeatOptions = [
+    { value: '', label: 'None' },
+    { value: 'FREQ=DAILY', label: 'Daily' },
+    { value: 'FREQ=WEEKLY', label: 'Weekly' },
+    { value: 'FREQ=MONTHLY', label: 'Monthly' },
+    { value: 'FREQ=YEARLY', label: 'Yearly' },
+  ];
 
   $effect(() => {
     if (editingId) {
@@ -30,6 +40,8 @@
         end = e.end.slice(0, 16);
         allDay = e.all_day;
         description = e.description ?? '';
+        location = e.location ?? '';
+        recurrence = e.recurrence ?? '';
       });
     } else {
       const d = app.selectedDate;
@@ -38,6 +50,8 @@
       end = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T10:00`;
       allDay = false;
       description = '';
+      location = '';
+      recurrence = '';
     }
   });
 
@@ -58,13 +72,30 @@
     saving = true;
     try {
       if (editingId) {
-        await updateEvent(editingId, { title: title.trim(), start, end, all_day: allDay, description: description || null });
+        await updateEvent(editingId, {
+          title: title.trim(),
+          start,
+          end,
+          all_day: allDay,
+          description: description || null,
+          location: location.trim() || null,
+          recurrence: recurrence || null,
+        });
       } else {
         if (!sourceId) {
           error = 'Select a calendar source';
           return;
         }
-        await createEvent({ source_id: sourceId, title: title.trim(), start, end, all_day: allDay, description: description || null });
+        await createEvent({
+          source_id: sourceId,
+          title: title.trim(),
+          start,
+          end,
+          all_day: allDay,
+          description: description || null,
+          location: location.trim() || null,
+          recurrence: recurrence || null,
+        });
       }
       onsave();
       onclose();
@@ -84,7 +115,7 @@
   <div class="modal" onclick={(e) => e.stopPropagation()}>
     <h2>{editingId ? 'Edit event' : 'New event'}</h2>
     {#if error}
-      <p class="error">{error}</p>
+      <p class="text-red-600 text-sm">{error}</p>
     {/if}
     {#if !editingId}
       <div class="form-row">
@@ -110,6 +141,18 @@
     </div>
     <div class="form-row">
       <label><input type="checkbox" bind:checked={allDay} /> All day</label>
+    </div>
+    <div class="form-row">
+      <label>Location</label>
+      <input type="text" bind:value={location} placeholder="e.g. Conference room A" />
+    </div>
+    <div class="form-row">
+      <label>Repeat</label>
+      <select bind:value={recurrence}>
+        {#each repeatOptions as opt}
+          <option value={opt.value}>{opt.label}</option>
+        {/each}
+      </select>
     </div>
     <div class="form-row">
       <label>Description</label>
@@ -138,10 +181,3 @@
     </div>
   </div>
 </div>
-
-<style>
-  .error {
-    color: #dc2626;
-    font-size: 0.875rem;
-  }
-</style>

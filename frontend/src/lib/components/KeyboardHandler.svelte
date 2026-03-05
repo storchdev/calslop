@@ -21,13 +21,37 @@
 
   function handleKeydown(e: KeyboardEvent) {
     if (isInputFocused()) return;
-    if (app.modalOpen) return; // no global shortcuts when modal open
 
     const key = e.key.toLowerCase();
     const ctrl = e.ctrlKey;
     const alt = e.altKey;
     const meta = e.metaKey;
     if (ctrl || alt || meta) return; // avoid browser shortcuts
+
+    // Escape closes any open modal (so it works even when modal div doesn't have focus)
+    if (app.modalOpen && key === 'escape') {
+      const was = app.modalOpen;
+      app.setModalOpen(null);
+      if (was === 'event' || was === 'todo') app.setEditingId(null);
+      e.preventDefault();
+      return;
+    }
+    if (app.modalOpen) return; // no other global shortcuts when modal open
+
+    // h/j/k/l and arrows: change selected day in calendar view
+    if (app.viewMode === 'calendar' && !e.repeat) {
+      const d = app.selectedDate;
+      let next: Date | null = null;
+      if (key === 'h' || key === 'arrowleft') next = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
+      if (key === 'l' || key === 'arrowright') next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+      if (key === 'j' || key === 'arrowdown') next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+      if (key === 'k' || key === 'arrowup') next = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
+      if (next) {
+        app.setSelectedDate(next);
+        e.preventDefault();
+        return;
+      }
+    }
 
     switch (key) {
       case '1':

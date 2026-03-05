@@ -50,15 +50,15 @@
   const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 </script>
 
-<div id="calendar-view" class="calendar" role="application" aria-label="Calendar">
+<div id="calendar-view" class="p-4" role="application" aria-label="Calendar">
   {#if app.calendarView === 'month'}
-    <div class="calendar-month">
-      <div class="calendar-weekdays">
+    <div>
+      <div class="grid grid-cols-7 gap-1 mb-1 text-xs text-[var(--text-muted)]">
         {#each dayLabels as label}
-          <span class="calendar-weekday">{label}</span>
+          <span>{label}</span>
         {/each}
       </div>
-      <div class="calendar-grid" role="grid">
+      <div class="grid grid-cols-7 gap-1" role="grid">
         {#each Array(weeks * 7) as _, i}
           {@const d = dateForCell(i)}
           {#if d}
@@ -94,16 +94,16 @@
                 }
               }}
             >
-              <span class="day-num">{d.getDate()}</span>
+              <span class="block font-semibold">{d.getDate()}</span>
               {#each eventsForDay(d).slice(0, 2) as ev}
-                <span class="day-event" title={ev.title}>{ev.title}</span>
+                <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap" title={ev.title}>{ev.title}</span>
               {/each}
               {#if eventsForDay(d).length > 2}
-                <span class="day-more">+{eventsForDay(d).length - 2}</span>
+                <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap">+{eventsForDay(d).length - 2}</span>
               {/if}
             </button>
           {:else}
-            <div class="day-cell empty"></div>
+            <div class="day-cell min-h-[60px] bg-transparent border-none cursor-default"></div>
           {/if}
         {/each}
       </div>
@@ -114,11 +114,11 @@
         const d = new Date(e.start);
         return d.getDate() === selectedDate.getDate() && d.getMonth() === selectedDate.getMonth() && d.getFullYear() === selectedDate.getFullYear();
       })}
-      <div class="calendar-day">
-        <h3>{selectedDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
-        <ul class="day-events-list">
+      <div>
+        <h3 class="mb-3">{selectedDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+        <ul class="list-none p-0 m-0">
           {#each dayEvents as ev, i}
-          <li>
+          <li class="mb-1">
             <button
               type="button"
               class="event-item"
@@ -132,59 +132,9 @@
           {/each}
         </ul>
         {#if dayEvents.length === 0}
-          <p class="text-muted">No events this day.</p>
+          <p class="text-[var(--text-muted)]">No events this day.</p>
         {/if}
       </div>
     {/if}
   {/if}
 </div>
-
-<style>
-  .calendar {
-    padding: 1rem;
-  }
-  .calendar-weekdays {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
-    margin-bottom: 4px;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-  }
-  .calendar-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
-  }
-  .day-cell.empty {
-    min-height: 60px;
-    background: transparent;
-    border: none;
-    cursor: default;
-  }
-  .day-num {
-    display: block;
-    font-weight: 600;
-  }
-  .day-event, .day-more {
-    display: block;
-    font-size: 0.7rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .calendar-day h3 {
-    margin-bottom: 0.75rem;
-  }
-  .day-events-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  .day-events-list li {
-    margin-bottom: 0.25rem;
-  }
-  .text-muted {
-    color: var(--text-muted);
-  }
-</style>

@@ -87,6 +87,7 @@ class LocalFolderDriver(SourceDriver):
             all_day=event.all_day,
             description=event.description,
             location=event.location,
+            recurrence=event.recurrence,
             url=event.url,
         )
         ics_path = path / f"{stem}.ics"

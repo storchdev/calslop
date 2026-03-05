@@ -59,6 +59,7 @@ class EventCreate(BaseModel):
     all_day: bool = False
     description: str | None = None
     location: str | None = None
+    recurrence: str | None = None
     url: str | None = None
 
 
@@ -69,6 +70,7 @@ class EventUpdate(BaseModel):
     all_day: bool | None = None
     description: str | None = None
     location: str | None = None
+    recurrence: str | None = None
     url: str | None = None
 
 

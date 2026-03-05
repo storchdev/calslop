@@ -3,6 +3,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import icalendar
+from icalendar import vRecur
 
 from app.models.dtos import Event, Todo
 
@@ -135,6 +136,12 @@ def event_to_ical(event: Event) -> bytes:
         vevent.add("description", event.description)
     if event.location:
         vevent.add("location", event.location)
+    recurrence = getattr(event, "recurrence", None)
+    if recurrence:
+        try:
+            vevent.add("rrule", vRecur.from_ical(recurrence))
+        except Exception:
+            pass  # skip invalid RRULE
     if event.url:
         vevent.add("url", event.url)
     cal.add_component(vevent)

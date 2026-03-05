@@ -53,6 +53,7 @@ class EventsController(Controller):
             all_day=data.all_day,
             description=data.description,
             location=data.location,
+            recurrence=data.recurrence,
             url=data.url,
         )
         created = driver.create_event(source, event)
@@ -81,6 +82,8 @@ class EventsController(Controller):
             d["description"] = data.description
         if data.location is not None:
             d["location"] = data.location
+        if data.recurrence is not None:
+            d["recurrence"] = data.recurrence
         if data.url is not None:
             d["url"] = data.url
         updated = driver.update_event(source, Event(**d))

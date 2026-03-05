@@ -73,7 +73,7 @@
   <div class="modal" onclick={(e) => e.stopPropagation()}>
     <h2>{todoId ? 'Edit todo' : 'New todo'}</h2>
     {#if error}
-      <p class="error">{error}</p>
+      <p class="text-red-600 text-sm">{error}</p>
     {/if}
     {#if !todoId}
       <div class="form-row">
@@ -123,10 +123,3 @@
     </div>
   </div>
 </div>
-
-<style>
-  .error {
-    color: #dc2626;
-    font-size: 0.875rem;
-  }
-</style>

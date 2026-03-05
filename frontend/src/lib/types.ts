@@ -39,6 +39,7 @@ export interface EventCreate {
   all_day?: boolean;
   description?: string | null;
   location?: string | null;
+  recurrence?: string | null;
   url?: string | null;
 }
 
@@ -49,6 +50,7 @@ export interface EventUpdate {
   all_day?: boolean;
   description?: string | null;
   location?: string | null;
+  recurrence?: string | null;
   url?: string | null;
 }
 
