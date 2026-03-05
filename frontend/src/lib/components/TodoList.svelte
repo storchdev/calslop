@@ -46,8 +46,11 @@
         aria-label="Toggle completed"
       />
       <span class="flex-1">{todo.summary}</span>
+      {#if todo.recurrence}
+        <span class="text-[var(--text-muted)]" title="Repeating" aria-hidden="true">↻</span>
+      {/if}
       {#if todo.due}
-        <span class="text-sm text-[var(--text-muted)]">{new Date(todo.due).toLocaleDateString()}</span>
+        <span class="text-sm text-[var(--text-muted)]">{new Date(todo.due).toLocaleDateString(undefined)}</span>
       {/if}
     </div>
   {/each}

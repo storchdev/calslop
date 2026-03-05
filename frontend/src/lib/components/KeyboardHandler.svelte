@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { app } from '$lib/stores/app.svelte';
+  import { addDays, addMonths } from '$lib/date';
 
   function isInputFocused() {
     if (typeof document === 'undefined') return false;
@@ -38,32 +39,36 @@
     }
     if (app.modalOpen) return; // no other global shortcuts when modal open
 
-    // h/j/k/l and arrows: navigate in calendar view
+    // h/j/k/l and arrows: navigate in calendar view (use calendar math to avoid DST bugs)
     if (app.viewMode === 'calendar' && !e.repeat) {
       const d = app.selectedDate;
       const shift = e.shiftKey;
       const isMonthView = app.calendarView === 'month';
+      const isDayView = app.calendarView === 'day';
       let next: Date | null = null;
 
       if (shift) {
-        // Shift: month in month view, week in day view
         if (isMonthView) {
-          if (key === 'h' || key === 'arrowleft') next = new Date(d.getFullYear(), d.getMonth() - 1, d.getDate());
-          if (key === 'l' || key === 'arrowright') next = new Date(d.getFullYear(), d.getMonth() + 1, d.getDate());
-          if (key === 'j' || key === 'arrowdown') next = new Date(d.getFullYear(), d.getMonth() + 1, d.getDate());
-          if (key === 'k' || key === 'arrowup') next = new Date(d.getFullYear(), d.getMonth() - 1, d.getDate());
+          if (key === 'h' || key === 'arrowleft') next = addMonths(d, -1);
+          if (key === 'l' || key === 'arrowright') next = addMonths(d, 1);
+          if (key === 'j' || key === 'arrowdown') next = addMonths(d, 1);
+          if (key === 'k' || key === 'arrowup') next = addMonths(d, -1);
         } else {
-          if (key === 'h' || key === 'arrowleft') next = new Date(d.getTime() - 7 * 24 * 60 * 60 * 1000);
-          if (key === 'l' || key === 'arrowright') next = new Date(d.getTime() + 7 * 24 * 60 * 60 * 1000);
-          if (key === 'j' || key === 'arrowdown') next = new Date(d.getTime() + 7 * 24 * 60 * 60 * 1000);
-          if (key === 'k' || key === 'arrowup') next = new Date(d.getTime() - 7 * 24 * 60 * 60 * 1000);
+          if (key === 'h' || key === 'arrowleft') next = addDays(d, -7);
+          if (key === 'l' || key === 'arrowright') next = addDays(d, 7);
+          if (key === 'j' || key === 'arrowdown') next = addDays(d, 7);
+          if (key === 'k' || key === 'arrowup') next = addDays(d, -7);
         }
       } else {
-        // No shift: h/l = day, j/k = week
-        if (key === 'h' || key === 'arrowleft') next = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
-        if (key === 'l' || key === 'arrowright') next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
-        if (key === 'j' || key === 'arrowdown') next = new Date(d.getTime() + 7 * 24 * 60 * 60 * 1000);
-        if (key === 'k' || key === 'arrowup') next = new Date(d.getTime() - 7 * 24 * 60 * 60 * 1000);
+        if (key === 'h' || key === 'arrowleft') next = addDays(d, -1);
+        if (key === 'l' || key === 'arrowright') next = addDays(d, 1);
+        if (isDayView) {
+          if (key === 'j' || key === 'arrowdown') next = addDays(d, 1);
+          if (key === 'k' || key === 'arrowup') next = addDays(d, -1);
+        } else {
+          if (key === 'j' || key === 'arrowdown') next = addDays(d, 7);
+          if (key === 'k' || key === 'arrowup') next = addDays(d, -7);
+        }
       }
       if (next) {
         app.setSelectedDate(next);
@@ -89,6 +94,14 @@
         break;
       case 'm':
         if (!e.repeat && app.viewMode === 'calendar') app.setCalendarView('month');
+        e.preventDefault();
+        break;
+      case 'v':
+        if (!e.repeat && app.viewMode === 'calendar') app.cycleCalendarDensity();
+        e.preventDefault();
+        break;
+      case 'y':
+        if (!e.repeat && app.viewMode === 'calendar') app.toggleShowTodosOnCalendar();
         e.preventDefault();
         break;
       case 'g':

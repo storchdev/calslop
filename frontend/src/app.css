@@ -82,11 +82,13 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 }
 
 .day-cell {
+  position: relative;
   min-height: 80px;
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: 4px;
   cursor: pointer;
+  text-align: left;
 }
 
 .day-cell:hover, .day-cell:focus {

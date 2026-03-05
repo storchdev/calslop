@@ -134,6 +134,7 @@ class LocalFolderDriver(SourceDriver):
             due=todo.due,
             description=todo.description,
             priority=todo.priority,
+            recurrence=getattr(todo, "recurrence", None),
         )
         ics_path = path / f"{stem}.ics"
         ics_path.write_bytes(todo_to_ical(new_todo))

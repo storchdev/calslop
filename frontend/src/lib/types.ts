@@ -19,6 +19,7 @@ export interface Todo {
   due?: string | null; // ISO datetime
   description?: string | null;
   priority?: number | null;
+  recurrence?: string | null; // RRULE e.g. FREQ=DAILY
 }
 
 export type SourceType = 'ics_url' | 'local_folder' | 'caldav';
@@ -61,6 +62,7 @@ export interface TodoCreate {
   due?: string | null;
   description?: string | null;
   priority?: number | null;
+  recurrence?: string | null;
 }
 
 export interface TodoUpdate {
@@ -69,4 +71,5 @@ export interface TodoUpdate {
   due?: string | null;
   description?: string | null;
   priority?: number | null;
+  recurrence?: string | null;
 }

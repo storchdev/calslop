@@ -25,6 +25,7 @@ class Todo(BaseModel):
     due: datetime | None = None
     description: str | None = None
     priority: int | None = None
+    recurrence: str | None = None
 
 
 SourceType = Literal["ics_url", "local_folder", "caldav"]
@@ -81,6 +82,7 @@ class TodoCreate(BaseModel):
     due: datetime | None = None
     description: str | None = None
     priority: int | None = None
+    recurrence: str | None = None
 
 
 class TodoUpdate(BaseModel):
@@ -89,3 +91,4 @@ class TodoUpdate(BaseModel):
     due: datetime | None = None
     description: str | None = None
     priority: int | None = None
+    recurrence: str | None = None

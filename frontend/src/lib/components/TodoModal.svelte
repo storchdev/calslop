@@ -98,7 +98,10 @@
       <input type="text" bind:value={summary} />
     </div>
     <div class="form-row">
-      <label><input type="checkbox" bind:checked={completed} /> Completed</label>
+      <label class="inline-flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" bind:checked={completed} />
+        <span>Completed</span>
+      </label>
     </div>
     <div class="form-row">
       <label>Due date</label>

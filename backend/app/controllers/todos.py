@@ -47,6 +47,7 @@ class TodosController(Controller):
             due=data.due,
             description=data.description,
             priority=data.priority,
+            recurrence=data.recurrence,
         )
         created = driver.create_todo(source, todo)
         if not created:
@@ -72,6 +73,8 @@ class TodosController(Controller):
             d["description"] = data.description
         if data.priority is not None:
             d["priority"] = data.priority
+        if data.recurrence is not None:
+            d["recurrence"] = data.recurrence
         updated = driver.update_todo(source, Todo(**d))
         if not updated:
             raise MethodNotAllowedException(detail="Failed to update todo")

@@ -106,6 +106,8 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
         description = str(desc) if desc is not None else None
         priority = component.get("priority")
         priority = int(priority) if priority is not None else None
+        rrule = component.get("rrule")
+        recurrence = rrule.to_ical().decode() if rrule and hasattr(rrule, "to_ical") else None
         todos.append(
             Todo(
                 id=f"{source_id}::{uid}",
@@ -115,6 +117,7 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                 due=due,
                 description=description,
                 priority=priority,
+                recurrence=recurrence,
             )
         )
     return todos
@@ -166,5 +169,11 @@ def todo_to_ical(todo: Todo) -> bytes:
         vtodo.add("description", todo.description)
     if todo.priority is not None:
         vtodo.add("priority", todo.priority)
+    recurrence = getattr(todo, "recurrence", None)
+    if recurrence:
+        try:
+            vtodo.add("rrule", vRecur.from_ical(recurrence))
+        except Exception:
+            pass
     cal.add_component(vtodo)
     return cal.to_ical()

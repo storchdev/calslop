@@ -2,6 +2,7 @@
   import { createEvent, updateEvent, getEvent, deleteEvent } from '$lib/api';
   import type { Event, EventCreate, EventUpdate } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
+  import { toLocalDatetimeInput } from '$lib/date';
 
   interface Props {
     onclose: () => void;
@@ -36,8 +37,8 @@
     if (editingId) {
       getEvent(editingId).then((e) => {
         title = e.title;
-        start = e.start.slice(0, 16);
-        end = e.end.slice(0, 16);
+        start = toLocalDatetimeInput(e.start);
+        end = toLocalDatetimeInput(e.end);
         allDay = e.all_day;
         description = e.description ?? '';
         location = e.location ?? '';
@@ -69,13 +70,15 @@
       error = 'Title is required';
       return;
     }
+    const startIso = new Date(start).toISOString();
+    const endIso = new Date(end).toISOString();
     saving = true;
     try {
       if (editingId) {
         await updateEvent(editingId, {
           title: title.trim(),
-          start,
-          end,
+          start: startIso,
+          end: endIso,
           all_day: allDay,
           description: description || null,
           location: location.trim() || null,
@@ -89,8 +92,8 @@
         await createEvent({
           source_id: sourceId,
           title: title.trim(),
-          start,
-          end,
+          start: startIso,
+          end: endIso,
           all_day: allDay,
           description: description || null,
           location: location.trim() || null,
@@ -140,7 +143,10 @@
       <input type="datetime-local" bind:value={end} disabled={allDay} />
     </div>
     <div class="form-row">
-      <label><input type="checkbox" bind:checked={allDay} /> All day</label>
+      <label class="inline-flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" bind:checked={allDay} />
+        <span>All day</span>
+      </label>
     </div>
     <div class="form-row">
       <label>Location</label>

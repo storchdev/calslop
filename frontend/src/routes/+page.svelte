@@ -117,14 +117,42 @@
 {#if loading}
   <p class="p-4 text-[var(--text-muted)]">Loading…</p>
 {:else if app.viewMode === 'calendar'}
-  <Calendar
-    events={events}
-    selectedDate={app.selectedDate}
-    onSelectEvent={(ev) => {
-      app.setEditingId(ev.id);
-      app.setModalOpen('event');
-    }}
-  />
+  <div class="flex flex-col gap-2">
+    <div class="flex flex-wrap items-center gap-2 px-4">
+      <label class="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+        <span>View:</span>
+        <select
+          class="rounded border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-sm text-[var(--text)]"
+          value={app.calendarDensity}
+          onchange={(e) => app.setCalendarDensity((e.currentTarget as HTMLSelectElement).value as 'minimal' | 'balanced' | 'dense')}
+        >
+          <option value="minimal">Minimal</option>
+          <option value="balanced">Balanced</option>
+          <option value="dense">Dense</option>
+        </select>
+      </label>
+      {#if app.calendarDensity !== 'minimal'}
+        <label class="inline-flex items-center gap-2 cursor-pointer text-sm">
+          <input type="checkbox" checked={app.showTodosOnCalendar} onchange={() => app.toggleShowTodosOnCalendar()} />
+          <span>Show todos on calendar</span>
+        </label>
+      {/if}
+    </div>
+    <Calendar
+      events={events}
+      todos={todos}
+      selectedDate={app.selectedDate}
+      onSelectEvent={(ev) => {
+        app.setEditingId(ev.id);
+        app.setModalOpen('event');
+      }}
+      onSelectTodo={(todo) => {
+        selectedTodo = todo;
+        app.setEditingId(todo.id);
+        app.setModalOpen('todo');
+      }}
+    />
+  </div>
 {:else}
   <TodoList todos={todos} onToggle={handleToggleTodo} onSelect={handleSelectTodo} />
 {/if}

@@ -3,10 +3,13 @@
  */
 export type ViewMode = 'calendar' | 'todo';
 export type CalendarView = 'day' | 'month';
+export type CalendarDensity = 'minimal' | 'balanced' | 'dense';
 
 class AppStore {
   viewMode = $state<ViewMode>('calendar');
   calendarView = $state<CalendarView>('month');
+  calendarDensity = $state<CalendarDensity>('balanced');
+  showTodosOnCalendar = $state<boolean>(true);
   selectedDate = $state<Date>(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   focusedEventIndex = $state<number>(-1);
   focusedTodoIndex = $state<number>(-1);
@@ -20,6 +23,24 @@ class AppStore {
 
   setCalendarView(cv: CalendarView) {
     this.calendarView = cv;
+  }
+
+  setCalendarDensity(density: CalendarDensity) {
+    this.calendarDensity = density;
+  }
+
+  cycleCalendarDensity() {
+    const order: CalendarDensity[] = ['minimal', 'balanced', 'dense'];
+    const i = order.indexOf(this.calendarDensity);
+    this.calendarDensity = order[(i + 1) % order.length];
+  }
+
+  setShowTodosOnCalendar(show: boolean) {
+    this.showTodosOnCalendar = show;
+  }
+
+  toggleShowTodosOnCalendar() {
+    this.showTodosOnCalendar = !this.showTodosOnCalendar;
   }
 
   setSelectedDate(d: Date) {
