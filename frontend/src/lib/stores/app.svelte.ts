@@ -16,6 +16,7 @@ class AppStore {
   focusedDayIndex = $state<number>(-1);
   modalOpen = $state<'event' | 'todo' | 'shortcuts' | null>(null);
   editingId = $state<string | null>(null);
+  hasUnsyncedChanges = $state(false);
 
   setViewMode(mode: ViewMode) {
     this.viewMode = mode;
@@ -69,6 +70,10 @@ class AppStore {
 
   setEditingId(id: string | null) {
     this.editingId = id;
+  }
+
+  setUnsyncedChanges(unsynced: boolean) {
+    this.hasUnsyncedChanges = unsynced;
   }
 
   resetFocus() {

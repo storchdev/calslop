@@ -68,6 +68,8 @@ def parse_events_from_ical(ical_text: str | bytes, source_id: str) -> list[Event
         location = str(location) if location is not None else None
         url_val = component.get("url")
         url = str(url_val) if url_val is not None else None
+        status = (component.get("status") or "").upper()
+        cancelled = status == "CANCELLED"
         events.append(
             Event(
                 id=f"{source_id}::{uid}",
@@ -80,6 +82,7 @@ def parse_events_from_ical(ical_text: str | bytes, source_id: str) -> list[Event
                 recurrence=None,  # Could parse RRULE if needed
                 location=location,
                 url=url,
+                cancelled=cancelled,
             )
         )
     return events

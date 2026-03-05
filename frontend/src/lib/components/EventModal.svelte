@@ -109,8 +109,51 @@
     }
   }
 
+  let titleEl: HTMLInputElement | undefined;
+  let startEl: HTMLInputElement | undefined;
+  let endEl: HTMLInputElement | undefined;
+  let allDayEl: HTMLInputElement | undefined;
+  let locationEl: HTMLInputElement | undefined;
+  let recurrenceEl: HTMLSelectElement | undefined;
+  let descriptionEl: HTMLTextAreaElement | undefined;
+  let sourceIdEl: HTMLSelectElement | undefined;
+
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') onclose();
+    if (e.key === 'Escape') {
+      onclose();
+      return;
+    }
+    if (e.ctrlKey && e.key === 'Enter') {
+      e.preventDefault();
+      submit();
+      return;
+    }
+    const key = e.key.toLowerCase();
+    if (key === 't') {
+      e.preventDefault();
+      titleEl?.focus();
+    } else if (key === 's') {
+      e.preventDefault();
+      startEl?.focus();
+    } else if (key === 'e') {
+      e.preventDefault();
+      endEl?.focus();
+    } else if (key === 'a') {
+      e.preventDefault();
+      allDayEl?.focus();
+    } else if (key === 'l') {
+      e.preventDefault();
+      locationEl?.focus();
+    } else if (key === 'r') {
+      e.preventDefault();
+      recurrenceEl?.focus();
+    } else if (key === 'd') {
+      e.preventDefault();
+      descriptionEl?.focus();
+    } else if (key === 'c' && sourceIdEl) {
+      e.preventDefault();
+      sourceIdEl.focus();
+    }
   }
 </script>
 
@@ -122,8 +165,11 @@
     {/if}
     {#if !editingId}
       <div class="form-row">
-        <label>Calendar</label>
-        <select bind:value={sourceId}>
+        <div class="form-row-header">
+          <span class="field-label">Calendar</span>
+          <span class="field-shortcut">C</span>
+        </div>
+        <select bind:value={sourceId} bind:this={sourceIdEl}>
           {#each sources as s}
             <option value={s.id}>{s.name}</option>
           {/each}
@@ -131,38 +177,60 @@
       </div>
     {/if}
     <div class="form-row">
-      <label>Title</label>
-      <input type="text" bind:value={title} />
+      <div class="form-row-header">
+        <span class="field-label">Title</span>
+        <span class="field-shortcut">T</span>
+      </div>
+      <input type="text" bind:value={title} bind:this={titleEl} />
     </div>
     <div class="form-row">
-      <label>Start</label>
-      <input type="datetime-local" bind:value={start} disabled={allDay} />
+      <div class="form-row-header">
+        <span class="field-label">Start</span>
+        <span class="field-shortcut">S</span>
+      </div>
+      <input type="datetime-local" bind:value={start} disabled={allDay} bind:this={startEl} />
     </div>
     <div class="form-row">
-      <label>End</label>
-      <input type="datetime-local" bind:value={end} disabled={allDay} />
+      <div class="form-row-header">
+        <span class="field-label">End</span>
+        <span class="field-shortcut">E</span>
+      </div>
+      <input type="datetime-local" bind:value={end} disabled={allDay} bind:this={endEl} />
     </div>
     <div class="form-row">
+      <div class="form-row-header">
+        <span class="field-label">All day</span>
+        <span class="field-shortcut">A</span>
+      </div>
       <label class="inline-flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" bind:checked={allDay} />
+        <input type="checkbox" bind:checked={allDay} bind:this={allDayEl} />
         <span>All day</span>
       </label>
     </div>
     <div class="form-row">
-      <label>Location</label>
-      <input type="text" bind:value={location} placeholder="e.g. Conference room A" />
+      <div class="form-row-header">
+        <span class="field-label">Location</span>
+        <span class="field-shortcut">L</span>
+      </div>
+      <input type="text" bind:value={location} placeholder="e.g. Conference room A" bind:this={locationEl} />
     </div>
     <div class="form-row">
-      <label>Repeat</label>
-      <select bind:value={recurrence}>
+      <div class="form-row-header">
+        <span class="field-label">Repeat</span>
+        <span class="field-shortcut">R</span>
+      </div>
+      <select bind:value={recurrence} bind:this={recurrenceEl}>
         {#each repeatOptions as opt}
           <option value={opt.value}>{opt.label}</option>
         {/each}
       </select>
     </div>
     <div class="form-row">
-      <label>Description</label>
-      <textarea bind:value={description} rows="3"></textarea>
+      <div class="form-row-header">
+        <span class="field-label">Description</span>
+        <span class="field-shortcut">D</span>
+      </div>
+      <textarea bind:value={description} rows="3" bind:this={descriptionEl}></textarea>
     </div>
     <div class="form-actions">
       <button class="btn btn-primary" onclick={submit} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>

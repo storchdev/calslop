@@ -20,7 +20,7 @@ class TodosController(Controller):
         _, todos, _ = aggregate_events_todos(sources)
         return todos
 
-    @get("/{todo_id:str}")
+    @get("/{todo_id:path}")
     async def get_todo(self, todo_id: str) -> Todo:
         store = get_sources_store()
         sources = store.list_sources()
@@ -54,7 +54,7 @@ class TodosController(Controller):
             raise MethodNotAllowedException(detail="Failed to create todo")
         return created
 
-    @patch("/{todo_id:str}")
+    @patch("/{todo_id:path}")
     async def update_todo(self, todo_id: str, data: TodoUpdate) -> Todo:
         store = get_sources_store()
         sources = store.list_sources()
@@ -80,7 +80,7 @@ class TodosController(Controller):
             raise MethodNotAllowedException(detail="Failed to update todo")
         return updated
 
-    @delete("/{todo_id:str}")
+    @delete("/{todo_id:path}")
     async def delete_todo(self, todo_id: str) -> None:
         store = get_sources_store()
         sources = store.list_sources()

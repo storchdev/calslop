@@ -15,6 +15,7 @@ class Event(BaseModel):
     recurrence: str | None = None
     location: str | None = None
     url: str | None = None
+    cancelled: bool = False
 
 
 class Todo(BaseModel):

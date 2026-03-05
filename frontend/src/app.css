@@ -91,6 +91,11 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   text-align: left;
 }
 
+.day-cell .day-num-centered {
+  text-align: center;
+  display: block;
+}
+
 .day-cell:hover, .day-cell:focus {
   background: var(--bg-elevated);
 }
@@ -161,6 +166,24 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   font-size: 0.875rem;
 }
 
+.form-row .form-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.25rem;
+}
+
+.form-row .form-row-header .field-label {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.form-row .form-row-header .field-shortcut {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
 .form-row input, .form-row textarea, .form-row select {
   width: 100%;
   padding: 0.5rem;
@@ -206,6 +229,19 @@ select, select option {
 
 .btn-ghost:hover {
   background: var(--bg-elevated);
+}
+
+.unsynced-notifier {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 0.5rem 1rem;
+  background: var(--accent);
+  color: white;
+  font-size: 0.875rem;
+  text-align: center;
+  z-index: 50;
 }
 
 .toolbar {

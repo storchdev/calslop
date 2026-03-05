@@ -50,7 +50,7 @@
         <span class="text-[var(--text-muted)]" title="Repeating" aria-hidden="true">↻</span>
       {/if}
       {#if todo.due}
-        <span class="text-sm text-[var(--text-muted)]">{new Date(todo.due).toLocaleDateString(undefined)}</span>
+        <span class="text-sm text-[var(--text-muted)]">{new Date(todo.due).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</span>
       {/if}
     </div>
   {/each}

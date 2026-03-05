@@ -111,7 +111,7 @@
               }}
             >
               {#if density === 'minimal'}
-                <span class="block text-2xl font-semibold">{d.getDate()}</span>
+                <span class="day-num-centered block text-2xl font-semibold">{d.getDate()}</span>
               {:else if density === 'dense'}
                 {@const evs = eventsForDay(d)}
                 {@const tds = showTodos ? todosForDay(d) : []}
@@ -124,25 +124,50 @@
                 <div class="absolute top-1 left-6 right-1 bottom-1 overflow-hidden text-left">
                   {#each combined as item}
                     {#if item.kind === 'event'}
-                      <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap" title={item.event.title}>
+                      <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap" class:line-through={item.event.cancelled} title={item.event.title}>
                         {item.event.all_day ? '' : new Date(item.event.start).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} {item.event.title}
                       </div>
                     {:else}
                       <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center gap-0.5" title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
-                        <span class="opacity-70" aria-hidden="true">✓</span> {item.todo.summary}
+                        {#if item.todo.completed}
+                          <span class="opacity-70" aria-hidden="true">✓</span>
+                        {:else}
+                          <span class="opacity-70 border border-current rounded w-3 h-3 inline-block shrink-0" aria-hidden="true"></span>
+                        {/if}
+                        {item.todo.summary}
                       </div>
                     {/if}
                   {/each}
                 </div>
               {:else}
-                <!-- balanced -->
-                <span class="block font-semibold">{d.getDate()}</span>
-                {#each eventsForDay(d).slice(0, 2) as ev}
-                  <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap" title={ev.title}>{ev.title}</span>
+                <!-- balanced: events and todos combined, show up to 2 items; (+N) only when truncated -->
+                {@const evs = eventsForDay(d)}
+                {@const tds = showTodos ? todosForDay(d) : []}
+                {@const combined = [...evs.map((e) => ({ kind: 'event' as const, event: e })), ...tds.map((t) => ({ kind: 'todo' as const, todo: t }))].sort((a, b) => {
+                  const at = a.kind === 'event' ? new Date(a.event.start).getTime() : new Date(a.todo.due ?? 0).getTime();
+                  const bt = b.kind === 'event' ? new Date(b.event.start).getTime() : new Date(b.todo.due ?? 0).getTime();
+                  return at - bt;
+                })}
+                {@const visible = combined.slice(0, 2)}
+                {@const hasMore = combined.length > 2}
+                <span class="day-num-centered block font-semibold">{d.getDate()}</span>
+                {#each visible as item}
+                  {#if item.kind === 'event'}
+                    <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap" class:line-through={item.event.cancelled} title={item.event.title}>{item.event.title}</span>
+                  {:else}
+                    <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center gap-0.5" title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
+                      {#if item.todo.completed}
+                        <span class="opacity-70" aria-hidden="true">✓</span>
+                      {:else}
+                        <span class="opacity-70 border border-current rounded w-3 h-3 inline-block shrink-0" aria-hidden="true"></span>
+                      {/if}
+                      {item.todo.summary}
+                    </span>
+                  {/if}
                 {/each}
-                {#if eventsForDay(d).length > 2 || (showTodos && todosForDay(d).length > 0)}
-                  <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap">
-                    {[eventsForDay(d).length > 2 ? `+${eventsForDay(d).length - 2} events` : null, showTodos && todosForDay(d).length > 0 ? `+${todosForDay(d).length} todos` : null].filter(Boolean).join(', ')}
+                {#if hasMore}
+                  <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap text-[var(--text-muted)]">
+                    +{combined.length - 2} more
                   </span>
                 {/if}
               {/if}
@@ -171,6 +196,7 @@
                   type="button"
                   class="event-item"
                   class:focused={app.focusedEventIndex === i}
+                  class:line-through={item.event.cancelled}
                   tabindex={app.focusedEventIndex === i ? 0 : -1}
                   onclick={() => onSelectEvent?.(item.event)}
                 >
@@ -184,7 +210,11 @@
                   class="event-item italic text-[var(--text-muted)]"
                   onclick={() => onSelectTodo?.(item.todo)}
                 >
-                  <span class="mr-1.5 opacity-70" aria-hidden="true">✓</span>
+                  {#if item.todo.completed}
+                    <span class="mr-1.5 opacity-70" aria-hidden="true">✓</span>
+                  {:else}
+                    <span class="mr-1.5 opacity-70 border border-current rounded w-3.5 h-3.5 inline-block shrink-0 align-middle" aria-hidden="true"></span>
+                  {/if}
                   {new Date(item.todo.due ?? 0).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} – {item.todo.summary}
                 </button>
               </li>

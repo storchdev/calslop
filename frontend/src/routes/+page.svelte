@@ -32,6 +32,7 @@
       const [e, t] = await Promise.all([getEvents(start, end), getTodos()]);
       events = e;
       todos = t;
+      app.setUnsyncedChanges(false);
     } finally {
       loading = false;
     }
@@ -54,6 +55,7 @@
   function handleToggleTodo(todo: Todo) {
     updateTodo(todo.id, { completed: !todo.completed }).then(() => {
       todos = todos.map((t) => (t.id === todo.id ? { ...t, completed: !todo.completed } : t));
+      app.setUnsyncedChanges(true);
     });
   }
 
@@ -155,6 +157,12 @@
   </div>
 {:else}
   <TodoList todos={todos} onToggle={handleToggleTodo} onSelect={handleSelectTodo} />
+{/if}
+
+{#if app.hasUnsyncedChanges}
+  <div class="unsynced-notifier" role="status">
+    Unsaved changes — Sync or refresh to update
+  </div>
 {/if}
 
 {#if app.modalOpen === 'event'}

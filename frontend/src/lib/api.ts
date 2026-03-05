@@ -14,6 +14,10 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error((err as { detail?: string }).detail || res.statusText);
   }
+  // 204 No Content has no body
+  if (res.status === 204) {
+    return undefined as T;
+  }
   return res.json();
 }
 

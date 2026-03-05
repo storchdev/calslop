@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createTodo, updateTodo, getTodo, getSources, deleteTodo } from '$lib/api';
   import type { Todo, TodoCreate, TodoUpdate } from '$lib/types';
-  import { app } from '$lib/stores/app.svelte';
+  import { toLocalDatetimeInput } from '$lib/date';
 
   interface Props {
     todoId: string | null;
@@ -26,14 +26,14 @@
       if (initialTodo && initialTodo.id === todoId) {
         summary = initialTodo.summary;
         completed = initialTodo.completed;
-        due = initialTodo.due ? initialTodo.due.slice(0, 10) : '';
+        due = initialTodo.due ? toLocalDatetimeInput(initialTodo.due) : '';
         description = initialTodo.description ?? '';
         return;
       }
       getTodo(todoId).then((t) => {
         summary = t.summary;
         completed = t.completed;
-        due = t.due ? t.due.slice(0, 10) : '';
+        due = t.due ? toLocalDatetimeInput(t.due) : '';
         description = t.description ?? '';
       });
     }
@@ -55,13 +55,13 @@
     saving = true;
     try {
       if (todoId) {
-        await updateTodo(todoId, { summary: summary.trim(), completed, due: due || null, description: description || null });
+        await updateTodo(todoId, { summary: summary.trim(), completed, due: due ? new Date(due).toISOString() : null, description: description || null });
       } else {
         if (!sourceId) {
           error = 'Select a todo source';
           return;
         }
-        await createTodo({ source_id: sourceId, summary: summary.trim(), completed, due: due || null, description: description || null });
+        await createTodo({ source_id: sourceId, summary: summary.trim(), completed, due: due ? new Date(due).toISOString() : null, description: description || null });
       }
       onsave();
       onclose();
@@ -72,8 +72,39 @@
     }
   }
 
+  let summaryEl: HTMLInputElement | undefined;
+  let completedEl: HTMLInputElement | undefined;
+  let dueEl: HTMLInputElement | undefined;
+  let descriptionEl: HTMLTextAreaElement | undefined;
+  let sourceIdEl: HTMLSelectElement | undefined;
+
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') onclose();
+    if (e.key === 'Escape') {
+      onclose();
+      return;
+    }
+    if (e.ctrlKey && e.key === 'Enter') {
+      e.preventDefault();
+      submit();
+      return;
+    }
+    const key = e.key.toLowerCase();
+    if (key === 's') {
+      e.preventDefault();
+      summaryEl?.focus();
+    } else if (key === 'c') {
+      e.preventDefault();
+      completedEl?.focus();
+    } else if (key === 'u') {
+      e.preventDefault();
+      dueEl?.focus();
+    } else if (key === 'd') {
+      e.preventDefault();
+      descriptionEl?.focus();
+    } else if (key === 'l' && sourceIdEl) {
+      e.preventDefault();
+      sourceIdEl.focus();
+    }
   }
 </script>
 
@@ -85,8 +116,11 @@
     {/if}
     {#if !todoId}
       <div class="form-row">
-        <label>List</label>
-        <select bind:value={sourceId}>
+        <div class="form-row-header">
+          <span class="field-label">List</span>
+          <span class="field-shortcut">L</span>
+        </div>
+        <select bind:value={sourceId} bind:this={sourceIdEl}>
           {#each sources as s}
             <option value={s.id}>{s.name}</option>
           {/each}
@@ -94,22 +128,35 @@
       </div>
     {/if}
     <div class="form-row">
-      <label>Summary</label>
-      <input type="text" bind:value={summary} />
+      <div class="form-row-header">
+        <span class="field-label">Summary</span>
+        <span class="field-shortcut">S</span>
+      </div>
+      <input type="text" bind:value={summary} bind:this={summaryEl} />
     </div>
     <div class="form-row">
+      <div class="form-row-header">
+        <span class="field-label">Completed</span>
+        <span class="field-shortcut">C</span>
+      </div>
       <label class="inline-flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" bind:checked={completed} />
+        <input type="checkbox" bind:checked={completed} bind:this={completedEl} />
         <span>Completed</span>
       </label>
     </div>
     <div class="form-row">
-      <label>Due date</label>
-      <input type="date" bind:value={due} />
+      <div class="form-row-header">
+        <span class="field-label">Due date</span>
+        <span class="field-shortcut">U</span>
+      </div>
+      <input type="datetime-local" bind:value={due} bind:this={dueEl} />
     </div>
     <div class="form-row">
-      <label>Description</label>
-      <textarea bind:value={description} rows="3"></textarea>
+      <div class="form-row-header">
+        <span class="field-label">Description</span>
+        <span class="field-shortcut">D</span>
+      </div>
+      <textarea bind:value={description} rows="3" bind:this={descriptionEl}></textarea>
     </div>
     <div class="form-actions">
       <button class="btn btn-primary" onclick={submit} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>

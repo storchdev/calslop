@@ -17,7 +17,7 @@ class SourcesController(Controller):
         store = get_sources_store()
         return store.list_sources()
 
-    @get("/{source_id:str}")
+    @get("/{source_id:path}")
     async def get_source(self, source_id: str) -> Source:
         store = get_sources_store()
         s = store.get_source(source_id)
@@ -30,7 +30,7 @@ class SourcesController(Controller):
         store = get_sources_store()
         return store.add_source(data)
 
-    @put("/{source_id:str}")
+    @put("/{source_id:path}")
     async def update_source(self, source_id: str, data: SourceUpdate) -> Source:
         store = get_sources_store()
         s = store.update_source(source_id, data)
@@ -38,7 +38,7 @@ class SourcesController(Controller):
             raise NotFoundException(detail="Source not found")
         return s
 
-    @delete("/{source_id:str}")
+    @delete("/{source_id:path}")
     async def delete_source(self, source_id: str) -> None:
         store = get_sources_store()
         if not store.delete_source(source_id):

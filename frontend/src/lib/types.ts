@@ -9,6 +9,7 @@ export interface Event {
   recurrence?: string | null;
   location?: string | null;
   url?: string | null;
+  cancelled?: boolean;
 }
 
 export interface Todo {
