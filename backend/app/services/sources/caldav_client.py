@@ -1,6 +1,7 @@
 from datetime import datetime
 
 import caldav
+import icalendar
 from caldav.elements import dav
 
 from app.models.dtos import Event, Source, Todo
@@ -132,18 +133,26 @@ class CalDAVDriver(SourceDriver):
 
     def update_event(self, source: Source, event: Event) -> Event | None:
         # CalDAV update: fetch event by id, save back with new data
+        client = self._get_client(source)
+        if not client:
+            raise ValueError("CalDAV connection failed (check URL and credentials)")
         try:
-            principal = self._get_client(source).principal()
+            principal = client.principal()
             for cal in principal.calendars():
                 events = cal.events()
                 for ev in events:
-                    if hasattr(ev, "id") and event.id.endswith(str(ev.id)):
+                    ev_id = str(getattr(ev, "id", ""))
+                    uid = event.id.split("::")[-1] if "::" in event.id else event.id
+                    if ev_id and (event.id.endswith(ev_id) or uid in ev_id or ev_id.endswith(uid)):
                         from app.services.ical_utils import event_to_ical
-                        ev.save(icalendar=event_to_ical(event).decode("utf-8"))
+                        ev.icalendar_instance = icalendar.Calendar.from_ical(event_to_ical(event))
+                        ev.save()
                         return event
-        except Exception:
-            pass
-        return None
+            raise ValueError("Event not found on CalDAV server")
+        except ValueError:
+            raise
+        except Exception as e:
+            raise ValueError(f"CalDAV update failed: {e}") from e
 
     def delete_event(self, source: Source, event_id: str) -> bool:
         try:
@@ -171,25 +180,53 @@ class CalDAVDriver(SourceDriver):
             pass
         return None
 
+    def _todo_ids_match(self, our_id: str, caldav_todo) -> bool:
+        """Match our todo id (source_id::uid) against CalDAV object id/url."""
+        uid = our_id.split("::")[-1] if ("::" in our_id and our_id) else our_id
+        if not uid:
+            return False
+        t_id = str(getattr(caldav_todo, "id", "") or "")
+        t_url = str(getattr(caldav_todo, "url", "") or "")
+        return our_id in t_id or our_id in t_url or uid in t_id or uid in t_url
+
     def update_todo(self, source: Source, todo: Todo) -> Todo | None:
+        client = self._get_client(source)
+        if not client:
+            raise ValueError("CalDAV connection failed (check URL and credentials)")
         try:
-            principal = self._get_client(source).principal()
+            principal = client.principal()
             for cal in principal.calendars():
                 for t in getattr(cal, "todos", lambda: [])():
-                    if todo.id in str(getattr(t, "id", "")):
+                    if self._todo_ids_match(todo.id, t):
                         from app.services.ical_utils import todo_to_ical
-                        t.save(icalendar=todo_to_ical(todo).decode("utf-8"))
+                        t.icalendar_instance = icalendar.Calendar.from_ical(todo_to_ical(todo))
+                        t.save()
                         return todo
-        except Exception:
-            pass
-        return None
+            # Also try todo_sets (some servers store todos in task lists, not calendars)
+            for ts in getattr(principal, "todo_sets", lambda: [])():
+                for t in getattr(ts, "todos", lambda: [])():
+                    if self._todo_ids_match(todo.id, t):
+                        from app.services.ical_utils import todo_to_ical
+                        t.icalendar_instance = icalendar.Calendar.from_ical(todo_to_ical(todo))
+                        t.save()
+                        return todo
+            raise ValueError("Todo not found on CalDAV server")
+        except ValueError:
+            raise
+        except Exception as e:
+            raise ValueError(f"CalDAV todo update failed: {e}") from e
 
     def delete_todo(self, source: Source, todo_id: str) -> bool:
         try:
             principal = self._get_client(source).principal()
             for cal in principal.calendars():
                 for t in getattr(cal, "todos", lambda: [])():
-                    if todo_id in str(getattr(t, "id", "")):
+                    if self._todo_ids_match(todo_id, t):
+                        t.delete()
+                        return True
+            for ts in getattr(principal, "todo_sets", lambda: [])():
+                for t in getattr(ts, "todos", lambda: [])():
+                    if self._todo_ids_match(todo_id, t):
                         t.delete()
                         return True
         except Exception:

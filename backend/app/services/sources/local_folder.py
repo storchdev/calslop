@@ -97,11 +97,11 @@ class LocalFolderDriver(SourceDriver):
     def update_event(self, source: Source, event: Event) -> Event | None:
         res = self._path_and_stem(source, event.id)
         if not res:
-            return None
+            raise ValueError("Invalid event id for local source")
         path, stem = res
         ics_path = path / f"{stem}.ics"
         if not ics_path.exists():
-            return None
+            raise ValueError(f"Event file not found: {stem}.ics")
         ics_path.write_bytes(event_to_ical(event))
         return event
 
@@ -143,16 +143,16 @@ class LocalFolderDriver(SourceDriver):
     def update_todo(self, source: Source, todo: Todo) -> Todo | None:
         parts = todo.id.split("::")
         if len(parts) < 2:
-            return None
+            raise ValueError("Invalid todo id for local source")
         stem = parts[1]  # file stem e.g. todo_abc123
         path_str = source.config.get("path")
         if not path_str:
-            return None
+            raise ValueError("Missing path in source config")
         ics_path = Path(path_str) / f"{stem}.ics"
-        if ics_path.exists():
-            ics_path.write_bytes(todo_to_ical(todo))
-            return todo
-        return None
+        if not ics_path.exists():
+            raise ValueError(f"Todo file not found: {stem}.ics")
+        ics_path.write_bytes(todo_to_ical(todo))
+        return todo
 
     def delete_todo(self, source: Source, todo_id: str) -> bool:
         parts = todo_id.split("::")

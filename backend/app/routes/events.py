@@ -107,9 +107,12 @@ def update_event():
         d["recurrence"] = body.recurrence
     if body.url is not None:
         d["url"] = body.url
-    updated = driver.update_event(source, Event(**d))
+    try:
+        updated = driver.update_event(source, Event(**d))
+    except Exception as e:
+        abort(400, description=str(e))
     if not updated:
-        abort(405, description="Failed to update event")
+        abort(400, description="Failed to update event (check source and permissions)")
     return jsonify(updated.model_dump(mode="json"))
 
 
@@ -124,6 +127,9 @@ def delete_event():
     if not resolved:
         abort(404, description="Event not found or read-only")
     source, driver, _ = resolved
-    if not driver.delete_event(source, event_id):
-        abort(405, description="Failed to delete event")
+    try:
+        if not driver.delete_event(source, event_id):
+            abort(400, description="Failed to delete event (check source and permissions)")
+    except Exception as e:
+        abort(400, description=str(e))
     return "", 204

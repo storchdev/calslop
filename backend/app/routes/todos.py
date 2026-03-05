@@ -12,7 +12,19 @@ def get_sources_store() -> SourcesStore:
 todos_bp = Blueprint("todos", __name__)
 
 
-@todos_bp.route("", methods=["POST"])
+@todos_bp.route("", methods=["GET", "POST", "PATCH", "DELETE"])
+def todos_handler():
+    if request.method == "POST":
+        return create_todo()
+    if request.method == "GET":
+        return list_todos()
+    if request.method == "PATCH":
+        return update_todo()
+    if request.method == "DELETE":
+        return delete_todo()
+    abort(405, description="Method not allowed")
+
+
 def create_todo():
     data = request.get_json()
     if not data:
@@ -35,13 +47,15 @@ def create_todo():
         priority=body.priority,
         recurrence=body.recurrence,
     )
-    created = driver.create_todo(source, todo)
+    try:
+        created = driver.create_todo(source, todo)
+    except Exception as e:
+        abort(400, description=str(e))
     if not created:
-        abort(405, description="Failed to create todo")
+        abort(400, description="Failed to create todo (check source config and permissions)")
     return jsonify(created.model_dump(mode="json")), 201
 
 
-@todos_bp.route("", methods=["GET"])
 def list_todos():
     id_param = request.args.get("id")
     store = get_sources_store()
@@ -56,7 +70,6 @@ def list_todos():
     return jsonify([t.model_dump(mode="json") for t in todos])
 
 
-@todos_bp.route("", methods=["PATCH"])
 def update_todo():
     id_param = request.args.get("id")
     if not id_param:
@@ -85,13 +98,15 @@ def update_todo():
         d["priority"] = body.priority
     if body.recurrence is not None:
         d["recurrence"] = body.recurrence
-    updated = driver.update_todo(source, Todo(**d))
+    try:
+        updated = driver.update_todo(source, Todo(**d))
+    except Exception as e:
+        abort(400, description=str(e))
     if not updated:
-        abort(405, description="Failed to update todo")
+        abort(400, description="Failed to update todo (check source and permissions)")
     return jsonify(updated.model_dump(mode="json"))
 
 
-@todos_bp.route("", methods=["DELETE"])
 def delete_todo():
     id_param = request.args.get("id")
     if not id_param:
@@ -103,6 +118,9 @@ def delete_todo():
     if not resolved:
         abort(404, description="Todo not found or read-only")
     source, driver, _ = resolved
-    if not driver.delete_todo(source, todo_id):
-        abort(405, description="Failed to delete todo")
+    try:
+        if not driver.delete_todo(source, todo_id):
+            abort(400, description="Failed to delete todo (check source and permissions)")
+    except Exception as e:
+        abort(400, description=str(e))
     return "", 204

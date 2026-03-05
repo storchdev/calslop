@@ -165,11 +165,13 @@ def todo_to_ical(todo: Todo) -> bytes:
     cal.add("prodid", "-//Calslop//EN")
     cal.add("version", "2.0")
     vtodo = icalendar.Todo()
-    uid = todo.id.split("::")[-1] if "::" in todo.id else todo.id
+    uid = todo.id.split("::")[-1] if (todo.id and "::" in todo.id) else (todo.id or "")
+    if not uid or not uid.strip():
+        uid = f"calslop-todo-{uuid.uuid4().hex}@calslop"
     vtodo.add("uid", uid)
+    vtodo.add("dtstamp", datetime.now(timezone.utc))
     vtodo.add("summary", todo.summary)
     if todo.completed:
-        from datetime import timezone
         vtodo.add("completed", datetime.now(timezone.utc))
     if todo.due:
         vtodo.add("due", todo.due)
