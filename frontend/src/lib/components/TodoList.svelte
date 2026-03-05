@@ -6,13 +6,24 @@
   interface Props {
     todos: Todo[];
     showCompleted?: boolean;
+    todoOrder?: 'oldest' | 'newest';
     onToggle?: (todo: Todo) => void;
     onSelect?: (todo: Todo) => void;
   }
 
-  let { todos, showCompleted = true, onToggle, onSelect }: Props = $props();
+  let { todos, showCompleted = true, todoOrder = 'oldest', onToggle, onSelect }: Props = $props();
 
-  const visibleTodos = $derived(showCompleted ? todos : todos.filter((t) => !t.completed));
+  const filtered = $derived(showCompleted ? todos : todos.filter((t) => !t.completed));
+  const visibleTodos = $derived(
+    [...filtered].sort((a, b) => {
+      const aDue = a.due ? new Date(a.due).getTime() : null;
+      const bDue = b.due ? new Date(b.due).getTime() : null;
+      if (aDue === null && bDue === null) return 0;
+      if (aDue === null) return todoOrder === 'oldest' ? 1 : -1;
+      if (bDue === null) return todoOrder === 'oldest' ? -1 : 1;
+      return todoOrder === 'oldest' ? aDue - bDue : bDue - aDue;
+    })
+  );
   const completedCount = $derived(todos.filter((t) => t.completed).length);
 
   // Keep focused index in range when visible list changes
@@ -28,16 +39,27 @@
 </script>
 
 <div id="todo-view" class="p-4" role="list">
-  <div class="flex items-center gap-2 mb-3">
+  <div class="flex flex-wrap items-center gap-4 mb-3">
     <button
       type="button"
-      class="btn btn-ghost text-sm"
+      class="btn btn-ghost text-sm inline-flex items-baseline gap-1.5"
       onclick={() => app.toggleShowCompletedTodos()}
       title="Toggle show completed todos (S)"
     >
       {showCompleted ? 'Hide completed' : 'Show completed'}
+      <span class="key-hint">S</span>
     </button>
-    <span class="text-xs text-[var(--text-muted)] font-mono">S</span>
+    <label class="flex items-center gap-2 text-sm text-[var(--text-muted)]">
+      <span>Order:</span>
+      <select
+        class="rounded border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-sm text-[var(--text)]"
+        value={todoOrder}
+        onchange={(e) => app.setTodoOrder((e.currentTarget as HTMLSelectElement).value as 'oldest' | 'newest')}
+      >
+        <option value="oldest">Oldest first</option>
+        <option value="newest">Newest first</option>
+      </select>
+    </label>
     <span class="text-xs text-[var(--text-muted)]" title="Total and completed count in current data">
       ({todos.length} total, {completedCount} completed)
     </span>

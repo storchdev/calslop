@@ -91,18 +91,22 @@
   });
 </script>
 
-<div id="calendar-view" class="p-4" role="application" aria-label="Calendar">
+<div id="calendar-view" class="p-4 flex-1 min-h-0 flex flex-col" role="application" aria-label="Calendar">
   {#if app.calendarView === 'month'}
-    <div>
-      <h2 class="text-xl font-semibold mb-3 text-[var(--text)]">
+    <div class="flex flex-1 min-h-0 flex-col">
+      <h2 class="text-xl font-semibold mb-3 text-[var(--text)] shrink-0">
         {selectedDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
       </h2>
-      <div class="grid grid-cols-7 gap-1 mb-1 text-xs text-[var(--text-muted)]">
+      <div class="grid grid-cols-7 gap-1 mb-1 text-xs text-[var(--text-muted)] shrink-0">
         {#each dayLabels as label}
           <span>{label}</span>
         {/each}
       </div>
-      <div class="grid grid-cols-7 gap-1" role="grid">
+      <div
+        class="grid grid-cols-7 gap-1 flex-1 min-h-0"
+        style="grid-template-rows: repeat({weeks}, 1fr);"
+        role="grid"
+      >
         {#each Array(weeks * 7) as _, i}
           {@const d = dateForCell(i)}
           {#if d}
@@ -160,24 +164,26 @@
                   const bt = b.kind === 'event' ? new Date(b.event.start).getTime() : new Date(b.todo.due ?? 0).getTime();
                   return at - bt;
                 }).slice(0, 5)}
-                <span class="absolute top-1 left-1 font-semibold text-sm">{d.getDate()}</span>
-                <div class="absolute top-1 left-6 right-1 bottom-1 overflow-hidden text-left">
-                  {#each combined as item}
-                    {#if item.kind === 'event'}
-                      <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap" class:line-through={item.event.cancelled} title={item.event.title}>
-                        {item.event.all_day ? '' : formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)} {item.event.title}
-                      </div>
-                    {:else}
-                      <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center gap-0.5" title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
-                        {#if item.todo.completed}
-                          <span class="opacity-70" aria-hidden="true">✓</span>
-                        {:else}
-                          <span class="opacity-70 border border-current rounded w-3 h-3 inline-block shrink-0" aria-hidden="true"></span>
-                        {/if}
-                        {item.todo.summary}
-                      </div>
-                    {/if}
-                  {/each}
+                <div class="dense-day-inner flex flex-row items-baseline gap-1.5 absolute inset-1 overflow-hidden text-left">
+                  <span class="font-semibold text-sm shrink-0 leading-none">{d.getDate()}</span>
+                  <div class="flex-1 min-w-0 overflow-hidden flex flex-col gap-0.5">
+                    {#each combined as item}
+                      {#if item.kind === 'event'}
+                        <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap leading-none" class:line-through={item.event.cancelled} title={item.event.title}>
+                          {item.event.all_day ? '' : formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)} {item.event.title}
+                        </div>
+                      {:else}
+                        <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center gap-0.5 leading-none" title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
+                          {#if item.todo.completed}
+                            <span class="opacity-70 shrink-0" aria-hidden="true">✓</span>
+                          {:else}
+                            <span class="opacity-70 border border-current rounded w-3 h-3 inline-block shrink-0" aria-hidden="true"></span>
+                          {/if}
+                          {item.todo.due ? formatInTimezone(item.todo.due, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined) : '–'} {item.todo.summary}
+                        </div>
+                      {/if}
+                    {/each}
+                  </div>
                 </div>
               {:else}
                 <!-- balanced: events and todos combined, centered; (+N) only when truncated -->

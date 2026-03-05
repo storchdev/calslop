@@ -50,12 +50,18 @@
   box-sizing: border-box;
 }
 
+html, body {
+  height: 100%;
+}
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
+  display: flex;
+  flex-direction: column;
 }
 
 button, a, [tabindex]:not([tabindex="-1"]) {
@@ -274,6 +280,16 @@ select, select option {
   background: var(--bg-elevated);
 }
 
+.key-hint {
+  margin-left: 0.15em;
+  font-size: 0.8em;
+  font-weight: normal;
+  line-height: 1;
+  color: var(--text-muted);
+  font-family: ui-monospace, monospace;
+  vertical-align: baseline;
+}
+
 .unsynced-notifier {
   position: fixed;
   bottom: 0;
@@ -302,4 +318,23 @@ select, select option {
   background: var(--bg);
   color: var(--text);
   font-size: 0.875rem;
+}
+
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.nav-loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--text-muted);
+  z-index: 200;
+  font-size: 1rem;
 }

@@ -4,6 +4,7 @@
 export type ViewMode = 'calendar' | 'todo';
 export type CalendarView = 'day' | 'month';
 export type CalendarDensity = 'minimal' | 'balanced' | 'dense';
+export type TodoOrder = 'oldest' | 'newest';
 
 class AppStore {
   viewMode = $state<ViewMode>('calendar');
@@ -12,6 +13,8 @@ class AppStore {
   showTodosOnCalendar = $state<boolean>(true);
   /** When false, hide completed todos in the todo list view */
   showCompletedTodos = $state<boolean>(true);
+  /** Todo list order: oldest first (by due) or newest first */
+  todoOrder = $state<TodoOrder>('oldest');
   selectedDate = $state<Date>(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   focusedEventIndex = $state<number>(-1);
   focusedTodoIndex = $state<number>(-1);
@@ -56,6 +59,10 @@ class AppStore {
 
   toggleShowCompletedTodos() {
     this.showCompletedTodos = !this.showCompletedTodos;
+  }
+
+  setTodoOrder(order: TodoOrder) {
+    this.todoOrder = order;
   }
 
   setSelectedDate(d: Date) {

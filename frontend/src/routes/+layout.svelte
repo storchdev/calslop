@@ -1,6 +1,7 @@
 <script lang="ts">
   import '../app.css';
   import { onMount } from 'svelte';
+  import { navigating } from '$app/stores';
   import { app } from '$lib/stores/app.svelte';
   import { setTheme } from '$lib/theme';
   import KeyboardHandler from '$lib/components/KeyboardHandler.svelte';
@@ -67,12 +68,17 @@
     </select>
   </label>
   <a href="/settings" class="btn btn-ghost">Settings</a>
-  <button class="btn btn-ghost" onclick={() => app.setModalOpen('shortcuts')} type="button">
-    ? Shortcuts
+  <button class="btn btn-ghost inline-flex items-baseline gap-1.5" onclick={() => app.setModalOpen('shortcuts')} type="button">
+    Shortcuts
+    <span class="key-hint">?</span>
   </button>
 </div>
 
 <KeyboardHandler />
+
+{#if $navigating}
+  <div class="nav-loading" role="status" aria-live="polite">Loading…</div>
+{/if}
 
 <main id="main">
   {@render children()}

@@ -68,41 +68,45 @@
 
 <div class="flex flex-wrap items-center gap-2 py-2 px-4 border-b border-[var(--border)]">
   <button
-    class="btn btn-ghost"
+    class="btn btn-ghost inline-flex items-baseline gap-1.5"
     class:bg-[var(--bg-elevated)]={app.viewMode === 'calendar'}
     class:font-semibold={app.viewMode === 'calendar'}
     onclick={() => app.setViewMode('calendar')}
     type="button"
   >
     Calendar
+    <span class="key-hint">1</span>
   </button>
   <button
-    class="btn btn-ghost"
+    class="btn btn-ghost inline-flex items-baseline gap-1.5"
     class:bg-[var(--bg-elevated)]={app.viewMode === 'todo'}
     class:font-semibold={app.viewMode === 'todo'}
     onclick={() => app.setViewMode('todo')}
     type="button"
   >
     Todos
+    <span class="key-hint">2</span>
   </button>
   {#if app.viewMode === 'calendar'}
     <button
-      class="btn btn-ghost"
+      class="btn btn-ghost inline-flex items-baseline gap-1.5"
       class:bg-[var(--bg-elevated)]={app.calendarView === 'month'}
       class:font-semibold={app.calendarView === 'month'}
       onclick={() => app.setCalendarView('month')}
       type="button"
     >
       Month
+      <span class="key-hint">M</span>
     </button>
     <button
-      class="btn btn-ghost"
+      class="btn btn-ghost inline-flex items-baseline gap-1.5"
       class:bg-[var(--bg-elevated)]={app.calendarView === 'day'}
       class:font-semibold={app.calendarView === 'day'}
       onclick={() => app.setCalendarView('day')}
       type="button"
     >
       Day
+      <span class="key-hint">D</span>
     </button>
   {/if}
   <button
@@ -116,11 +120,12 @@
   </button>
 </div>
 
-{#if loading}
-  <p class="p-4 text-[var(--text-muted)]">Loading…</p>
-{:else if app.viewMode === 'calendar'}
-  <div class="flex flex-col gap-2">
-    <div class="flex flex-wrap items-center gap-2 px-4">
+<div class="flex flex-1 flex-col min-h-0">
+  {#if loading}
+    <p class="p-4 text-[var(--text-muted)]">Loading…</p>
+  {:else if app.viewMode === 'calendar'}
+    <div class="flex flex-1 flex-col min-h-0 gap-2">
+      <div class="flex flex-wrap items-center gap-2 px-4 shrink-0">
       <label class="flex items-center gap-2 text-sm text-[var(--text-muted)]">
         <span>View:</span>
         <select
@@ -139,8 +144,9 @@
           <span>Show todos on calendar</span>
         </label>
       {/if}
-    </div>
-    <Calendar
+      </div>
+      <div class="flex-1 min-h-0 flex flex-col">
+        <Calendar
       events={events}
       todos={todos}
       selectedDate={app.selectedDate}
@@ -153,16 +159,19 @@
         app.setEditingId(todo.id);
         app.setModalOpen('todo');
       }}
-    />
-  </div>
-{:else}
-  <TodoList
+        />
+      </div>
+    </div>
+  {:else}
+    <TodoList
     todos={todos}
     showCompleted={app.showCompletedTodos}
+    todoOrder={app.todoOrder}
     onToggle={handleToggleTodo}
     onSelect={handleSelectTodo}
   />
-{/if}
+  {/if}
+</div>
 
 {#if app.hasUnsyncedChanges}
   <div class="unsynced-notifier" role="status">
