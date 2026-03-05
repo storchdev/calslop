@@ -24,18 +24,19 @@
   let saving = $state(false);
 
   $effect(() => {
+    const tz = app.timezone || undefined;
     if (todoId) {
       if (initialTodo && initialTodo.id === todoId) {
         summary = initialTodo.summary;
         completed = initialTodo.completed;
-        due = initialTodo.due ? toLocalDatetimeInput(initialTodo.due) : '';
+        due = initialTodo.due ? toLocalDatetimeInput(initialTodo.due, tz) : '';
         description = initialTodo.description ?? '';
         return;
       }
       getTodo(todoId).then((t) => {
         summary = t.summary;
         completed = t.completed;
-        due = t.due ? toLocalDatetimeInput(t.due) : '';
+        due = t.due ? toLocalDatetimeInput(t.due, tz) : '';
         description = t.description ?? '';
       });
     }
@@ -102,7 +103,13 @@
       || target instanceof HTMLTextAreaElement;
 
     if (e.key === 'Escape') {
-      onclose();
+      if (inTextInput) {
+        e.preventDefault();
+        target.blur();
+        modalEl?.focus();
+      } else {
+        onclose();
+      }
       return;
     }
     if (e.ctrlKey && e.key === 'Enter') {

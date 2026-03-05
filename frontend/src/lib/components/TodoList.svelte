@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Todo } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
+  import { formatInTimezone } from '$lib/date';
 
   interface Props {
     todos: Todo[];
@@ -50,7 +51,7 @@
         <span class="text-[var(--text-muted)]" title="Repeating" aria-hidden="true">↻</span>
       {/if}
       {#if todo.due}
-        <span class="text-sm text-[var(--text-muted)]">{new Date(todo.due).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</span>
+        <span class="text-sm text-[var(--text-muted)]">{formatInTimezone(todo.due, { dateStyle: 'short', timeStyle: 'short' }, app.timezone || undefined)}</span>
       {/if}
     </div>
   {/each}

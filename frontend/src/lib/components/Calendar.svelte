@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Event, Todo } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
+  import { formatInTimezone } from '$lib/date';
 
   interface Props {
     events: Event[];
@@ -132,7 +133,7 @@
                   {#each combined as item}
                     {#if item.kind === 'event'}
                       <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap" class:line-through={item.event.cancelled} title={item.event.title}>
-                        {item.event.all_day ? '' : new Date(item.event.start).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} {item.event.title}
+                        {item.event.all_day ? '' : formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)} {item.event.title}
                       </div>
                     {:else}
                       <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center gap-0.5" title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
@@ -209,7 +210,7 @@
                   tabindex={app.focusedEventIndex === i ? 0 : -1}
                   onclick={() => onSelectEvent?.(item.event)}
                 >
-                  {item.event.all_day ? 'All day' : new Date(item.event.start).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} – {item.event.title}
+                  {item.event.all_day ? 'All day' : formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)} – {item.event.title}
                 </button>
               </li>
             {:else}
@@ -224,7 +225,7 @@
                   {:else}
                     <span class="mr-1.5 opacity-70 border border-current rounded w-3.5 h-3.5 inline-block shrink-0 align-middle" aria-hidden="true"></span>
                   {/if}
-                  {new Date(item.todo.due ?? 0).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })} – {item.todo.summary}
+                  {formatInTimezone(item.todo.due ?? '', { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)} – {item.todo.summary}
                 </button>
               </li>
             {/if}

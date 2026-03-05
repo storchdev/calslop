@@ -1,5 +1,6 @@
 from litestar import Controller, get, post, patch, delete
 from litestar.exceptions import NotFoundException, MethodNotAllowedException
+from litestar.params import Parameter
 
 from app.models.dtos import Todo, TodoCreate, TodoUpdate
 from app.db.sources_store import SourcesStore
@@ -14,22 +15,17 @@ class TodosController(Controller):
     path = "/api/todos"
 
     @get()
-    async def list_todos(self) -> list[Todo]:
+    async def list_todos(self, id: str | None = Parameter(default=None)) -> list[Todo] | Todo:
         store = get_sources_store()
         sources = store.list_sources()
         _, todos, _ = aggregate_events_todos(sources)
+        if id:
+            todo_id = id.strip()
+            for t in todos:
+                if t.id == todo_id:
+                    return t
+            raise NotFoundException(detail="Todo not found")
         return todos
-
-    @get("/by-id/{todo_id:path}")
-    async def get_todo(self, todo_id: str) -> Todo:
-        todo_id = todo_id.strip()
-        store = get_sources_store()
-        sources = store.list_sources()
-        _, todos, _ = aggregate_events_todos(sources)
-        for t in todos:
-            if t.id == todo_id:
-                return t
-        raise NotFoundException(detail="Todo not found")
 
     @post()
     async def create_todo(self, data: TodoCreate) -> Todo:
@@ -55,9 +51,13 @@ class TodosController(Controller):
             raise MethodNotAllowedException(detail="Failed to create todo")
         return created
 
-    @patch("/by-id/{todo_id:path}")
-    async def update_todo(self, todo_id: str, data: TodoUpdate) -> Todo:
-        todo_id = todo_id.strip()
+    @patch()
+    async def update_todo(
+        self,
+        data: TodoUpdate,
+        id: str = Parameter(required=True),
+    ) -> Todo:
+        todo_id = id.strip()
         store = get_sources_store()
         sources = store.list_sources()
         resolved = resolve_todo_source(sources, todo_id)
@@ -82,9 +82,9 @@ class TodosController(Controller):
             raise MethodNotAllowedException(detail="Failed to update todo")
         return updated
 
-    @delete("/by-id/{todo_id:path}")
-    async def delete_todo(self, todo_id: str) -> None:
-        todo_id = todo_id.strip()
+    @delete()
+    async def delete_todo(self, id: str = Parameter(required=True)) -> None:
+        todo_id = id.strip()
         store = get_sources_store()
         sources = store.list_sources()
         resolved = resolve_todo_source(sources, todo_id)

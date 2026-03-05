@@ -17,6 +17,8 @@ class AppStore {
   modalOpen = $state<'event' | 'todo' | 'shortcuts' | null>(null);
   editingId = $state<string | null>(null);
   hasUnsyncedChanges = $state(false);
+  /** IANA timezone (e.g. America/New_York) or empty string for browser local */
+  timezone = $state<string>('');
 
   setViewMode(mode: ViewMode) {
     this.viewMode = mode;
@@ -74,6 +76,10 @@ class AppStore {
 
   setUnsyncedChanges(unsynced: boolean) {
     this.hasUnsyncedChanges = unsynced;
+  }
+
+  setTimezone(tz: string) {
+    this.timezone = tz;
   }
 
   resetFocus() {

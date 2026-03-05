@@ -35,11 +35,12 @@
   ];
 
   $effect(() => {
+    const tz = app.timezone || undefined;
     if (editingId) {
       getEvent(editingId).then((e) => {
         title = e.title;
-        start = toLocalDatetimeInput(e.start);
-        end = toLocalDatetimeInput(e.end);
+        start = toLocalDatetimeInput(e.start, tz);
+        end = toLocalDatetimeInput(e.end, tz);
         allDay = e.all_day;
         description = e.description ?? '';
         location = e.location ?? '';
@@ -141,7 +142,13 @@
       || target instanceof HTMLTextAreaElement;
 
     if (e.key === 'Escape') {
-      onclose();
+      if (inTextInput) {
+        e.preventDefault();
+        target.blur();
+        modalEl?.focus();
+      } else {
+        onclose();
+      }
       return;
     }
     if (e.ctrlKey && e.key === 'Enter') {

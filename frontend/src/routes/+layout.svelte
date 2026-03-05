@@ -14,7 +14,16 @@
       themeValue = stored;
       setTheme(stored);
     }
+    const tz = localStorage.getItem('calslop-timezone');
+    if (tz !== null) app.setTimezone(tz);
   });
+
+  function handleTimezoneChange(e: Event) {
+    const target = e.target as HTMLSelectElement;
+    const v = target.value;
+    app.setTimezone(v);
+    localStorage.setItem('calslop-timezone', v);
+  }
 
   function handleThemeChange(e: Event) {
     const target = e.target as HTMLSelectElement;
@@ -41,6 +50,20 @@
       <option value="system">System</option>
       <option value="light">Light</option>
       <option value="dark">Dark</option>
+    </select>
+  </label>
+  <label>
+    Time zone
+    <select class="theme-select" value={app.timezone} onchange={handleTimezoneChange}>
+      <option value="">Local (browser)</option>
+      <option value="America/New_York">Eastern</option>
+      <option value="America/Chicago">Central</option>
+      <option value="America/Denver">Mountain</option>
+      <option value="America/Los_Angeles">Pacific</option>
+      <option value="Europe/London">London</option>
+      <option value="Europe/Paris">Paris</option>
+      <option value="Asia/Tokyo">Tokyo</option>
+      <option value="UTC">UTC</option>
     </select>
   </label>
   <a href="/settings" class="btn btn-ghost">Settings</a>

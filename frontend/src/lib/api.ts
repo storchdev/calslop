@@ -30,7 +30,7 @@ export async function getEvents(start?: string, end?: string): Promise<Event[]> 
 }
 
 export async function getEvent(id: string): Promise<Event> {
-  return fetchApi<Event>(`/events/by-id/${encodeURIComponent(id)}`);
+  return fetchApi<Event>(`/events?${new URLSearchParams({ id })}`);
 }
 
 export async function createEvent(data: EventCreate): Promise<Event> {
@@ -41,14 +41,14 @@ export async function createEvent(data: EventCreate): Promise<Event> {
 }
 
 export async function updateEvent(id: string, data: EventUpdate): Promise<Event> {
-  return fetchApi<Event>(`/events/by-id/${encodeURIComponent(id)}`, {
+  return fetchApi<Event>(`/events?${new URLSearchParams({ id })}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
 }
 
 export async function deleteEvent(id: string): Promise<void> {
-  await fetchApi<unknown>(`/events/by-id/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  await fetchApi<unknown>(`/events?${new URLSearchParams({ id })}`, { method: 'DELETE' });
 }
 
 export async function getTodos(): Promise<Todo[]> {
@@ -56,7 +56,7 @@ export async function getTodos(): Promise<Todo[]> {
 }
 
 export async function getTodo(id: string): Promise<Todo> {
-  return fetchApi<Todo>(`/todos/by-id/${encodeURIComponent(id)}`);
+  return fetchApi<Todo>(`/todos?${new URLSearchParams({ id })}`);
 }
 
 export async function createTodo(data: TodoCreate): Promise<Todo> {
@@ -67,14 +67,14 @@ export async function createTodo(data: TodoCreate): Promise<Todo> {
 }
 
 export async function updateTodo(id: string, data: TodoUpdate): Promise<Todo> {
-  return fetchApi<Todo>(`/todos/by-id/${encodeURIComponent(id)}`, {
+  return fetchApi<Todo>(`/todos?${new URLSearchParams({ id })}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
 }
 
 export async function deleteTodo(id: string): Promise<void> {
-  await fetchApi<unknown>(`/todos/by-id/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  await fetchApi<unknown>(`/todos?${new URLSearchParams({ id })}`, { method: 'DELETE' });
 }
 
 export async function getSources(): Promise<Source[]> {

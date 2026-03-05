@@ -19,22 +19,19 @@ class EventsController(Controller):
         self,
         start: str | None = Parameter(default=None),
         end: str | None = Parameter(default=None),
-    ) -> list[Event]:
+        id: str | None = Parameter(default=None),
+    ) -> list[Event] | Event:
         store = get_sources_store()
         sources = store.list_sources()
+        if id:
+            event_id = id.strip()
+            events, _, _ = aggregate_events_todos(sources)
+            for e in events:
+                if e.id == event_id:
+                    return e
+            raise NotFoundException(detail="Event not found")
         events, _, _ = aggregate_events_todos(sources, start=start, end=end)
         return events
-
-    @get("/by-id/{event_id:path}")
-    async def get_event(self, event_id: str) -> Event:
-        event_id = event_id.strip()
-        store = get_sources_store()
-        sources = store.list_sources()
-        events, _, _ = aggregate_events_todos(sources)
-        for e in events:
-            if e.id == event_id:
-                return e
-        raise NotFoundException(detail="Event not found")
 
     @post()
     async def create_event(self, data: EventCreate) -> Event:
@@ -62,9 +59,13 @@ class EventsController(Controller):
             raise MethodNotAllowedException(detail="Failed to create event")
         return created
 
-    @patch("/by-id/{event_id:path}")
-    async def update_event(self, event_id: str, data: EventUpdate) -> Event:
-        event_id = event_id.strip()
+    @patch()
+    async def update_event(
+        self,
+        data: EventUpdate,
+        id: str = Parameter(required=True),
+    ) -> Event:
+        event_id = id.strip()
         store = get_sources_store()
         sources = store.list_sources()
         resolved = resolve_event_source(sources, event_id)
@@ -93,9 +94,9 @@ class EventsController(Controller):
             raise MethodNotAllowedException(detail="Failed to update event")
         return updated
 
-    @delete("/by-id/{event_id:path}")
-    async def delete_event(self, event_id: str) -> None:
-        event_id = event_id.strip()
+    @delete()
+    async def delete_event(self, id: str = Parameter(required=True)) -> None:
+        event_id = id.strip()
         store = get_sources_store()
         sources = store.list_sources()
         resolved = resolve_event_source(sources, event_id)
