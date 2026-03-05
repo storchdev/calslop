@@ -157,12 +157,12 @@
       return;
     }
     if (target instanceof HTMLSelectElement) {
-      if (e.ctrlKey && e.key === 'j') {
+      if (e.shiftKey && e.key === 'j') {
         e.preventDefault();
         cycleSelect(target, 1);
         return;
       }
-      if (e.ctrlKey && e.key === 'k') {
+      if (e.shiftKey && e.key === 'k') {
         e.preventDefault();
         cycleSelect(target, -1);
         return;

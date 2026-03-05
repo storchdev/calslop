@@ -34,7 +34,7 @@ export async function getEvent(id: string): Promise<Event> {
 }
 
 export async function createEvent(data: EventCreate): Promise<Event> {
-  return fetchApi<Event>('/events', {
+  return fetchApi<Event>('/events/create', {
     method: 'POST',
     body: JSON.stringify(data),
   });
@@ -60,7 +60,7 @@ export async function getTodo(id: string): Promise<Todo> {
 }
 
 export async function createTodo(data: TodoCreate): Promise<Todo> {
-  return fetchApi<Todo>('/todos', {
+  return fetchApi<Todo>('/todos/create', {
     method: 'POST',
     body: JSON.stringify(data),
   });

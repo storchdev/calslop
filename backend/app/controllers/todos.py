@@ -27,7 +27,7 @@ class TodosController(Controller):
             raise NotFoundException(detail="Todo not found")
         return todos
 
-    @post()
+    @post("/create")
     async def create_todo(self, data: TodoCreate) -> Todo:
         store = get_sources_store()
         source = store.get_source(data.source_id)

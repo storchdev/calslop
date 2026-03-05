@@ -33,7 +33,7 @@ class EventsController(Controller):
         events, _, _ = aggregate_events_todos(sources, start=start, end=end)
         return events
 
-    @post()
+    @post("/create")
     async def create_event(self, data: EventCreate) -> Event:
         store = get_sources_store()
         source = store.get_source(data.source_id)

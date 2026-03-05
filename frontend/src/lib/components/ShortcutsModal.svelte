@@ -47,7 +47,7 @@
       <dt class="font-mono font-semibold">Escape</dt>
       <dd class="m-0">Close modal</dd>
       <dt class="font-mono font-semibold">Event/todo modals</dt>
-      <dd class="m-0">Focus modal first (keys work). In text fields type normally. Single key (T, S, …) jumps to field. Ctrl+Enter save. Ctrl+J / Ctrl+K cycle dropdown options.</dd>
+      <dd class="m-0">Focus modal first (keys work). In text fields type normally. Single key (T, S, …) jumps to field. Ctrl+Enter save. Shift+J / Shift+K cycle dropdown options.</dd>
     </dl>
     <div class="form-actions">
       <button class="btn btn-primary" onclick={onclose} type="button">Close</button>
