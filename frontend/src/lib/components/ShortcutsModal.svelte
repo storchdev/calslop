@@ -27,7 +27,7 @@
       <dt class="font-mono font-semibold">N</dt>
       <dd class="m-0">New event (in calendar) or new todo (in todos)</dd>
       <dt class="font-mono font-semibold">Enter</dt>
-      <dd class="m-0">Open selected event/todo</dd>
+      <dd class="m-0">Open selected event/todo; in month view open day view for focused day</dd>
       <dt class="font-mono font-semibold">H / Left</dt>
       <dd class="m-0">Previous day (calendar)</dd>
       <dt class="font-mono font-semibold">L / Right</dt>
@@ -46,6 +46,8 @@
       <dd class="m-0">Show this shortcuts list</dd>
       <dt class="font-mono font-semibold">Escape</dt>
       <dd class="m-0">Close modal</dd>
+      <dt class="font-mono font-semibold">Event/todo modals</dt>
+      <dd class="m-0">Focus modal first (keys work). In text fields type normally. Single key (T, S, …) jumps to field. Ctrl+Enter save. Ctrl+J / Ctrl+K cycle dropdown options.</dd>
     </dl>
     <div class="form-actions">
       <button class="btn btn-primary" onclick={onclose} type="button">Close</button>

@@ -90,6 +90,13 @@
                 onSelectDay?.(d);
               }}
               onkeydown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  app.setSelectedDate(d);
+                  app.setCalendarView('day');
+                  onSelectDay?.(d);
+                  return;
+                }
                 if (e.key === 'ArrowRight' && i + 1 < weeks * 7) {
                   app.setFocusedDayIndex(i + 1);
                   (e.currentTarget.nextElementSibling as HTMLElement)?.focus();
@@ -140,7 +147,7 @@
                   {/each}
                 </div>
               {:else}
-                <!-- balanced: events and todos combined, show up to 2 items; (+N) only when truncated -->
+                <!-- balanced: events and todos combined, centered; (+N) only when truncated -->
                 {@const evs = eventsForDay(d)}
                 {@const tds = showTodos ? todosForDay(d) : []}
                 {@const combined = [...evs.map((e) => ({ kind: 'event' as const, event: e })), ...tds.map((t) => ({ kind: 'todo' as const, todo: t }))].sort((a, b) => {
@@ -151,25 +158,27 @@
                 {@const visible = combined.slice(0, 2)}
                 {@const hasMore = combined.length > 2}
                 <span class="day-num-centered block font-semibold">{d.getDate()}</span>
-                {#each visible as item}
-                  {#if item.kind === 'event'}
-                    <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap" class:line-through={item.event.cancelled} title={item.event.title}>{item.event.title}</span>
-                  {:else}
-                    <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center gap-0.5" title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
-                      {#if item.todo.completed}
-                        <span class="opacity-70" aria-hidden="true">✓</span>
-                      {:else}
-                        <span class="opacity-70 border border-current rounded w-3 h-3 inline-block shrink-0" aria-hidden="true"></span>
-                      {/if}
-                      {item.todo.summary}
+                <div class="balanced-view-content">
+                  {#each visible as item}
+                    {#if item.kind === 'event'}
+                      <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap text-center" class:line-through={item.event.cancelled} title={item.event.title}>{item.event.title}</span>
+                    {:else}
+                      <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center justify-center gap-0.5" title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
+                        {#if item.todo.completed}
+                          <span class="opacity-70" aria-hidden="true">✓</span>
+                        {:else}
+                          <span class="opacity-70 border border-current rounded w-3 h-3 inline-block shrink-0" aria-hidden="true"></span>
+                        {/if}
+                        {item.todo.summary}
+                      </span>
+                    {/if}
+                  {/each}
+                  {#if hasMore}
+                    <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap text-center text-[var(--text-muted)]">
+                      +{combined.length - 2} more
                     </span>
                   {/if}
-                {/each}
-                {#if hasMore}
-                  <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap text-[var(--text-muted)]">
-                    +{combined.length - 2} more
-                  </span>
-                {/if}
+                </div>
               {/if}
             </button>
           {:else}

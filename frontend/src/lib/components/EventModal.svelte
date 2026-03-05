@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { createEvent, updateEvent, getEvent, deleteEvent } from '$lib/api';
   import type { Event, EventCreate, EventUpdate } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
@@ -109,6 +110,7 @@
     }
   }
 
+  let modalEl: HTMLDivElement | undefined;
   let titleEl: HTMLInputElement | undefined;
   let startEl: HTMLInputElement | undefined;
   let endEl: HTMLInputElement | undefined;
@@ -118,7 +120,26 @@
   let descriptionEl: HTMLTextAreaElement | undefined;
   let sourceIdEl: HTMLSelectElement | undefined;
 
+  $effect(() => {
+    if (app.modalOpen === 'event') {
+      tick().then(() => modalEl?.focus());
+    }
+  });
+
+  function cycleSelect(sel: HTMLSelectElement, dir: 1 | -1) {
+    const opts = Array.from(sel.options);
+    const i = opts.findIndex((o) => o.value === sel.value);
+    const next = Math.max(0, Math.min(opts.length - 1, i + dir));
+    sel.selectedIndex = next;
+    sel.value = opts[next].value;
+    sel.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
   function handleKeydown(e: KeyboardEvent) {
+    const target = e.target as HTMLElement;
+    const inTextInput = target instanceof HTMLInputElement && target.type !== 'checkbox' && target.type !== 'radio'
+      || target instanceof HTMLTextAreaElement;
+
     if (e.key === 'Escape') {
       onclose();
       return;
@@ -128,6 +149,20 @@
       submit();
       return;
     }
+    if (target instanceof HTMLSelectElement) {
+      if (e.ctrlKey && e.key === 'j') {
+        e.preventDefault();
+        cycleSelect(target, 1);
+        return;
+      }
+      if (e.ctrlKey && e.key === 'k') {
+        e.preventDefault();
+        cycleSelect(target, -1);
+        return;
+      }
+    }
+    if (inTextInput) return;
+
     const key = e.key.toLowerCase();
     if (key === 't') {
       e.preventDefault();
@@ -158,7 +193,7 @@
 </script>
 
 <div class="modal-backdrop" role="dialog" aria-modal="true" onkeydown={handleKeydown} onclick={(e) => e.target === e.currentTarget && onclose()}>
-  <div class="modal" onclick={(e) => e.stopPropagation()}>
+  <div class="modal" tabindex="-1" bind:this={modalEl} onclick={(e) => e.stopPropagation()}>
     <h2>{editingId ? 'Edit event' : 'New event'}</h2>
     {#if error}
       <p class="text-red-600 text-sm">{error}</p>

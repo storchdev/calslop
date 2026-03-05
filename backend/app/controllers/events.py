@@ -25,8 +25,9 @@ class EventsController(Controller):
         events, _, _ = aggregate_events_todos(sources, start=start, end=end)
         return events
 
-    @get("/{event_id:path}")
+    @get("/by-id/{event_id:path}")
     async def get_event(self, event_id: str) -> Event:
+        event_id = event_id.strip()
         store = get_sources_store()
         sources = store.list_sources()
         events, _, _ = aggregate_events_todos(sources)
@@ -61,8 +62,9 @@ class EventsController(Controller):
             raise MethodNotAllowedException(detail="Failed to create event")
         return created
 
-    @patch("/{event_id:path}")
+    @patch("/by-id/{event_id:path}")
     async def update_event(self, event_id: str, data: EventUpdate) -> Event:
+        event_id = event_id.strip()
         store = get_sources_store()
         sources = store.list_sources()
         resolved = resolve_event_source(sources, event_id)
@@ -91,8 +93,9 @@ class EventsController(Controller):
             raise MethodNotAllowedException(detail="Failed to update event")
         return updated
 
-    @delete("/{event_id:path}")
+    @delete("/by-id/{event_id:path}")
     async def delete_event(self, event_id: str) -> None:
+        event_id = event_id.strip()
         store = get_sources_store()
         sources = store.list_sources()
         resolved = resolve_event_source(sources, event_id)

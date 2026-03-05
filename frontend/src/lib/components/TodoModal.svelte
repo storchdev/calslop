@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import { createTodo, updateTodo, getTodo, getSources, deleteTodo } from '$lib/api';
   import type { Todo, TodoCreate, TodoUpdate } from '$lib/types';
+  import { app } from '$lib/stores/app.svelte';
   import { toLocalDatetimeInput } from '$lib/date';
 
   interface Props {
@@ -72,13 +74,33 @@
     }
   }
 
+  let modalEl: HTMLDivElement | undefined;
   let summaryEl: HTMLInputElement | undefined;
   let completedEl: HTMLInputElement | undefined;
   let dueEl: HTMLInputElement | undefined;
   let descriptionEl: HTMLTextAreaElement | undefined;
   let sourceIdEl: HTMLSelectElement | undefined;
 
+  $effect(() => {
+    if (app.modalOpen === 'todo') {
+      tick().then(() => modalEl?.focus());
+    }
+  });
+
+  function cycleSelect(sel: HTMLSelectElement, dir: 1 | -1) {
+    const opts = Array.from(sel.options);
+    const i = opts.findIndex((o) => o.value === sel.value);
+    const next = Math.max(0, Math.min(opts.length - 1, i + dir));
+    sel.selectedIndex = next;
+    sel.value = opts[next].value;
+    sel.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
   function handleKeydown(e: KeyboardEvent) {
+    const target = e.target as HTMLElement;
+    const inTextInput = target instanceof HTMLInputElement && target.type !== 'checkbox' && target.type !== 'radio'
+      || target instanceof HTMLTextAreaElement;
+
     if (e.key === 'Escape') {
       onclose();
       return;
@@ -88,6 +110,20 @@
       submit();
       return;
     }
+    if (target instanceof HTMLSelectElement) {
+      if (e.ctrlKey && e.key === 'j') {
+        e.preventDefault();
+        cycleSelect(target, 1);
+        return;
+      }
+      if (e.ctrlKey && e.key === 'k') {
+        e.preventDefault();
+        cycleSelect(target, -1);
+        return;
+      }
+    }
+    if (inTextInput) return;
+
     const key = e.key.toLowerCase();
     if (key === 's') {
       e.preventDefault();
@@ -109,7 +145,7 @@
 </script>
 
 <div class="modal-backdrop" role="dialog" aria-modal="true" onkeydown={handleKeydown} onclick={(e) => e.target === e.currentTarget && onclose()}>
-  <div class="modal" onclick={(e) => e.stopPropagation()}>
+  <div class="modal" tabindex="-1" bind:this={modalEl} onclick={(e) => e.stopPropagation()}>
     <h2>{todoId ? 'Edit todo' : 'New todo'}</h2>
     {#if error}
       <p class="text-red-600 text-sm">{error}</p>

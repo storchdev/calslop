@@ -96,6 +96,13 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   display: block;
 }
 
+.day-cell .balanced-view-content {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
 .day-cell:hover, .day-cell:focus {
   background: var(--bg-elevated);
 }
