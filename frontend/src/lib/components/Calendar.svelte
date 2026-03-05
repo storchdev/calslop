@@ -19,7 +19,7 @@
 
   const monthStart = $derived(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
   const monthEnd = $derived(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0));
-  const startPad = $derived((monthStart.getDay() + 6) % 7); // Monday first
+  const startPad = $derived(monthStart.getDay()); // Sunday first
   const daysInMonth = $derived(monthEnd.getDate());
   const totalCells = $derived(startPad + daysInMonth);
   const weeks = $derived(Math.ceil(totalCells / 7));
@@ -61,7 +61,7 @@
     });
   }
 
-  const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   // When switching to month view, sync focused day to selected date so Enter works without re-focusing a cell
   $effect(() => {
@@ -138,6 +138,22 @@
     if (app.focusedEventIndex < 0 || app.focusedEventIndex >= dayItems.length) {
       app.setFocusedEventIndex(0);
     }
+  });
+
+  // Current time line: update every minute when viewing today
+  let now = $state(new Date());
+  $effect(() => {
+    if (app.calendarView !== 'day' || !isToday(selectedDate)) return;
+    const id = setInterval(() => {
+      now = new Date();
+    }, 60_000);
+    return () => clearInterval(id);
+  });
+  const currentTimeTopPx = $derived.by(() => {
+    if (!isToday(selectedDate)) return null;
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const minutesFromMidnight = (now.getTime() - startOfDay) / 60000;
+    return (minutesFromMidnight / 60) * ROW_HEIGHT;
   });
 </script>
 
@@ -320,6 +336,14 @@
 
       <div class="day-view-timeline-wrap flex-1 min-h-0 flex flex-col" data-day-timeline-scroll>
         <div class="day-view-timeline" style="height: {24 * ROW_HEIGHT}px;">
+          {#if currentTimeTopPx != null && currentTimeTopPx >= 0 && currentTimeTopPx <= 24 * ROW_HEIGHT}
+            <div
+              class="day-view-now-line"
+              style="top: {currentTimeTopPx}px;"
+              role="presentation"
+              aria-hidden="true"
+            ></div>
+          {/if}
           {#each Array(24) as _, hour}
             <div class="day-view-hour" style="height: {ROW_HEIGHT}px;">
               <span class="day-view-hour-label">

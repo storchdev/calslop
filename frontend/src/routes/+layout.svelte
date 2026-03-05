@@ -44,18 +44,17 @@
 <a href="#todo-view" class="skip-link">Skip to todos</a>
 
 <div class="toolbar">
-  <span>Calslop</span>
-  <label>
-    Theme
-    <select class="theme-select" bind:value={themeValue} onchange={handleThemeChange}>
+  <div class="dropdown-box">
+    <span class="dropdown-box-label">Theme</span>
+    <select bind:value={themeValue} onchange={handleThemeChange}>
       <option value="system">System</option>
       <option value="light">Light</option>
       <option value="dark">Dark</option>
     </select>
-  </label>
-  <label>
-    Time zone
-    <select class="theme-select" value={app.timezone} onchange={handleTimezoneChange}>
+  </div>
+  <div class="dropdown-box">
+    <span class="dropdown-box-label">Time zone</span>
+    <select value={app.timezone} onchange={handleTimezoneChange}>
       <option value="">Local (browser)</option>
       <option value="America/New_York">Eastern</option>
       <option value="America/Chicago">Central</option>
@@ -66,7 +65,7 @@
       <option value="Asia/Tokyo">Tokyo</option>
       <option value="UTC">UTC</option>
     </select>
-  </label>
+  </div>
   <a href="/settings" class="btn btn-ghost">Settings</a>
   <button class="btn btn-ghost inline-flex items-baseline gap-1.5" onclick={() => app.setModalOpen('shortcuts')} type="button">
     Shortcuts

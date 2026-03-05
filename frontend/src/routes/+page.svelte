@@ -73,7 +73,7 @@
   }
 </script>
 
-<div class="flex flex-wrap items-center gap-2 py-2 px-4 border-b border-[var(--border)]">
+<div class="flex flex-wrap items-center gap-2 py-3 px-4 border-b border-[var(--border)]">
   <button
     class="btn btn-ghost inline-flex items-baseline gap-1.5"
     class:bg-[var(--bg-elevated)]={app.viewMode === 'calendar'}
@@ -132,11 +132,10 @@
     <p class="p-4 text-[var(--text-muted)]">Loading…</p>
   {:else if app.viewMode === 'calendar'}
     <div class="flex flex-1 flex-col min-h-0 gap-2">
-      <div class="flex flex-wrap items-center gap-2 px-4 shrink-0">
-      <label class="flex items-center gap-2 text-sm text-[var(--text-muted)]">
-        <span>View:</span>
+      <div class="flex flex-wrap items-center gap-3 px-4 py-3 shrink-0">
+      <div class="dropdown-box">
+        <span class="dropdown-box-label">View</span>
         <select
-          class="rounded border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-sm text-[var(--text)]"
           value={app.calendarDensity}
           onchange={(e) => app.setCalendarDensity((e.currentTarget as HTMLSelectElement).value as 'minimal' | 'balanced' | 'dense')}
         >
@@ -144,7 +143,7 @@
           <option value="balanced">Balanced</option>
           <option value="dense">Dense</option>
         </select>
-      </label>
+      </div>
       {#if app.calendarDensity !== 'minimal'}
         <label class="inline-flex items-center gap-2 cursor-pointer text-sm">
           <input type="checkbox" checked={app.showTodosOnCalendar} onchange={() => app.toggleShowTodosOnCalendar()} />

@@ -49,17 +49,16 @@
       {showCompleted ? 'Hide completed' : 'Show completed'}
       <span class="key-hint">S</span>
     </button>
-    <label class="flex items-center gap-2 text-sm text-[var(--text-muted)]">
-      <span>Order:</span>
+    <div class="dropdown-box">
+      <span class="dropdown-box-label">Order</span>
       <select
-        class="rounded border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-sm text-[var(--text)]"
         value={todoOrder}
         onchange={(e) => app.setTodoOrder((e.currentTarget as HTMLSelectElement).value as 'oldest' | 'newest')}
       >
         <option value="oldest">Oldest first</option>
         <option value="newest">Newest first</option>
       </select>
-    </label>
+    </div>
     <span class="text-xs text-[var(--text-muted)]" title="Total and completed count in current data">
       ({todos.length} total, {completedCount} completed)
     </span>

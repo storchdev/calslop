@@ -10,6 +10,7 @@
   --accent-hover: #1d4ed8;
   --border: #d6d3d1;
   --focus-ring: 0 0 0 2px var(--accent);
+  --now-line: #dc2626;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -21,6 +22,7 @@
     --accent: #3b82f6;
     --accent-hover: #60a5fa;
     --border: #44403c;
+    --now-line: #f87171;
   }
 }
 
@@ -33,6 +35,7 @@
   --accent: #2563eb;
   --accent-hover: #1d4ed8;
   --border: #d6d3d1;
+  --now-line: #dc2626;
 }
 
 [data-theme="dark"] {
@@ -44,6 +47,7 @@
   --accent: #3b82f6;
   --accent-hover: #60a5fa;
   --border: #44403c;
+  --now-line: #f87171;
 }
 
 * {
@@ -173,6 +177,16 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 .day-view-timeline {
   position: relative;
   min-height: 100%;
+}
+
+.day-view-now-line {
+  position: absolute;
+  left: 2.75rem;
+  right: 0.5rem;
+  height: 2px;
+  background: var(--now-line);
+  pointer-events: none;
+  z-index: 2;
 }
 
 .day-view-hour {
@@ -482,16 +496,63 @@ select, select option {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 0.5rem 0;
+  padding: 0.5rem 0 0.5rem 1rem;
   flex-wrap: wrap;
 }
 
-.toolbar .theme-select {
-  padding: 0.35rem 0.5rem;
+/* Dropdown with title inside the box, above the select */
+.dropdown-box {
+  display: inline-flex;
+  flex-direction: column;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--bg);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.dropdown-box-label {
+  padding: 0.2rem 0.5rem 0.05rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.dropdown-box select {
+  padding: 0.2rem 0.5rem 0.3rem 0.5rem;
+  padding-right: 1.75rem;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   color: var(--text);
+  font-size: 0.875rem;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2378716c' d='M2.5 4.5L6 8l3.5-3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+}
+
+[data-theme="dark"] .dropdown-box select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a8a29e' d='M2.5 4.5L6 8l3.5-3.5'/%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: dark) {
+  .dropdown-box select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a8a29e' d='M2.5 4.5L6 8l3.5-3.5'/%3E%3C/svg%3E");
+  }
+}
+
+.dropdown-box select:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.toolbar .dropdown-box select {
   font-size: 0.875rem;
 }
 
@@ -512,4 +573,123 @@ select, select option {
   color: var(--text-muted);
   z-index: 200;
   font-size: 1rem;
+}
+
+/* Settings page */
+.settings-page {
+  padding: 1.5rem 1.5rem 2rem;
+  max-width: 640px;
+}
+
+.settings-page h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+  color: var(--text);
+}
+
+.settings-page h2 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 1.75rem 0 0.75rem;
+  color: var(--text);
+  padding-bottom: 0.25rem;
+}
+
+.settings-page .back-link {
+  display: inline-block;
+  margin-bottom: 1.5rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+
+.settings-page .back-link:hover {
+  color: var(--text);
+}
+
+.settings-page .form-section {
+  margin-top: 1.25rem;
+}
+
+.settings-page .form-row {
+  margin-bottom: 1rem;
+}
+
+.settings-page .form-row label {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.settings-page .form-actions {
+  margin-top: 1.5rem;
+  padding-top: 0.5rem;
+}
+
+.settings-sources-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.settings-sources-list li {
+  display: grid;
+  grid-template-columns: 1fr minmax(8rem, auto) auto;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-sources-list li:last-child {
+  border-bottom: none;
+}
+
+.settings-sources-list li.settings-sources-header {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  background: var(--bg);
+  padding: 0.5rem 1rem;
+}
+
+.settings-sources-list li.settings-sources-header .source-remove {
+  width: 4.5rem;
+}
+
+.settings-sources-list .source-name {
+  font-weight: 600;
+  color: var(--text);
+  min-width: 0;
+}
+
+.settings-sources-list .source-type {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.settings-sources-list .source-remove {
+  justify-self: end;
+}
+
+.settings-page .add-source-btn {
+  margin-bottom: 1rem;
+}
+
+.settings-page .add-form {
+  margin-top: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+}
+
+.settings-page .add-form .form-actions {
+  margin-top: 1.25rem;
+  margin-bottom: 0;
 }

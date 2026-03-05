@@ -74,34 +74,45 @@
       { key: 'password', label: 'Password', placeholder: '' },
     ];
   }
+
+  function sourceTypeLabel(type: Source['type']): string {
+    if (type === 'ics_url') return 'Read-only ICS URL';
+    if (type === 'local_folder') return 'Local .ics folder';
+    return 'CalDAV server';
+  }
 </script>
 
 <svelte:head>
   <title>Settings – Calslop</title>
 </svelte:head>
 
-<div class="p-4 max-w-[600px]">
+<div class="settings-page">
   <h1>Settings</h1>
-  <p><a href="/">← Back to calendar</a></p>
+  <a href="/" class="back-link">← Back to calendar</a>
 
   <h2>Calendar &amp; todo sources</h2>
   {#if error}
-    <p class="text-red-600">{error}</p>
+    <p class="text-red-600" style="margin: 0 0 0.75rem;">{error}</p>
   {/if}
   {#if loading}
-    <p>Loading…</p>
+    <p style="margin: 0;">Loading…</p>
   {:else}
-    <ul class="list-none p-0">
+    <ul class="settings-sources-list">
+      <li class="settings-sources-header">
+        <span class="source-name">Name</span>
+        <span class="source-type">Type</span>
+        <span class="source-remove"></span>
+      </li>
       {#each sources as s}
-        <li class="flex items-center gap-3 py-2 border-b border-[var(--border)]">
-          <span class="font-semibold">{s.name}</span>
-          <span class="text-[var(--text-muted)] text-sm">{s.type}</span>
-          <button class="btn btn-ghost" onclick={() => remove(s.id)} type="button">Remove</button>
+        <li>
+          <span class="source-name">{s.name}</span>
+          <span class="source-type">{sourceTypeLabel(s.type)}</span>
+          <button class="btn btn-ghost source-remove" onclick={() => remove(s.id)} type="button">Remove</button>
         </li>
       {/each}
     </ul>
     {#if adding}
-      <form class="mt-4" onsubmit={(e) => { e.preventDefault(); addSource(); }}>
+      <form class="add-form" onsubmit={(e) => { e.preventDefault(); addSource(); }}>
         <div class="form-row">
           <label for="new-name">Name</label>
           <input id="new-name" type="text" bind:value={newName} placeholder="My calendar" />
@@ -131,7 +142,7 @@
         </div>
       </form>
     {:else}
-      <button class="btn btn-primary" onclick={() => (adding = true)} type="button">Add source</button>
+      <button class="btn btn-primary add-source-btn" onclick={() => (adding = true)} type="button">Add source</button>
     {/if}
   {/if}
 </div>
