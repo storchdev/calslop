@@ -39,6 +39,86 @@
     }
     if (app.modalOpen) return; // no other global shortcuts when modal open
 
+    // Day view: j/k move focus between events/todos, Enter opens focused item (work even when focus is not on the list)
+    if (app.viewMode === 'calendar' && app.calendarView === 'day') {
+      const dayItems = Array.from(document.querySelectorAll('[data-day-item-index]'));
+      if (dayItems.length > 0) {
+        if (key === 'j' || key === 'arrowdown') {
+          e.preventDefault();
+          const curr = app.focusedEventIndex;
+          const next = curr < 0 ? 0 : Math.min(curr + 1, dayItems.length - 1);
+          app.setFocusedEventIndex(next);
+          (dayItems[next] as HTMLElement)?.focus();
+          return;
+        }
+        if (key === 'k' || key === 'arrowup') {
+          e.preventDefault();
+          const curr = app.focusedEventIndex;
+          const next = curr < 0 ? dayItems.length - 1 : Math.max(0, curr - 1);
+          app.setFocusedEventIndex(next);
+          (dayItems[next] as HTMLElement)?.focus();
+          return;
+        }
+        if (key === 'enter') {
+          const curr = app.focusedEventIndex;
+          if (curr >= 0 && curr < dayItems.length) {
+            e.preventDefault();
+            (dayItems[curr] as HTMLElement)?.click();
+            return;
+          }
+        }
+      }
+    }
+
+    // Todo view: S toggles show completed; j/k move focus, Enter opens, Space/x toggle completed
+    if (app.viewMode === 'todo') {
+      if (key === 's') {
+        app.toggleShowCompletedTodos();
+        e.preventDefault();
+        return;
+      }
+      const todoItems = Array.from(document.querySelectorAll('[data-todo-item-index]'));
+      if (todoItems.length > 0) {
+        if (key === 'j' || key === 'arrowdown') {
+          e.preventDefault();
+          const curr = app.focusedTodoIndex;
+          const next = curr < 0 ? 0 : Math.min(curr + 1, todoItems.length - 1);
+          app.setFocusedTodoIndex(next);
+          (todoItems[next] as HTMLElement)?.focus();
+          return;
+        }
+        if (key === 'k' || key === 'arrowup') {
+          e.preventDefault();
+          const curr = app.focusedTodoIndex;
+          const next = curr < 0 ? todoItems.length - 1 : Math.max(0, curr - 1);
+          app.setFocusedTodoIndex(next);
+          (todoItems[next] as HTMLElement)?.focus();
+          return;
+        }
+        if (key === 'enter') {
+          const curr = app.focusedTodoIndex;
+          if (curr >= 0 && curr < todoItems.length) {
+            e.preventDefault();
+            (todoItems[curr] as HTMLElement)?.click();
+            return;
+          }
+        }
+        if (key === ' ' || key === 'x') {
+          e.preventDefault();
+          const curr = app.focusedTodoIndex;
+          if (curr >= 0 && curr < todoItems.length) {
+            const row = todoItems[curr];
+            const checkbox = row?.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
+            if (checkbox) {
+              checkbox.checked = !checkbox.checked;
+              checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            return;
+          }
+        }
+      }
+    }
+
     if (app.viewMode === 'calendar' && app.calendarView === 'month' && key === 'enter') {
       const dateToUse = app.focusedDayDate ?? app.selectedDate;
       app.setSelectedDate(dateToUse);

@@ -38,6 +38,8 @@
       <dd class="m-0">Month: previous week. Day view: previous event/todo. Todos: focus prev</dd>
       <dt class="font-mono font-semibold">X or Space</dt>
       <dd class="m-0">Todos: toggle focused todo completed</dd>
+      <dt class="font-mono font-semibold">S</dt>
+      <dd class="m-0">Todo view: toggle show/hide completed todos</dd>
       <dt class="font-mono font-semibold">Shift+H/J/K/L</dt>
       <dd class="m-0">Month view: change month. Day view: change week</dd>
       <dt class="font-mono font-semibold">V</dt>

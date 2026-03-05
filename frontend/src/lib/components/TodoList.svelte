@@ -31,9 +31,11 @@
       type="button"
       class="btn btn-ghost text-sm"
       onclick={() => app.toggleShowCompletedTodos()}
+      title="Toggle show completed todos (S)"
     >
       {app.showCompletedTodos ? 'Hide completed' : 'Show completed'}
     </button>
+    <span class="text-xs text-[var(--text-muted)] font-mono">S</span>
   </div>
   {#each visibleTodos as todo, i}
     <div
@@ -42,6 +44,7 @@
       class:completed={todo.completed}
       class:focused={app.focusedTodoIndex === i}
       tabindex={app.focusedTodoIndex === i ? 0 : -1}
+      data-todo-item-index={i}
       onclick={() => onSelect?.(todo)}
       onkeydown={(e) => {
         if (e.key === 'Enter') onSelect?.(todo);
