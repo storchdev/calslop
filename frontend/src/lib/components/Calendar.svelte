@@ -250,11 +250,9 @@
                     {#if item.kind === 'event'}
                       <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap text-center" class:line-through={item.event.cancelled} title={item.event.title}>{item.event.title}</span>
                     {:else}
-                      <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center justify-center gap-0.5" title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
+                      <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center justify-center gap-0.5 italic text-[var(--text-muted)]" class:line-through={item.todo.completed} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
                         {#if item.todo.completed}
-                          <span class="opacity-70" aria-hidden="true">✓</span>
-                        {:else}
-                          <span class="opacity-70 border border-current rounded w-3 h-3 inline-block shrink-0" aria-hidden="true"></span>
+                          <span class="opacity-80 shrink-0" aria-hidden="true">✓</span>
                         {/if}
                         {item.todo.summary}
                       </span>
