@@ -87,7 +87,7 @@
     <div class="flex flex-1 flex-col min-h-0">
       <div class="subtoolbar flex flex-wrap items-center gap-3 px-4 py-3 shrink-0">
         <div class="dropdown-box">
-          <span class="dropdown-box-label">View</span>
+          <span class="dropdown-box-label dropdown-box-label-with-key"><span>View</span><span class="key-hint">V</span></span>
           <select
             value={app.calendarDensity}
             onchange={(e) => app.setCalendarDensity((e.currentTarget as HTMLSelectElement).value as 'minimal' | 'balanced' | 'dense')}
@@ -98,25 +98,30 @@
           </select>
         </div>
         {#if app.calendarDensity !== 'minimal'}
-          <label class="inline-flex items-center gap-2 cursor-pointer text-sm">
-            <input type="checkbox" checked={app.showTodosOnCalendar} onchange={() => app.toggleShowTodosOnCalendar()} />
-            <span>Show todos on calendar</span>
-          </label>
+          <div class="option-box">
+            <span class="dropdown-box-label">Show todos</span>
+            <label class="option-box-content inline-flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={app.showTodosOnCalendar} onchange={() => app.toggleShowTodosOnCalendar()} />
+              <span class="key-hint">Y</span>
+            </label>
+          </div>
         {/if}
-        <label class="calendar-height-slider-label">
-          <span class="text-sm text-[var(--text-muted)]">Height:</span>
-          <input
-            type="range"
-            class="calendar-height-slider"
-            min="0.5"
-            max="2"
-            step="0.05"
-            value={app.calendarHeightRatio}
-            oninput={(e) => app.setCalendarHeightRatio(+(e.currentTarget as HTMLInputElement).value)}
-            title="Calendar height (ratio to width)"
-          />
-          <span class="text-xs text-[var(--text-muted)]">{Math.round(app.calendarHeightRatio * 100)}%</span>
-        </label>
+        <div class="option-box">
+          <span class="dropdown-box-label">Height</span>
+          <div class="option-box-content flex items-center gap-2">
+            <input
+              type="range"
+              class="calendar-height-slider"
+              min="0.5"
+              max="2"
+              step="0.05"
+              value={app.calendarHeightRatio}
+              oninput={(e) => app.setCalendarHeightRatio(+(e.currentTarget as HTMLInputElement).value)}
+              title="Day cell height (ratio)"
+            />
+            <span class="text-xs text-[var(--text-muted)]">{Math.round(app.calendarHeightRatio * 100)}%</span>
+          </div>
+        </div>
         <button
           class="btn btn-ghost"
           type="button"

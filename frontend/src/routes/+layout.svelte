@@ -50,16 +50,8 @@
 <a href="#calendar-view" class="skip-link">Skip to calendar</a>
 <a href="#todo-view" class="skip-link">Skip to todos</a>
 
-<div
-  class="navbar-wrap"
-  class:navbar-collapsed={app.navbarCollapsed}
-  onmouseenter={() => app.navbarCollapsed && app.setNavbarCollapsed(false)}
->
-  {#if app.navbarCollapsed}
-    <div class="navbar-hover-strip" role="button" tabindex="0" onclick={() => app.setNavbarCollapsed(false)} onkeydown={(e) => e.key === 'Enter' && app.setNavbarCollapsed(false)} title="Show navbar">
-      <span class="navbar-hover-strip-text">▼ Show nav</span>
-    </div>
-  {:else}
+{#if !app.navbarCollapsed}
+  <div class="navbar-wrap">
     <div class="toolbar">
       <div class="toolbar-left">
         <button
@@ -133,13 +125,14 @@
           Shortcuts
           <span class="key-hint">?</span>
         </button>
-        <button class="btn btn-ghost" type="button" onclick={() => app.setNavbarCollapsed(true)} title="Hide navbar">
+        <button class="btn btn-ghost inline-flex items-baseline gap-1.5" type="button" onclick={() => app.setNavbarCollapsed(true)} title="Hide navbar (B)">
           ▲ Hide nav
+          <span class="key-hint">B</span>
         </button>
       </div>
     </div>
-  {/if}
-</div>
+  </div>
+{/if}
 
 <KeyboardHandler />
 

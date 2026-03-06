@@ -247,6 +247,10 @@
         }
         e.preventDefault();
         break;
+      case 'b':
+        if (!e.repeat) app.setNavbarCollapsed(!app.navbarCollapsed);
+        e.preventDefault();
+        break;
       default:
         break;
     }

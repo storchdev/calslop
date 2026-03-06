@@ -486,27 +486,6 @@ select, select option {
   border-bottom: 1px solid var(--border);
 }
 
-.navbar-hover-strip {
-  height: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  background: var(--bg-elevated);
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  padding: 0 1rem;
-}
-
-.navbar-hover-strip:hover {
-  background: var(--border);
-  color: var(--text);
-}
-
-.navbar-hover-strip-text {
-  white-space: nowrap;
-}
-
 .toolbar {
   display: flex;
   align-items: center;
@@ -551,6 +530,13 @@ select, select option {
   color: var(--text-muted);
 }
 
+.dropdown-box-label-with-key {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .dropdown-box select {
   padding: 0.2rem 0.5rem 0.3rem 0.5rem;
   padding-right: 1.75rem;
@@ -587,6 +573,24 @@ select, select option {
   font-size: 0.875rem;
 }
 
+.option-box {
+  display: inline-flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.option-box .dropdown-box-label {
+  padding: 0.2rem 0.5rem 0.05rem 0.5rem;
+}
+
+.option-box-content {
+  padding: 0.2rem 0.5rem 0.3rem 0.5rem;
+}
+
 .subtoolbar {
   border-bottom: 1px solid var(--border);
 }
@@ -597,12 +601,6 @@ select, select option {
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.calendar-height-slider-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
 }
 
 .calendar-height-slider {

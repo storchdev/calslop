@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from 'svelte';
   import type { Event, Todo } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
   import { formatInTimezone, parseUtcIfNeeded } from '$lib/date';
@@ -156,9 +157,28 @@
     const minutesFromMidnight = (now.getTime() - startOfDay) / 60000;
     return (minutesFromMidnight / 60) * rowHeight;
   });
+
+  // Scroll so the selected day is fully visible
+  let calendarEl: HTMLDivElement | undefined;
+  $effect(() => {
+    const view = app.calendarView;
+    const date = selectedDate;
+    if (!calendarEl) return;
+    tick().then(() => {
+      const scrollParent = calendarEl?.closest('.content-scroll') as HTMLElement | null;
+      if (!scrollParent) return;
+      if (view === 'month') {
+        const sel = calendarEl?.querySelector('.day-cell.selected') as HTMLElement | null;
+        if (sel) sel.scrollIntoView({ block: 'nearest', behavior: 'smooth', inline: 'nearest' });
+      } else if (view === 'day') {
+        const nowLine = calendarEl?.querySelector('.day-view-now-line') as HTMLElement | null;
+        if (nowLine) nowLine.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    });
+  });
 </script>
 
-<div id="calendar-view" class="p-4 flex-1 min-h-0 flex flex-col" style="--calendar-height-ratio: {app.calendarHeightRatio}" role="application" aria-label="Calendar">
+<div id="calendar-view" class="p-4 flex-1 min-h-0 flex flex-col" style="--calendar-height-ratio: {app.calendarHeightRatio}" role="application" aria-label="Calendar" bind:this={calendarEl}>
   {#if app.calendarView === 'month'}
     <div class="flex flex-1 min-h-0 flex-col">
       <h2 class="text-xl font-semibold mb-3 text-[var(--text)] shrink-0">
