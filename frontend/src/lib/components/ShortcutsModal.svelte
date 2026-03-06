@@ -4,14 +4,19 @@
   }
 
   let { onclose }: Props = $props();
+  let modalEl: HTMLDivElement | undefined;
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') onclose();
+    if (!e.shiftKey && (e.key === 'j' || e.key === 'k')) {
+      e.preventDefault();
+      if (modalEl) modalEl.scrollTop += e.key === 'j' ? 60 : -60;
+    }
   }
 </script>
 
 <div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onkeydown={handleKeydown} onclick={(e) => e.target === e.currentTarget && onclose()}>
-  <div class="modal shortcuts-modal" onclick={(e) => e.stopPropagation()}>
+  <div class="modal shortcuts-modal" tabindex="-1" bind:this={modalEl} onclick={(e) => e.stopPropagation()}>
     <h2>Keyboard shortcuts</h2>
     <dl class="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 my-4">
       <dt class="font-mono font-semibold">1 or C</dt>

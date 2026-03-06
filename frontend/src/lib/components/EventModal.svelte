@@ -192,6 +192,11 @@
         return;
       }
     }
+    if (!inTextInput && !e.shiftKey && (e.key === 'j' || e.key === 'k')) {
+      e.preventDefault();
+      if (modalEl) modalEl.scrollTop += e.key === 'j' ? 60 : -60;
+      return;
+    }
     if (inTextInput) return;
 
     const key = e.key.toLowerCase();

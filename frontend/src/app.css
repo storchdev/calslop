@@ -357,6 +357,8 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 1rem 0;
+  box-sizing: border-box;
   z-index: 100;
 }
 
@@ -368,6 +370,8 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   width: min(92vw, 640px);
   min-width: min(280px, 92vw);
   max-width: 92vw;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
 }
 
 .modal h2 {
