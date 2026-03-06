@@ -63,10 +63,11 @@ Run the app as one process: Flask serves the built Svelte frontend and the API. 
 
 4. **Run**
 
-   From the repo root, with the built frontend served by Flask:
+   From the **backend** directory so Flask can import `app.main`. Point `CALSLOP_STATIC_DIR` at the built frontend (use an absolute path):
 
    ```bash
-   CALSLOP_STATIC_DIR="$(pwd)/frontend/build" uv run --project backend flask --app app.main run --port 8765 --host 0.0.0.0
+   cd backend
+   CALSLOP_STATIC_DIR="$(realpath ../frontend/build)" uv run flask --app app.main run --port 8765 --host 0.0.0.0
    ```
 
    Open http://localhost:8765 (or your machine’s IP if remote).
@@ -83,15 +84,21 @@ To run Calslop as a system service (starts on boot, restarts on failure):
    sudo useradd -r -s /bin/false calslop
    ```
 
-2. Install the app under e.g. `/opt/calslop` (clone + build as above). Ensure the `calslop` user can read the directory. Create a config directory for source data (e.g. `sources.json`) and give the service user access:
+2. Create an install directory, clone the repo, build, and set ownership. Replace `/opt/calslop` with your chosen path if different.
 
    ```bash
+   sudo mkdir -p /opt/calslop
+   sudo chown "$USER" /opt/calslop
+   git clone https://github.com/your-org/calslop.git /opt/calslop
+   cd /opt/calslop
+   cd backend && uv sync && cd ..
+   cd frontend && npm ci && npm run build && cd ..
    sudo chown -R calslop:calslop /opt/calslop
    sudo mkdir -p /var/lib/calslop
    sudo chown calslop:calslop /var/lib/calslop
    ```
 
-3. Create a systemd unit:
+3. Create the systemd unit. Replace `/opt/calslop` in the following with your install path. If you used `pip install -e .` instead of `uv`, set `ExecStart` to your venv’s `python` (e.g. `/opt/calslop/backend/.venv/bin/python`).
 
    ```bash
    sudo tee /etc/systemd/system/calslop.service << 'EOF'
@@ -104,11 +111,11 @@ To run Calslop as a system service (starts on boot, restarts on failure):
    User=calslop
    Group=calslop
    WorkingDirectory=/opt/calslop/backend
+   Environment="PYTHONPATH=/opt/calslop/backend"
    Environment="CALSLOP_STATIC_DIR=/opt/calslop/frontend/build"
    Environment="CALSLOP_DATA_DIR=/var/lib/calslop"
    Environment="PATH=/opt/calslop/backend/.venv/bin:/usr/local/bin:/usr/bin:/bin"
    ExecStart=/opt/calslop/backend/.venv/bin/python -m flask --app app.main run --port 8765 --host 0.0.0.0
-   # If you used pip instead of uv, point ExecStart at your venv’s python.
    Restart=on-failure
    RestartSec=5
 
@@ -116,8 +123,6 @@ To run Calslop as a system service (starts on boot, restarts on failure):
    WantedBy=multi-user.target
    EOF
    ```
-
-   If you used `pip install -e .` instead of `uv`, set `Environment="PATH=..."` and `ExecStart=` to your venv’s `python` (e.g. `/opt/calslop/backend/.venv/bin/python`).
 
 4. Enable and start:
 
