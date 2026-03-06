@@ -89,7 +89,7 @@ To run Calslop as a system service (starts on boot, restarts on failure):
    ```bash
    sudo mkdir -p /opt/calslop
    sudo chown "$USER" /opt/calslop
-   git clone https://github.com/your-org/calslop.git /opt/calslop
+   git clone https://github.com/storchdev/calslop.git /opt/calslop
    cd /opt/calslop
    cd backend && uv sync && cd ..
    cd frontend && npm ci && npm run build && cd ..
