@@ -11,6 +11,7 @@
   --border: #d6d3d1;
   --focus-ring: 0 0 0 2px var(--accent);
   --now-line: #dc2626;
+  --todo-overdue: #b91c1c;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +24,7 @@
     --accent-hover: #60a5fa;
     --border: #44403c;
     --now-line: #f87171;
+    --todo-overdue: #fca5a5;
   }
 }
 
@@ -36,6 +38,7 @@
   --accent-hover: #1d4ed8;
   --border: #d6d3d1;
   --now-line: #dc2626;
+  --todo-overdue: #b91c1c;
 }
 
 [data-theme="dark"] {
@@ -48,6 +51,7 @@
   --accent-hover: #60a5fa;
   --border: #44403c;
   --now-line: #f87171;
+  --todo-overdue: #fca5a5;
 }
 
 * {
@@ -166,6 +170,11 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 .todo-item.completed {
   opacity: 0.7;
   text-decoration: line-through;
+}
+
+.todo-item.overdue .todo-summary,
+.todo-item.overdue .todo-due {
+  color: var(--todo-overdue);
 }
 
 .todo-loading-spinner {
@@ -328,6 +337,11 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   opacity: 0.8;
 }
 
+.day-todo.overdue .day-todo-label,
+.day-todo.overdue .day-todo-time {
+  color: var(--todo-overdue);
+}
+
 .day-todo-checkbox {
   flex-shrink: 0;
   width: 1rem;
@@ -371,6 +385,10 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.todo-overdue-text {
+  color: var(--todo-overdue);
 }
 
 .modal-backdrop {

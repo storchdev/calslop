@@ -86,6 +86,11 @@
     });
   }
 
+  function isTodoOverdue(todo: Todo): boolean {
+    if (todo.completed || !todo.due) return false;
+    return parseUtcIfNeeded(todo.due).getTime() < Date.now();
+  }
+
   const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   // Measure day cell height so we can show more/fewer events based on available space (dense + balanced)
@@ -338,7 +343,7 @@
                           {item.event.all_day ? '' : formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)} {item.event.title}
                         </div>
                       {:else}
-                        <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center gap-0.5 leading-none italic text-[var(--text-muted)]" class:line-through={item.todo.completed} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
+                        <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center gap-0.5 leading-none italic text-[var(--text-muted)]" class:line-through={item.todo.completed} class:todo-overdue-text={isTodoOverdue(item.todo)} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
                           <span class="min-w-0 truncate">{item.todo.due ? formatInTimezone(item.todo.due, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined) : '–'} {item.todo.summary}</span>
                           {#if item.todo.completed}
                             <span class="opacity-80 shrink-0" aria-hidden="true">✓</span>
@@ -369,7 +374,7 @@
                     {#if item.kind === 'event'}
                       <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap text-center" class:line-through={item.event.cancelled} title={item.event.title}>{item.event.title}</span>
                     {:else}
-                      <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center justify-center gap-0.5 italic text-[var(--text-muted)]" class:line-through={item.todo.completed} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
+                      <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center justify-center gap-0.5 italic text-[var(--text-muted)]" class:line-through={item.todo.completed} class:todo-overdue-text={isTodoOverdue(item.todo)} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
                         {#if item.todo.completed}
                           <span class="opacity-80 shrink-0" aria-hidden="true">✓</span>
                         {/if}
@@ -425,6 +430,7 @@
                   class="day-todo day-todo-block"
                   class:focused={app.focusedEventIndex === i}
                   class:completed={item.todo.completed}
+                  class:overdue={isTodoOverdue(item.todo)}
                   tabindex={app.focusedEventIndex === i ? 0 : -1}
                   data-day-item-index={i}
                   data-day-item-todo-id={item.todo.id}
@@ -485,12 +491,13 @@
                 <span class="day-event-title">{item.event.title}</span>
               </button>
             {:else}
-              <button
-                type="button"
-                class="day-todo day-todo-timed"
-                class:focused={app.focusedEventIndex === i}
-                class:completed={item.todo.completed}
-                tabindex={app.focusedEventIndex === i ? 0 : -1}
+                <button
+                  type="button"
+                  class="day-todo day-todo-timed"
+                  class:focused={app.focusedEventIndex === i}
+                  class:completed={item.todo.completed}
+                  class:overdue={isTodoOverdue(item.todo)}
+                  tabindex={app.focusedEventIndex === i ? 0 : -1}
                 data-day-item-index={i}
                 data-day-item-todo-id={item.todo.id}
                 style="top: {topPx}px; height: {heightPx}px;"

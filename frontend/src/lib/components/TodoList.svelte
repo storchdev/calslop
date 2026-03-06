@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Todo } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
-  import { formatInTimezone } from '$lib/date';
+  import { formatInTimezone, parseUtcIfNeeded } from '$lib/date';
 
   interface Props {
     todos: Todo[];
@@ -25,6 +25,11 @@
       todo.summary.toLowerCase().includes(lower) ||
       (todo.description?.toLowerCase().includes(lower) ?? false)
     );
+  }
+
+  function isTodoOverdue(todo: Todo): boolean {
+    if (todo.completed || !todo.due) return false;
+    return parseUtcIfNeeded(todo.due).getTime() < Date.now();
   }
 
   const filtered = $derived(showCompleted ? todos : todos.filter((t) => !t.completed));
@@ -88,6 +93,7 @@
       class="todo-item flex items-center gap-2"
       class:completed={todo.completed && loadingTodoId !== todo.id}
       class:focused={app.focusedTodoIndex === i && loadingTodoId !== todo.id}
+      class:overdue={isTodoOverdue(todo) && loadingTodoId !== todo.id}
       tabindex={app.focusedTodoIndex === i ? 0 : -1}
       data-todo-item-index={i}
       onclick={() => loadingTodoId !== todo.id && onSelect?.(todo)}
@@ -127,12 +133,12 @@
           onclick={(e) => e.stopPropagation()}
           aria-label="Toggle completed"
         />
-        <span class="flex-1">{todo.summary}</span>
+        <span class="flex-1 todo-summary">{todo.summary}</span>
         {#if todo.recurrence}
           <span class="text-[var(--text-muted)]" title="Repeating" aria-hidden="true">↻</span>
         {/if}
         {#if todo.due}
-          <span class="text-sm text-[var(--text-muted)]">{formatInTimezone(todo.due, { dateStyle: 'short', timeStyle: 'short' }, app.timezone || undefined)}</span>
+          <span class="text-sm text-[var(--text-muted)] todo-due">{formatInTimezone(todo.due, { dateStyle: 'short', timeStyle: 'short' }, app.timezone || undefined)}</span>
         {/if}
       {/if}
     </div>
