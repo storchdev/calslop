@@ -471,6 +471,23 @@ select, select option {
   border: 1px solid var(--border);
 }
 
+.search-input-wrap {
+  position: relative;
+  display: inline-block;
+}
+.search-input-wrap .search-input {
+  padding-right: 1.5rem;
+}
+.search-input-key-hint {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 0.8em;
+  color: var(--text-muted);
+  font-family: ui-monospace, monospace;
+}
 .search-input {
   padding: 0.35rem 0.6rem;
   border: 1px solid var(--border);

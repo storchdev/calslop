@@ -6,12 +6,21 @@
   let { onclose }: Props = $props();
   let modalEl: HTMLDivElement | undefined;
 
+  $effect(() => {
+    if (!modalEl) return;
+    const fn = (e: KeyboardEvent) => {
+      if (!e.shiftKey && (e.key === 'j' || e.key === 'k')) {
+        e.preventDefault();
+        e.stopPropagation();
+        modalEl!.scrollTop += e.key === 'j' ? 60 : -60;
+      }
+    };
+    window.addEventListener('keydown', fn, true);
+    return () => window.removeEventListener('keydown', fn, true);
+  });
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') onclose();
-    if (!e.shiftKey && (e.key === 'j' || e.key === 'k')) {
-      e.preventDefault();
-      if (modalEl) modalEl.scrollTop += e.key === 'j' ? 60 : -60;
-    }
   }
 </script>
 
@@ -67,6 +76,8 @@
       <dd class="m-0">Show this shortcuts list</dd>
       <dt class="font-mono font-semibold">Escape</dt>
       <dd class="m-0">Close modal</dd>
+      <dt class="font-mono font-semibold">j / k</dt>
+      <dd class="m-0">Modals: scroll content</dd>
       <dt class="font-mono font-semibold">Event/todo modals</dt>
       <dd class="m-0">Ctrl+Enter save, Ctrl+Shift+D delete (when editing), Esc cancel. Single key (T, S, …) jumps to field. Shift+J / Shift+K cycle dropdown options.</dd>
     </dl>
