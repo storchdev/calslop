@@ -175,7 +175,7 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 }
 
 .day-view-timeline-wrap {
-  overflow-y: auto;
+  overflow: visible;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg);

@@ -395,7 +395,7 @@
         </div>
       {/if}
 
-      <div class="day-view-timeline-wrap flex-1 min-h-0 flex flex-col" data-day-timeline-scroll>
+      <div class="day-view-timeline-wrap flex-1 min-h-0 flex flex-col">
         <div class="day-view-timeline" style="height: {24 * rowHeight}px;">
           {#if currentTimeTopPx != null && currentTimeTopPx >= 0 && currentTimeTopPx <= 24 * rowHeight}
             <div
