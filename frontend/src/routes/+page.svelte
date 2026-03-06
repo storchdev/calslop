@@ -119,12 +119,12 @@
             <input
               type="range"
               class="calendar-height-slider"
-              min="0.5"
-              max="2"
+              min="1"
+              max="3"
               step="0.05"
               value={app.calendarHeightRatio}
               oninput={(e) => app.setCalendarHeightRatio(+(e.currentTarget as HTMLInputElement).value)}
-              title="Day cell height (ratio)"
+              title="Calendar height (100–300%)"
             />
             <span class="text-xs text-[var(--text-muted)]">{Math.round(app.calendarHeightRatio * 100)}%</span>
           </div>
@@ -167,8 +167,8 @@
           <span class="key-hint">R</span>
         </button>
       </div>
-      <div class="content-scroll flex-1 min-h-0 overflow-auto">
-        <div class="calendar-height-wrapper">
+      <div class="content-scroll flex flex-col flex-1 min-h-0 overflow-auto">
+        <div class="calendar-height-wrapper min-h-0" style="--calendar-height-ratio: {app.calendarHeightRatio}">
           <Calendar
       events={events}
       todos={todos}

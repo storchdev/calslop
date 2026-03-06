@@ -93,7 +93,8 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .day-cell {
   position: relative;
-  min-height: calc(80px * var(--calendar-height-ratio, 1));
+  min-height: 0; /* allow grid row to shrink; we clip overflow and show "+N more" */
+  overflow: hidden;
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: 4px;

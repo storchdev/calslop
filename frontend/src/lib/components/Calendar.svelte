@@ -88,6 +88,37 @@
 
   const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+  // Measure day cell height so we can show more/fewer events based on available space (dense + balanced)
+  let dayCellHeightPx = $state(0);
+  let monthGridEl: HTMLDivElement | undefined;
+  $effect(() => {
+    const el = monthGridEl;
+    const w = weeks;
+    if (!el || app.calendarView !== 'month' || w < 1) return;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      dayCellHeightPx = entry.contentRect.height / w;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+
+  // Approximate line heights: balanced 0.7rem ~14px, dense 0.65rem leading-none ~11px
+  const BALANCED_LINE_PX = 18;
+  const BALANCED_RESERVED_PX = 32; // day number + padding
+  const DENSE_LINE_PX = 14;
+  const DENSE_RESERVED_PX = 14;
+
+  const balancedMaxSlots = $derived(
+    dayCellHeightPx > 0
+      ? Math.max(1, Math.floor((dayCellHeightPx - BALANCED_RESERVED_PX) / BALANCED_LINE_PX))
+      : 2
+  );
+  const denseMaxSlots = $derived(
+    dayCellHeightPx > 0 ? Math.max(1, Math.floor((dayCellHeightPx - DENSE_RESERVED_PX) / DENSE_LINE_PX)) : 5
+  );
+
   // When switching to month view, sync focused day to selected date so Enter works without re-focusing a cell
   $effect(() => {
     if (app.calendarView !== 'month') return;
@@ -217,7 +248,7 @@
   });
 </script>
 
-<div id="calendar-view" class="p-4 flex-1 min-h-0 flex flex-col" style="--calendar-height-ratio: {app.calendarHeightRatio}" role="application" aria-label="Calendar" bind:this={calendarEl}>
+<div id="calendar-view" class="p-4 flex-1 min-h-0 flex flex-col" style="--calendar-height-ratio: {app.calendarHeightRatio}; --calendar-row-height: calc(60px * var(--calendar-height-ratio, 1))" role="application" aria-label="Calendar" bind:this={calendarEl}>
   {#if app.calendarView === 'month'}
     <div class="flex flex-1 min-h-0 flex-col">
       <h2 class="text-xl font-semibold mb-3 text-[var(--text)] shrink-0">
@@ -229,8 +260,9 @@
         {/each}
       </div>
       <div
-        class="grid grid-cols-7 gap-1 flex-1 min-h-0"
-        style="grid-template-rows: repeat({weeks}, 1fr);"
+        bind:this={monthGridEl}
+        class="grid grid-cols-7 gap-1 shrink-0 min-h-0"
+        style="--calendar-weeks: {weeks}; height: calc(var(--calendar-row-height, 60px) * var(--calendar-weeks)); grid-template-rows: repeat({weeks}, 1fr);"
         role="grid"
       >
         {#each Array(weeks * 7) as _, i}
@@ -286,11 +318,14 @@
               {:else if density === 'dense'}
                 {@const evs = eventsForDay(d)}
                 {@const tds = showTodos ? todosForDay(d) : []}
-                {@const combined = [...evs.map((e) => ({ kind: 'event' as const, event: e })), ...tds.map((todo) => ({ kind: 'todo' as const, todo }))].sort((a, b) => {
+                {@const combinedAll = [...evs.map((e) => ({ kind: 'event' as const, event: e })), ...tds.map((todo) => ({ kind: 'todo' as const, todo }))].sort((a, b) => {
                   const at = a.kind === 'event' ? new Date(a.event.start).getTime() : new Date(a.todo.due ?? 0).getTime();
                   const bt = b.kind === 'event' ? new Date(b.event.start).getTime() : new Date(b.todo.due ?? 0).getTime();
                   return at - bt;
-                }).slice(0, 5)}
+                })}
+                {@const denseHasMore = combinedAll.length > denseMaxSlots}
+                {@const denseVisibleCount = denseHasMore ? Math.min(combinedAll.length, denseMaxSlots - 1) : Math.min(combinedAll.length, denseMaxSlots)}
+                {@const combined = combinedAll.slice(0, denseVisibleCount)}
                 <div class="dense-day-inner flex flex-row items-baseline gap-1.5 absolute inset-1 overflow-hidden text-left">
                   <span class="font-semibold text-sm shrink-0 leading-none">{d.getDate()}</span>
                   <div class="flex-1 min-w-0 overflow-hidden flex flex-col gap-0.5">
@@ -308,19 +343,23 @@
                         </div>
                       {/if}
                     {/each}
+                    {#if denseHasMore}
+                      <div class="text-[0.65rem] leading-none text-[var(--text-muted)] truncate">+{combinedAll.length - denseVisibleCount} more</div>
+                    {/if}
                   </div>
                 </div>
               {:else}
                 <!-- balanced: events and todos combined, centered; (+N) only when truncated -->
                 {@const evs = eventsForDay(d)}
                 {@const tds = showTodos ? todosForDay(d) : []}
-                {@const combined = [...evs.map((e) => ({ kind: 'event' as const, event: e })), ...tds.map((t) => ({ kind: 'todo' as const, todo: t }))].sort((a, b) => {
+                {@const combinedAll = [...evs.map((e) => ({ kind: 'event' as const, event: e })), ...tds.map((t) => ({ kind: 'todo' as const, todo: t }))].sort((a, b) => {
                   const at = a.kind === 'event' ? new Date(a.event.start).getTime() : new Date(a.todo.due ?? 0).getTime();
                   const bt = b.kind === 'event' ? new Date(b.event.start).getTime() : new Date(b.todo.due ?? 0).getTime();
                   return at - bt;
                 })}
-                {@const visible = combined.slice(0, 2)}
-                {@const hasMore = combined.length > 2}
+                {@const balancedVisibleCount = combinedAll.length > balancedMaxSlots ? balancedMaxSlots - 1 : Math.min(combinedAll.length, balancedMaxSlots)}
+                {@const visible = combinedAll.slice(0, balancedVisibleCount)}
+                {@const hasMore = combinedAll.length > balancedVisibleCount}
                 <span class="day-num-centered block font-semibold">{d.getDate()}</span>
                 <div class="balanced-view-content">
                   {#each visible as item}
@@ -337,14 +376,14 @@
                   {/each}
                   {#if hasMore}
                     <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap text-center text-[var(--text-muted)]">
-                      +{combined.length - 2} more
+                      +{combinedAll.length - balancedVisibleCount} more
                     </span>
                   {/if}
                 </div>
               {/if}
             </button>
           {:else}
-            <div class="day-cell min-h-[60px] bg-transparent border-none cursor-default"></div>
+            <div class="day-cell bg-transparent border-none cursor-default"></div>
           {/if}
         {/each}
       </div>
