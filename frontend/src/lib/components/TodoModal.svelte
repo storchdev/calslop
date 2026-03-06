@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { createTodo, updateTodo, getTodo, getSources, deleteTodo, parseHumanDatetime } from '$lib/api';
+  import { createTodo, updateTodo, getTodo, getSources, deleteTodo, parseHumanDatetime, parseHumanRecurrence } from '$lib/api';
   import type { Todo, TodoCreate, TodoUpdate } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
   import { toLocalDatetimeInput } from '$lib/date';
@@ -25,7 +25,10 @@
   let saving = $state(false);
   let deleting = $state(false);
   let activeDueField = $state(false);
+  let activeRepeatField = $state(false);
   let dueHuman = $state('');
+  let repeatHuman = $state('');
+  let customRepeatOption = $state<{ value: string; label: string } | null>(null);
 
   const repeatOptions = [
     { value: '', label: 'None' },
@@ -100,11 +103,12 @@
   let dueHumanEl = $state<HTMLInputElement | undefined>(undefined);
   let descriptionEl: HTMLTextAreaElement | undefined;
   let recurrenceEl: HTMLSelectElement | undefined;
+  let repeatHumanEl = $state<HTMLInputElement | undefined>(undefined);
   let sourceIdEl: HTMLSelectElement | undefined;
 
   $effect(() => {
     if (app.modalOpen === 'todo') {
-      tick().then(() => modalEl?.focus());
+      tick().then(() => summaryEl?.focus());
     }
   });
 
@@ -145,16 +149,47 @@
     tick().then(() => dueHumanEl?.focus());
   }
 
+  function clearRepeatFieldIfNeeded() {
+    tick().then(() => {
+      const active = document.activeElement;
+      if (active !== recurrenceEl && active !== repeatHumanEl) activeRepeatField = false;
+    });
+  }
+
+  function focusRepeatHumanField() {
+    activeRepeatField = true;
+    tick().then(() => repeatHumanEl?.focus());
+  }
+
+  async function applyHumanRepeat(): Promise<boolean> {
+    const text = repeatHuman.trim();
+    if (!text) return false;
+    error = '';
+    try {
+      const parsed = await parseHumanRecurrence(text);
+      customRepeatOption = { value: parsed.rrule, label: parsed.label };
+      recurrence = parsed.rrule;
+      activeRepeatField = false;
+      repeatHumanEl?.blur();
+      modalEl?.focus();
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to parse recurrence';
+      return false;
+    }
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     const target = e.target as HTMLElement;
-    const inHumanInput = target === dueHumanEl;
+    const inHumanInput = target === dueHumanEl || target === repeatHumanEl;
     const inTextInput = target instanceof HTMLInputElement && target.type !== 'checkbox' && target.type !== 'radio'
       || target instanceof HTMLTextAreaElement;
 
     if (e.key === 'Escape') {
       if (inTextInput) {
         e.preventDefault();
-        if (inHumanInput) activeDueField = false;
+        if (target === dueHumanEl) activeDueField = false;
+        if (target === repeatHumanEl) activeRepeatField = false;
         target.blur();
         modalEl?.focus();
       } else {
@@ -167,9 +202,19 @@
       void applyHumanDue();
       return;
     }
+    if (e.key === 'Enter' && target === repeatHumanEl) {
+      e.preventDefault();
+      void applyHumanRepeat();
+      return;
+    }
     if (target === dueEl && e.key.toLowerCase() === 'h') {
       e.preventDefault();
       focusDueHumanField();
+      return;
+    }
+    if (target === recurrenceEl && e.key.toLowerCase() === 'h') {
+      e.preventDefault();
+      focusRepeatHumanField();
       return;
     }
     if (e.ctrlKey && e.key === 'Enter') {
@@ -307,12 +352,41 @@
         <span class="field-label">Repeat</span>
         <span class="field-shortcut">R</span>
       </div>
-      <select bind:value={recurrence} bind:this={recurrenceEl} disabled={isInstance} title={isInstance ? 'Repeat is set on the series' : undefined}>
+      <select
+        bind:value={recurrence}
+        bind:this={recurrenceEl}
+        disabled={isInstance}
+        title={isInstance ? 'Repeat is set on the series' : undefined}
+        onfocus={() => { if (!isInstance) activeRepeatField = true; }}
+        onblur={clearRepeatFieldIfNeeded}
+      >
         {#each repeatOptions as opt}
           <option value={opt.value}>{opt.label}</option>
         {/each}
+        {#if customRepeatOption && !repeatOptions.some((opt) => opt.value === customRepeatOption?.value)}
+          <option value={customRepeatOption.value}>{customRepeatOption.label}</option>
+        {/if}
       </select>
     </div>
+    {#if activeRepeatField && !isInstance}
+      <div class="form-row">
+        <div class="form-row-header">
+          <span class="field-label">Human-friendly</span>
+          <span class="field-shortcut">H</span>
+        </div>
+        <div class="repeat-human-input">
+          <span class="repeat-human-prefix">Every</span>
+          <input
+            type="text"
+            bind:value={repeatHuman}
+            bind:this={repeatHumanEl}
+            placeholder="e.g. 3 days"
+            onfocus={() => { activeRepeatField = true; }}
+            onblur={clearRepeatFieldIfNeeded}
+          />
+        </div>
+      </div>
+    {/if}
     <div class="form-row">
       <div class="form-row-header">
         <span class="field-label">Description</span>

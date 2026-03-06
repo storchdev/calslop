@@ -117,3 +117,10 @@ export async function parseHumanDatetime(
   });
   return { iso: res.iso, hasDate: res.has_date };
 }
+
+export async function parseHumanRecurrence(text: string): Promise<{ rrule: string; label: string }> {
+  return fetchApi<{ rrule: string; label: string }>('/recurrence/parse', {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
+}

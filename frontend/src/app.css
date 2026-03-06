@@ -445,6 +445,18 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   color: var(--text);
 }
 
+.repeat-human-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.repeat-human-prefix {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
 select, select option {
   background-color: var(--bg);
   color: var(--text);
