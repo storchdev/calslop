@@ -235,14 +235,17 @@
     const date = selectedDate;
     if (!calendarEl) return;
     tick().then(() => {
-      const scrollParent = calendarEl?.closest('.content-scroll') as HTMLElement | null;
-      if (!scrollParent) return;
       if (view === 'month') {
         const sel = calendarEl?.querySelector('.day-cell.selected') as HTMLElement | null;
         if (sel) sel.scrollIntoView({ block: 'nearest', behavior: 'smooth', inline: 'nearest' });
       } else if (view === 'day') {
         const nowLine = calendarEl?.querySelector('.day-view-now-line') as HTMLElement | null;
-        if (nowLine) nowLine.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        const dayView = calendarEl?.querySelector('.day-view') as HTMLElement | null;
+        if (nowLine && dayView) {
+          const lineTop = nowLine.offsetTop;
+          const target = Math.max(0, lineTop - dayView.clientHeight / 2);
+          dayView.scrollTo({ top: target, behavior: 'smooth' });
+        }
       }
     });
   });
@@ -391,7 +394,12 @@
   {:else}
     <!-- Day view: 24h timeline -->
     <div class="day-view flex flex-col flex-1 min-h-0">
-      <h3 class="day-view-title shrink-0 mb-2">{selectedDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+      <div class="day-view-sticky-header shrink-0">
+        <h3 class="day-view-title mb-2">{selectedDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+        {#if dayItems.length === 0}
+          <p class="text-[var(--text-muted)] mb-2">No events or todos this day.</p>
+        {/if}
+      </div>
 
       {#if allDayItems.length > 0}
         <div class="day-view-allday shrink-0 mb-2">
@@ -502,9 +510,6 @@
         </div>
       </div>
 
-      {#if dayItems.length === 0}
-        <p class="text-[var(--text-muted)] shrink-0 mt-2">No events or todos this day.</p>
-      {/if}
     </div>
   {/if}
 </div>

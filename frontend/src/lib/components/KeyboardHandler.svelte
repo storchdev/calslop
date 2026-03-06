@@ -61,7 +61,9 @@
     // Day view: J/K jump between events/todos, j/k scroll timeline, Enter open edit, x toggle todo
     if (app.viewMode === 'calendar' && app.calendarView === 'day') {
       const dayItems = Array.from(document.querySelectorAll('[data-day-item-index]'));
-      const scrollEl = document.querySelector('.content-scroll') as HTMLElement | null;
+      const scrollEl =
+        (document.querySelector('#calendar-view .day-view') as HTMLElement | null)
+        ?? (document.querySelector('.content-scroll') as HTMLElement | null);
       const scrollAmount = 80;
 
       if (e.key === 'J' || (e.key === 'j' && e.shiftKey)) {
