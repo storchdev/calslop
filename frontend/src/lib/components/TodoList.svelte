@@ -7,17 +7,30 @@
     todos: Todo[];
     showCompleted?: boolean;
     todoOrder?: 'oldest' | 'newest';
+    searchQuery?: string;
     onToggle?: (todo: Todo) => void;
     onSelect?: (todo: Todo) => void;
     /** When false, only render the list (toolbar is rendered by parent). */
     showToolbar?: boolean;
   }
 
-  let { todos, showCompleted = false, todoOrder = 'oldest', onToggle, onSelect, showToolbar = true }: Props = $props();
+  let { todos, showCompleted = false, todoOrder = 'oldest', searchQuery = '', onToggle, onSelect, showToolbar = true }: Props = $props();
+
+  function matchesSearch(todo: Todo, q: string): boolean {
+    if (!q.trim()) return true;
+    const lower = q.toLowerCase();
+    return (
+      todo.summary.toLowerCase().includes(lower) ||
+      (todo.description?.toLowerCase().includes(lower) ?? false)
+    );
+  }
 
   const filtered = $derived(showCompleted ? todos : todos.filter((t) => !t.completed));
+  const searchFiltered = $derived(
+    searchQuery.trim() ? filtered.filter((t) => matchesSearch(t, searchQuery)) : filtered
+  );
   const visibleTodos = $derived(
-    [...filtered].sort((a, b) => {
+    [...searchFiltered].sort((a, b) => {
       const aDue = a.due ? new Date(a.due).getTime() : null;
       const bDue = b.due ? new Date(b.due).getTime() : null;
       if (aDue === null && bDue === null) return 0;

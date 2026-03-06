@@ -8,12 +8,36 @@
     events: Event[];
     todos?: Todo[];
     selectedDate: Date;
+    searchQuery?: string;
     onSelectDay?: (d: Date) => void;
     onSelectEvent?: (ev: Event) => void;
     onSelectTodo?: (todo: Todo) => void;
   }
 
-  let { events, todos = [], selectedDate, onSelectDay, onSelectEvent, onSelectTodo }: Props = $props();
+  let { events, todos = [], selectedDate, searchQuery = '', onSelectDay, onSelectEvent, onSelectTodo }: Props = $props();
+
+  function matchesSearchEvent(ev: Event, q: string): boolean {
+    if (!q) return false;
+    const lower = q.toLowerCase();
+    return (
+      ev.title.toLowerCase().includes(lower) ||
+      (ev.description?.toLowerCase().includes(lower) ?? false)
+    );
+  }
+  function matchesSearchTodo(todo: Todo, q: string): boolean {
+    if (!q) return false;
+    const lower = q.toLowerCase();
+    return (
+      todo.summary.toLowerCase().includes(lower) ||
+      (todo.description?.toLowerCase().includes(lower) ?? false)
+    );
+  }
+  function dayMatchesSearch(d: Date, q: string): boolean {
+    if (!q.trim()) return false;
+    const evs = eventsForDay(d);
+    const tds = todosForDay(d);
+    return evs.some((e) => matchesSearchEvent(e, q)) || tds.some((t) => matchesSearchTodo(t, q));
+  }
 
   const density = $derived(app.calendarDensity);
   const showTodos = $derived(app.showTodosOnCalendar);
@@ -71,6 +95,21 @@
     const idx = startPad + d.getDate() - 1;
     app.setFocusedDayDate(d);
     app.setFocusedDayIndex(idx);
+  });
+
+  // Update highlighted day indices for search mode (N / Shift+N navigation)
+  $effect(() => {
+    if (app.calendarView !== 'month' || !searchQuery.trim()) {
+      app.setHighlightedDayIndices([]);
+      return;
+    }
+    const indices: number[] = [];
+    const total = weeks * 7;
+    for (let i = 0; i < total; i++) {
+      const d = dateForCell(i);
+      if (d && dayMatchesSearch(d, searchQuery)) indices.push(i);
+    }
+    app.setHighlightedDayIndices(indices);
   });
 
   const MIN_BLOCK_HEIGHT = 24;
@@ -202,6 +241,7 @@
               class="day-cell"
               class:today={isToday(d)}
               class:selected={isSelected(d)}
+              class:search-match={searchQuery.trim() !== '' && dayMatchesSearch(d, searchQuery)}
               tabindex={app.focusedDayIndex === i ? 0 : -1}
               data-day-index={i}
               onfocus={() => {

@@ -50,6 +50,12 @@
       <dd class="m-0">Toggle show todos on calendar</dd>
       <dt class="font-mono font-semibold">R</dt>
       <dd class="m-0">Sync calendars and todos</dd>
+      <dt class="font-mono font-semibold">/</dt>
+      <dd class="m-0">Focus search bar (month view / todo view)</dd>
+      <dt class="font-mono font-semibold">Enter (in search)</dt>
+      <dd class="m-0">Apply filter and exit to calendar/todos (search mode); then navigate with j/k or arrows</dd>
+      <dt class="font-mono font-semibold">Escape (search mode)</dt>
+      <dd class="m-0">Exit search mode and clear search bar</dd>
       <dt class="font-mono font-semibold">B</dt>
       <dd class="m-0">Hide/show navbar</dd>
       <dt class="font-mono font-semibold">?</dt>

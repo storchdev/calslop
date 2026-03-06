@@ -129,6 +129,30 @@
             <span class="text-xs text-[var(--text-muted)]">{Math.round(app.calendarHeightRatio * 100)}%</span>
           </div>
         </div>
+        {#if app.calendarView === 'month'}
+          <input
+            id="calslop-search-input"
+            type="search"
+            class="search-input"
+            placeholder="Search…"
+            value={app.searchInputValue}
+            oninput={(e) => app.setSearchInputValue((e.currentTarget as HTMLInputElement).value)}
+            onkeydown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                app.applySearch();
+                (e.currentTarget as HTMLInputElement).blur();
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                app.clearSearch();
+                (e.currentTarget as HTMLInputElement).blur();
+              }
+            }}
+            title="Search events and todos (/ to focus, Enter to filter, Escape to exit search)"
+            aria-label="Search events and todos"
+          />
+        {/if}
         <button
           class="btn btn-ghost"
           type="button"
@@ -145,6 +169,7 @@
           <Calendar
       events={events}
       todos={todos}
+      searchQuery={app.searchQuery}
       selectedDate={app.selectedDate}
       onSelectEvent={(ev) => {
         selectedEvent = ev;
@@ -188,6 +213,28 @@
         <span class="text-xs text-[var(--text-muted)]" title="Total and completed count in current data">
           ({todos.length} total, {todos.filter((t) => t.completed).length} completed)
         </span>
+        <input
+          id="calslop-search-input"
+          type="search"
+          class="search-input"
+          placeholder="Search todos…"
+          value={app.searchInputValue}
+          oninput={(e) => app.setSearchInputValue((e.currentTarget as HTMLInputElement).value)}
+          onkeydown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              app.applySearch();
+              (e.currentTarget as HTMLInputElement).blur();
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              app.clearSearch();
+              (e.currentTarget as HTMLInputElement).blur();
+            }
+          }}
+          title="Search todos (/ to focus, Enter to filter, Escape to exit search)"
+          aria-label="Search todos"
+        />
         <button
           class="btn btn-ghost ml-auto"
           type="button"
@@ -204,6 +251,7 @@
           todos={todos}
           showCompleted={app.showCompletedTodos}
           todoOrder={app.todoOrder}
+          searchQuery={app.searchQuery}
           onToggle={handleToggleTodo}
           onSelect={handleSelectTodo}
           showToolbar={false}

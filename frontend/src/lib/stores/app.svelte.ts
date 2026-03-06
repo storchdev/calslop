@@ -30,6 +30,12 @@ class AppStore {
   calendarHeightRatio = $state<number>(1);
   /** When true, navbar is collapsed; hover at top to show again. */
   navbarCollapsed = $state<boolean>(false);
+  /** Search: text in the search input (month view / todo view). */
+  searchInputValue = $state<string>('');
+  /** Search: applied filter (set on Enter); used to highlight days or filter todo list. */
+  searchQuery = $state<string>('');
+  /** Month view search mode: cell indices of days that match the search (set by Calendar). */
+  highlightedDayIndices = $state<number[]>([]);
 
   setViewMode(mode: ViewMode) {
     this.viewMode = mode;
@@ -124,6 +130,29 @@ class AppStore {
     this.focusedEventIndex = -1;
     this.focusedTodoIndex = -1;
     this.focusedDayIndex = -1;
+  }
+
+  setSearchInputValue(v: string) {
+    this.searchInputValue = v;
+  }
+
+  setSearchQuery(q: string) {
+    this.searchQuery = q;
+  }
+
+  /** Clear search input and applied query (Escape). */
+  clearSearch() {
+    this.searchInputValue = '';
+    this.searchQuery = '';
+  }
+
+  /** Apply current input value as search filter (Enter). */
+  applySearch() {
+    this.searchQuery = this.searchInputValue.trim();
+  }
+
+  setHighlightedDayIndices(indices: number[]) {
+    this.highlightedDayIndices = indices;
   }
 }
 

@@ -37,7 +37,26 @@
       e.preventDefault();
       return;
     }
+    // Escape clears search when not in modal and search is active
+    if (!app.modalOpen && key === 'escape' && app.searchQuery) {
+      app.clearSearch();
+      e.preventDefault();
+      return;
+    }
     if (app.modalOpen) return; // no other global shortcuts when modal open
+
+    // Slash focuses search bar (month view or todo view)
+    if (key === '/') {
+      const el = document.getElementById('calslop-search-input') as HTMLInputElement | null;
+      if (
+        el &&
+        (app.viewMode === 'todo' || (app.viewMode === 'calendar' && app.calendarView === 'month'))
+      ) {
+        el.focus();
+        e.preventDefault();
+      }
+      return;
+    }
 
     // Day view: J/K jump between events/todos, j/k scroll timeline, Enter open edit, x toggle todo
     if (app.viewMode === 'calendar' && app.calendarView === 'day') {
@@ -190,6 +209,49 @@
         e.preventDefault();
         return;
       }
+    }
+
+    // Search mode (calendar month): N = next highlighted day, Shift+N = previous
+    if (
+      key === 'n' &&
+      !e.repeat &&
+      app.viewMode === 'calendar' &&
+      app.calendarView === 'month' &&
+      app.searchQuery &&
+      app.highlightedDayIndices.length > 0
+    ) {
+      const indices = app.highlightedDayIndices;
+      const curr = app.focusedDayIndex;
+      const dateForIndex = (i: number) => {
+        const startPad = new Date(app.selectedDate.getFullYear(), app.selectedDate.getMonth(), 1).getDay();
+        const day = i - startPad + 1;
+        const daysInMonth = new Date(app.selectedDate.getFullYear(), app.selectedDate.getMonth() + 1, 0).getDate();
+        if (day < 1 || day > daysInMonth) return null;
+        return new Date(app.selectedDate.getFullYear(), app.selectedDate.getMonth(), day);
+      };
+      if (e.shiftKey) {
+        const prevIndices = indices.filter((i) => i < curr);
+        const nextIdx = prevIndices.length > 0 ? prevIndices[prevIndices.length - 1] : indices[indices.length - 1];
+        const d = dateForIndex(nextIdx);
+        if (d) {
+          app.setFocusedDayIndex(nextIdx);
+          app.setFocusedDayDate(d);
+          app.setSelectedDate(d);
+          document.querySelector(`[data-day-index="${nextIdx}"]`)?.focus();
+        }
+      } else {
+        const nextIndices = indices.filter((i) => i > curr);
+        const nextIdx = nextIndices.length > 0 ? nextIndices[0] : indices[0];
+        const d = dateForIndex(nextIdx);
+        if (d) {
+          app.setFocusedDayIndex(nextIdx);
+          app.setFocusedDayDate(d);
+          app.setSelectedDate(d);
+          document.querySelector(`[data-day-index="${nextIdx}"]`)?.focus();
+        }
+      }
+      e.preventDefault();
+      return;
     }
 
     switch (key) {
