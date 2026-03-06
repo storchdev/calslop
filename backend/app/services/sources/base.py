@@ -64,3 +64,12 @@ class SourceDriver(ABC):
     ) -> bool:
         """Add a completed RECURRENCE-ID exception for one instance of a recurring todo. Returns True if done."""
         return False
+
+    def cancel_recurrence_instance(
+        self,
+        source: Source,
+        master_todo_id: str,
+        recurrence_id_str: str,
+    ) -> bool:
+        """Add a CANCELLED RECURRENCE-ID exception so this instance is deleted (not completed). Returns True if done."""
+        return False

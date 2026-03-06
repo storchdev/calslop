@@ -168,6 +168,19 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   text-decoration: line-through;
 }
 
+.todo-loading-spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: todo-spin 0.7s linear infinite;
+}
+
+@keyframes todo-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Day view timeline */
 .day-view-title {
   font-size: 1.125rem;
@@ -377,6 +390,10 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .modal h2 {
   margin-top: 0;
+}
+
+.modal-loading {
+  margin: 0.5rem 0;
 }
 
 .form-row {

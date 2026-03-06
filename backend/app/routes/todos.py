@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify, abort
 from app.models.dtos import Todo, TodoCreate, TodoUpdate
 from app.db.sources_store import SourcesStore
 from app.services.aggregator import aggregate_events_todos, get_driver, resolve_todo_source
+from app.services.ical_utils import todo_id_to_master_id
 
 
 def get_sources_store() -> SourcesStore:
@@ -87,10 +88,9 @@ def update_todo():
     source, driver, current = resolved
 
     # Completing one instance of a recurring todo: add RECURRENCE-ID exception instead of updating master.
-    parts = todo_id.split("::")
-    if len(parts) >= 4 and body.completed is True:
-        master_todo_id = "::".join(parts[:-1])
-        recurrence_id_str = parts[-1]
+    master_todo_id = todo_id_to_master_id(todo_id)
+    if master_todo_id and body.completed is True:
+        recurrence_id_str = todo_id.split("::")[-1]
         if driver.add_recurrence_exception(
             source,
             master_todo_id,
@@ -135,9 +135,12 @@ def delete_todo():
     resolved = resolve_todo_source(sources, todo_id)
     if not resolved:
         abort(404, description="Todo not found or read-only")
-    source, driver, _ = resolved
+    source, driver, current = resolved
+    master_id = todo_id_to_master_id(todo_id)
+    # Recurring todo: delete the whole series (same as non-recurring delete).
+    id_to_delete = master_id if master_id else todo_id
     try:
-        if not driver.delete_todo(source, todo_id):
+        if not driver.delete_todo(source, id_to_delete):
             abort(400, description="Failed to delete todo (check source and permissions)")
     except Exception as e:
         abort(400, description=str(e))

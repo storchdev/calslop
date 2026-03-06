@@ -67,16 +67,32 @@
     };
   });
 
-  function handleToggleTodo(todo: Todo) {
-    updateTodo(todo.id, { completed: !todo.completed }).then(() => {
-      if (todo.recurrence) {
-        // Repeating todo: backend creates next occurrence; refetch to show it.
-        refresh();
-      } else {
-        todos = todos.map((t) => (t.id === todo.id ? { ...t, completed: !todo.completed } : t));
-        app.setUnsyncedChanges(true);
+  let togglingTodoId = $state<string | null>(null);
+
+  async function handleToggleTodo(todo: Todo) {
+    const nextCompleted = !todo.completed;
+    if (todo.recurrence) {
+      // Recurring: replace row with loading until update + refetch complete
+      togglingTodoId = todo.id;
+      try {
+        await updateTodo(todo.id, { completed: nextCompleted });
+        await refresh();
+      } catch {
+        // Revert not needed; we didn't change local state
+      } finally {
+        togglingTodoId = null;
       }
-    });
+      return;
+    }
+    // Non-recurring: optimistic update
+    const prev = todos;
+    todos = todos.map((t) => (t.id === todo.id ? { ...t, completed: nextCompleted } : t));
+    try {
+      await updateTodo(todo.id, { completed: nextCompleted });
+      app.setUnsyncedChanges(true);
+    } catch {
+      todos = prev;
+    }
   }
 
   function handleSelectTodo(todo: Todo) {
@@ -258,6 +274,7 @@
           showCompleted={app.showCompletedTodos}
           todoOrder={app.todoOrder}
           searchQuery={app.searchQuery}
+          loadingTodoId={togglingTodoId}
           onToggle={handleToggleTodo}
           onSelect={handleSelectTodo}
           showToolbar={false}

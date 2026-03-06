@@ -23,6 +23,7 @@
   let sources = $state<{ id: string; name: string; type: string }[]>([]);
   let error = $state('');
   let saving = $state(false);
+  let deleting = $state(false);
 
   const repeatOptions = [
     { value: '', label: 'None' },
@@ -136,12 +137,13 @@
     if (todoId && e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
       e.preventDefault();
       if (confirm('Delete this todo?')) {
+        deleting = true;
         deleteTodo(todoId).then(() => {
           onsave();
           onclose();
         }).catch((err) => {
           error = err instanceof Error ? err.message : 'Failed to delete';
-        });
+        }).finally(() => { deleting = false; });
       }
       return;
     }
@@ -190,6 +192,12 @@
 <div class="modal-backdrop" role="dialog" aria-modal="true" onkeydown={handleKeydown} onclick={(e) => e.target === e.currentTarget && onclose()}>
   <div class="modal" tabindex="-1" bind:this={modalEl} onclick={(e) => e.stopPropagation()}>
     <h2>{todoId ? 'Edit todo' : 'New todo'}</h2>
+    {#if deleting}
+      <p class="modal-loading flex items-center gap-2 text-[var(--text-muted)]" aria-busy="true" aria-live="polite">
+        <span class="todo-loading-spinner" aria-hidden="true"></span>
+        Deleting…
+      </p>
+    {/if}
     {#if error}
       <p class="text-red-600 text-sm">{error}</p>
     {/if}
@@ -249,7 +257,7 @@
     </div>
     <div class="form-actions">
       <div class="form-action-with-hint">
-        <button class="btn btn-primary" onclick={submit} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        <button class="btn btn-primary" onclick={submit} disabled={saving || deleting}>{saving ? 'Saving…' : 'Save'}</button>
         <span class="action-hint">Ctrl+Enter</span>
       </div>
       {#if todoId}
@@ -257,23 +265,24 @@
           <button
             class="btn btn-ghost"
             type="button"
-            disabled={saving}
-            onclick={async () => {
+            disabled={saving || deleting}
+            onclick={() => {
               if (!confirm('Delete this todo?')) return;
-              try {
-                await deleteTodo(todoId);
+              if (!todoId) return;
+              deleting = true;
+              deleteTodo(todoId).then(() => {
                 onsave();
                 onclose();
-              } catch (e) {
+              }).catch((e) => {
                 error = e instanceof Error ? e.message : 'Failed to delete';
-              }
+              }).finally(() => { deleting = false; });
             }}
           >Delete</button>
           <span class="action-hint">Ctrl+Shift+D</span>
         </div>
       {/if}
       <div class="form-action-with-hint">
-        <button class="btn btn-ghost" onclick={onclose} type="button">Cancel</button>
+        <button class="btn btn-ghost" onclick={onclose} type="button" disabled={deleting}>Cancel</button>
         <span class="action-hint">Esc</span>
       </div>
     </div>

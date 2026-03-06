@@ -10,6 +10,11 @@ from app.services.ical_utils import (
     event_to_ical,
     todo_to_ical,
     build_exception_vtodo,
+    build_cancelled_exception_vtodo,
+    todo_id_to_master_id,
+    is_recurrence_id_str,
+    merge_instance_todo_into_ical,
+    _update_master_vtodo_metadata,
 )
 from app.services.sources.base import FetchResult, SourceDriver
 
@@ -147,14 +152,21 @@ class LocalFolderDriver(SourceDriver):
         parts = todo.id.split("::")
         if len(parts) < 2:
             raise ValueError("Invalid todo id for local source")
-        stem = parts[1]  # file stem e.g. todo_abc123
+        stem = parts[1]
         path_str = source.config.get("path")
         if not path_str:
             raise ValueError("Missing path in source config")
         ics_path = Path(path_str) / f"{stem}.ics"
         if not ics_path.exists():
             raise ValueError(f"Todo file not found: {stem}.ics")
-        ics_path.write_bytes(todo_to_ical(todo))
+        master_id = todo_id_to_master_id(todo.id)
+        if master_id and len(parts) >= 2 and is_recurrence_id_str(parts[-1]):
+            recurrence_id_str = parts[-1]
+            existing = ics_path.read_bytes()
+            new_ical = merge_instance_todo_into_ical(existing, todo, recurrence_id_str)
+            ics_path.write_bytes(new_ical)
+        else:
+            ics_path.write_bytes(todo_to_ical(todo))
         return todo
 
     def add_recurrence_exception(
@@ -191,6 +203,41 @@ class LocalFolderDriver(SourceDriver):
                 if comp.name == "VTODO":
                     cal.add_component(comp)
                     break
+            _update_master_vtodo_metadata(cal, uid, summary, description, priority)
+            ics_path.write_bytes(cal.to_ical())
+            return True
+        except Exception:
+            return False
+
+    def cancel_recurrence_instance(
+        self,
+        source: Source,
+        master_todo_id: str,
+        recurrence_id_str: str,
+    ) -> bool:
+        """Add a CANCELLED RECURRENCE-ID exception so this instance is removed from the series."""
+        parts = master_todo_id.split("::")
+        if len(parts) < 3:
+            return False
+        stem = parts[1]
+        uid = parts[2]
+        path_str = source.config.get("path")
+        if not path_str:
+            return False
+        ics_path = Path(path_str) / f"{stem}.ics"
+        if not ics_path.exists():
+            return False
+        try:
+            existing = ics_path.read_bytes()
+            cal = icalendar.Calendar.from_ical(existing)
+            if not cal:
+                return False
+            cancelled_bytes = build_cancelled_exception_vtodo(uid, recurrence_id_str)
+            cancelled_cal = icalendar.Calendar.from_ical(cancelled_bytes)
+            for comp in cancelled_cal.walk():
+                if comp.name == "VTODO":
+                    cal.add_component(comp)
+                    break
             ics_path.write_bytes(cal.to_ical())
             return True
         except Exception:
@@ -203,6 +250,8 @@ class LocalFolderDriver(SourceDriver):
         stem = parts[1]
         path_str = source.config.get("path")
         if not path_str:
+            return False
+        if todo_id_to_master_id(todo_id):
             return False
         ics_path = Path(path_str) / f"{stem}.ics"
         if ics_path.exists():
