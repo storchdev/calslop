@@ -55,8 +55,15 @@
       const todo = todos.find((t) => t.id === ev.detail.todoId);
       if (todo) handleToggleTodo(todo);
     }
+    function onSync() {
+      sync();
+    }
     window.addEventListener('calslop-toggle-day-todo', onToggleDayTodo as EventListener);
-    return () => window.removeEventListener('calslop-toggle-day-todo', onToggleDayTodo as EventListener);
+    window.addEventListener('calslop-sync', onSync);
+    return () => {
+      window.removeEventListener('calslop-toggle-day-todo', onToggleDayTodo as EventListener);
+      window.removeEventListener('calslop-sync', onSync);
+    };
   });
 
   function handleToggleTodo(todo: Todo) {
@@ -73,86 +80,57 @@
   }
 </script>
 
-<div class="flex flex-wrap items-center gap-2 py-3 px-4 border-b border-[var(--border)]">
-  <button
-    class="btn btn-ghost inline-flex items-baseline gap-1.5"
-    class:bg-[var(--bg-elevated)]={app.viewMode === 'calendar'}
-    class:font-semibold={app.viewMode === 'calendar'}
-    onclick={() => app.setViewMode('calendar')}
-    type="button"
-  >
-    Calendar
-    <span class="key-hint">1</span>
-  </button>
-  <button
-    class="btn btn-ghost inline-flex items-baseline gap-1.5"
-    class:bg-[var(--bg-elevated)]={app.viewMode === 'todo'}
-    class:font-semibold={app.viewMode === 'todo'}
-    onclick={() => app.setViewMode('todo')}
-    type="button"
-  >
-    Todos
-    <span class="key-hint">2</span>
-  </button>
-  {#if app.viewMode === 'calendar'}
-    <button
-      class="btn btn-ghost inline-flex items-baseline gap-1.5"
-      class:bg-[var(--bg-elevated)]={app.calendarView === 'month'}
-      class:font-semibold={app.calendarView === 'month'}
-      onclick={() => app.setCalendarView('month')}
-      type="button"
-    >
-      Month
-      <span class="key-hint">M</span>
-    </button>
-    <button
-      class="btn btn-ghost inline-flex items-baseline gap-1.5"
-      class:bg-[var(--bg-elevated)]={app.calendarView === 'day'}
-      class:font-semibold={app.calendarView === 'day'}
-      onclick={() => app.setCalendarView('day')}
-      type="button"
-    >
-      Day
-      <span class="key-hint">D</span>
-    </button>
-  {/if}
-  <button
-    class="btn btn-ghost ml-auto"
-    type="button"
-    disabled={syncing}
-    onclick={() => sync()}
-    title="Sync calendars and todos"
-  >
-    {syncing ? 'Syncing…' : 'Sync'}
-  </button>
-</div>
-
-<div class="flex flex-1 flex-col min-h-0">
+<div class="main-content flex flex-1 flex-col min-h-0">
   {#if loading}
     <p class="p-4 text-[var(--text-muted)]">Loading…</p>
   {:else if app.viewMode === 'calendar'}
-    <div class="flex flex-1 flex-col min-h-0 gap-2">
-      <div class="flex flex-wrap items-center gap-3 px-4 py-3 shrink-0">
-      <div class="dropdown-box">
-        <span class="dropdown-box-label">View</span>
-        <select
-          value={app.calendarDensity}
-          onchange={(e) => app.setCalendarDensity((e.currentTarget as HTMLSelectElement).value as 'minimal' | 'balanced' | 'dense')}
-        >
-          <option value="minimal">Minimal</option>
-          <option value="balanced">Balanced</option>
-          <option value="dense">Dense</option>
-        </select>
-      </div>
-      {#if app.calendarDensity !== 'minimal'}
-        <label class="inline-flex items-center gap-2 cursor-pointer text-sm">
-          <input type="checkbox" checked={app.showTodosOnCalendar} onchange={() => app.toggleShowTodosOnCalendar()} />
-          <span>Show todos on calendar</span>
+    <div class="flex flex-1 flex-col min-h-0">
+      <div class="subtoolbar flex flex-wrap items-center gap-3 px-4 py-3 shrink-0">
+        <div class="dropdown-box">
+          <span class="dropdown-box-label">View</span>
+          <select
+            value={app.calendarDensity}
+            onchange={(e) => app.setCalendarDensity((e.currentTarget as HTMLSelectElement).value as 'minimal' | 'balanced' | 'dense')}
+          >
+            <option value="minimal">Minimal</option>
+            <option value="balanced">Balanced</option>
+            <option value="dense">Dense</option>
+          </select>
+        </div>
+        {#if app.calendarDensity !== 'minimal'}
+          <label class="inline-flex items-center gap-2 cursor-pointer text-sm">
+            <input type="checkbox" checked={app.showTodosOnCalendar} onchange={() => app.toggleShowTodosOnCalendar()} />
+            <span>Show todos on calendar</span>
+          </label>
+        {/if}
+        <label class="calendar-height-slider-label">
+          <span class="text-sm text-[var(--text-muted)]">Height:</span>
+          <input
+            type="range"
+            class="calendar-height-slider"
+            min="0.5"
+            max="2"
+            step="0.05"
+            value={app.calendarHeightRatio}
+            oninput={(e) => app.setCalendarHeightRatio(+(e.currentTarget as HTMLInputElement).value)}
+            title="Calendar height (ratio to width)"
+          />
+          <span class="text-xs text-[var(--text-muted)]">{Math.round(app.calendarHeightRatio * 100)}%</span>
         </label>
-      {/if}
+        <button
+          class="btn btn-ghost"
+          type="button"
+          disabled={syncing}
+          onclick={() => sync()}
+          title="Sync calendars and todos (R)"
+        >
+          {syncing ? 'Syncing…' : 'Sync'}
+          <span class="key-hint">R</span>
+        </button>
       </div>
-      <div class="flex-1 min-h-0 flex flex-col">
-        <Calendar
+      <div class="content-scroll flex-1 min-h-0 overflow-auto">
+        <div class="calendar-height-wrapper">
+          <Calendar
       events={events}
       todos={todos}
       selectedDate={app.selectedDate}
@@ -166,17 +144,57 @@
         app.setEditingId(todo.id);
         app.setModalOpen('todo');
       }}
-        />
+          />
+        </div>
       </div>
     </div>
   {:else}
-    <TodoList
-    todos={todos}
-    showCompleted={app.showCompletedTodos}
-    todoOrder={app.todoOrder}
-    onToggle={handleToggleTodo}
-    onSelect={handleSelectTodo}
-  />
+    <div class="flex flex-1 flex-col min-h-0">
+      <div class="subtoolbar flex flex-wrap items-center gap-3 px-4 py-3 shrink-0">
+        <button
+          type="button"
+          class="btn btn-ghost text-sm inline-flex items-baseline gap-1.5"
+          onclick={() => app.toggleShowCompletedTodos()}
+          title="Toggle show completed todos (S)"
+        >
+          {app.showCompletedTodos ? 'Hide completed' : 'Show completed'}
+          <span class="key-hint">S</span>
+        </button>
+        <div class="dropdown-box">
+          <span class="dropdown-box-label">Order</span>
+          <select
+            value={app.todoOrder}
+            onchange={(e) => app.setTodoOrder((e.currentTarget as HTMLSelectElement).value as 'oldest' | 'newest')}
+          >
+            <option value="oldest">Oldest first</option>
+            <option value="newest">Newest first</option>
+          </select>
+        </div>
+        <span class="text-xs text-[var(--text-muted)]" title="Total and completed count in current data">
+          ({todos.length} total, {todos.filter((t) => t.completed).length} completed)
+        </span>
+        <button
+          class="btn btn-ghost ml-auto"
+          type="button"
+          disabled={syncing}
+          onclick={() => sync()}
+          title="Sync calendars and todos (R)"
+        >
+          {syncing ? 'Syncing…' : 'Sync'}
+          <span class="key-hint">R</span>
+        </button>
+      </div>
+      <div class="content-scroll flex-1 min-h-0 overflow-auto">
+        <TodoList
+          todos={todos}
+          showCompleted={app.showCompletedTodos}
+          todoOrder={app.todoOrder}
+          onToggle={handleToggleTodo}
+          onSelect={handleSelectTodo}
+          showToolbar={false}
+        />
+      </div>
+    </div>
   {/if}
 </div>
 

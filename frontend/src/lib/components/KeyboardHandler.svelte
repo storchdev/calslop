@@ -241,6 +241,12 @@
         app.setModalOpen('shortcuts');
         e.preventDefault();
         break;
+      case 'r':
+        if (!e.repeat) {
+          window.dispatchEvent(new CustomEvent('calslop-sync'));
+        }
+        e.preventDefault();
+        break;
       default:
         break;
     }

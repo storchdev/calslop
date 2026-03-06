@@ -48,6 +48,8 @@
       <dd class="m-0">Cycle calendar density (minimal → balanced → dense)</dd>
       <dt class="font-mono font-semibold">Y</dt>
       <dd class="m-0">Toggle show todos on calendar</dd>
+      <dt class="font-mono font-semibold">R</dt>
+      <dd class="m-0">Sync calendars and todos</dd>
       <dt class="font-mono font-semibold">?</dt>
       <dd class="m-0">Show this shortcuts list</dd>
       <dt class="font-mono font-semibold">Escape</dt>

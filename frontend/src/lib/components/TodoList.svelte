@@ -9,9 +9,11 @@
     todoOrder?: 'oldest' | 'newest';
     onToggle?: (todo: Todo) => void;
     onSelect?: (todo: Todo) => void;
+    /** When false, only render the list (toolbar is rendered by parent). */
+    showToolbar?: boolean;
   }
 
-  let { todos, showCompleted = true, todoOrder = 'oldest', onToggle, onSelect }: Props = $props();
+  let { todos, showCompleted = true, todoOrder = 'oldest', onToggle, onSelect, showToolbar = true }: Props = $props();
 
   const filtered = $derived(showCompleted ? todos : todos.filter((t) => !t.completed));
   const visibleTodos = $derived(
@@ -39,30 +41,32 @@
 </script>
 
 <div id="todo-view" class="p-4" role="list">
-  <div class="flex flex-wrap items-center gap-4 mb-3">
-    <button
-      type="button"
-      class="btn btn-ghost text-sm inline-flex items-baseline gap-1.5"
-      onclick={() => app.toggleShowCompletedTodos()}
-      title="Toggle show completed todos (S)"
-    >
-      {showCompleted ? 'Hide completed' : 'Show completed'}
-      <span class="key-hint">S</span>
-    </button>
-    <div class="dropdown-box">
-      <span class="dropdown-box-label">Order</span>
-      <select
-        value={todoOrder}
-        onchange={(e) => app.setTodoOrder((e.currentTarget as HTMLSelectElement).value as 'oldest' | 'newest')}
+  {#if showToolbar}
+    <div class="flex flex-wrap items-center gap-4 mb-3">
+      <button
+        type="button"
+        class="btn btn-ghost text-sm inline-flex items-baseline gap-1.5"
+        onclick={() => app.toggleShowCompletedTodos()}
+        title="Toggle show completed todos (S)"
       >
-        <option value="oldest">Oldest first</option>
-        <option value="newest">Newest first</option>
-      </select>
+        {showCompleted ? 'Hide completed' : 'Show completed'}
+        <span class="key-hint">S</span>
+      </button>
+      <div class="dropdown-box">
+        <span class="dropdown-box-label">Order</span>
+        <select
+          value={todoOrder}
+          onchange={(e) => app.setTodoOrder((e.currentTarget as HTMLSelectElement).value as 'oldest' | 'newest')}
+        >
+          <option value="oldest">Oldest first</option>
+          <option value="newest">Newest first</option>
+        </select>
+      </div>
+      <span class="text-xs text-[var(--text-muted)]" title="Total and completed count in current data">
+        ({todos.length} total, {completedCount} completed)
+      </span>
     </div>
-    <span class="text-xs text-[var(--text-muted)]" title="Total and completed count in current data">
-      ({todos.length} total, {completedCount} completed)
-    </span>
-  </div>
+  {/if}
   {#each visibleTodos as todo, i}
     <div
       role="listitem"

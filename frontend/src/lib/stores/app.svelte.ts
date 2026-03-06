@@ -26,6 +26,10 @@ class AppStore {
   hasUnsyncedChanges = $state(false);
   /** IANA timezone (e.g. America/New_York) or empty string for browser local */
   timezone = $state<string>('');
+  /** Calendar height as ratio of container width (0.5 = 50%, 2 = 200%). Used for manual height control. */
+  calendarHeightRatio = $state<number>(1);
+  /** When true, navbar is collapsed; hover at top to show again. */
+  navbarCollapsed = $state<boolean>(false);
 
   setViewMode(mode: ViewMode) {
     this.viewMode = mode;
@@ -103,6 +107,17 @@ class AppStore {
 
   setTimezone(tz: string) {
     this.timezone = tz;
+  }
+
+  setCalendarHeightRatio(ratio: number) {
+    const r = Math.max(0.5, Math.min(2, ratio));
+    this.calendarHeightRatio = r;
+    if (typeof localStorage !== 'undefined') localStorage.setItem('calslop-calendar-height-ratio', String(r));
+  }
+
+  setNavbarCollapsed(collapsed: boolean) {
+    this.navbarCollapsed = collapsed;
+    if (typeof localStorage !== 'undefined') localStorage.setItem('calslop-navbar-collapsed', collapsed ? '1' : '0');
   }
 
   resetFocus() {

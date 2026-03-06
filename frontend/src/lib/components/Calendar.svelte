@@ -72,8 +72,9 @@
     app.setFocusedDayIndex(idx);
   });
 
-  const ROW_HEIGHT = 60;
   const MIN_BLOCK_HEIGHT = 24;
+  /** Day view: height of each hour row, scaled by user's height ratio (0.5–2). */
+  const rowHeight = $derived(60 * app.calendarHeightRatio);
 
   const dayStartMs = $derived(
     new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate()).getTime()
@@ -153,11 +154,11 @@
     if (!isToday(selectedDate)) return null;
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const minutesFromMidnight = (now.getTime() - startOfDay) / 60000;
-    return (minutesFromMidnight / 60) * ROW_HEIGHT;
+    return (minutesFromMidnight / 60) * rowHeight;
   });
 </script>
 
-<div id="calendar-view" class="p-4 flex-1 min-h-0 flex flex-col" role="application" aria-label="Calendar">
+<div id="calendar-view" class="p-4 flex-1 min-h-0 flex flex-col" style="--calendar-height-ratio: {app.calendarHeightRatio}" role="application" aria-label="Calendar">
   {#if app.calendarView === 'month'}
     <div class="flex flex-1 min-h-0 flex-col">
       <h2 class="text-xl font-semibold mb-3 text-[var(--text)] shrink-0">
@@ -335,8 +336,8 @@
       {/if}
 
       <div class="day-view-timeline-wrap flex-1 min-h-0 flex flex-col" data-day-timeline-scroll>
-        <div class="day-view-timeline" style="height: {24 * ROW_HEIGHT}px;">
-          {#if currentTimeTopPx != null && currentTimeTopPx >= 0 && currentTimeTopPx <= 24 * ROW_HEIGHT}
+        <div class="day-view-timeline" style="height: {24 * rowHeight}px;">
+          {#if currentTimeTopPx != null && currentTimeTopPx >= 0 && currentTimeTopPx <= 24 * rowHeight}
             <div
               class="day-view-now-line"
               style="top: {currentTimeTopPx}px;"
@@ -345,7 +346,7 @@
             ></div>
           {/if}
           {#each Array(24) as _, hour}
-            <div class="day-view-hour" style="height: {ROW_HEIGHT}px;">
+            <div class="day-view-hour" style="height: {rowHeight}px;">
               <span class="day-view-hour-label">
                 {hour === 0 ? '12am' : hour < 12 ? `${hour}am` : hour === 12 ? '12pm' : `${hour - 12}pm`}
               </span>
@@ -354,8 +355,8 @@
 
           {#each timedItemsSorted as item, idx}
             {@const i = allDayItems.length + idx}
-            {@const topPx = item.startMin / 60 * ROW_HEIGHT}
-            {@const heightPx = Math.max(MIN_BLOCK_HEIGHT, (item.endMin - item.startMin) / 60 * ROW_HEIGHT)}
+            {@const topPx = item.startMin / 60 * rowHeight}
+            {@const heightPx = Math.max(MIN_BLOCK_HEIGHT, (item.endMin - item.startMin) / 60 * rowHeight)}
             {#if item.type === 'event'}
               <button
                 type="button"

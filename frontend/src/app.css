@@ -93,7 +93,7 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .day-cell {
   position: relative;
-  min-height: 80px;
+  min-height: calc(80px * var(--calendar-height-ratio, 1));
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -124,7 +124,7 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   min-width: 0;
 }
 
-.day-cell:hover, .day-cell:focus {
+.day-cell:focus-visible {
   background: var(--bg-elevated);
 }
 
@@ -145,8 +145,7 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   border: 1px solid transparent;
 }
 
-.event-item:hover, .todo-item:hover,
-.event-item:focus, .todo-item:focus {
+.event-item:focus-visible, .todo-item:focus-visible {
   background: var(--bg-elevated);
 }
 
@@ -236,7 +235,6 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   color: var(--text);
 }
 
-.day-event:hover,
 .day-event.focused {
   background: color-mix(in srgb, var(--accent) 20%, var(--bg-elevated));
 }
@@ -286,7 +284,6 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   gap: 0.5rem;
 }
 
-.day-todo:hover,
 .day-todo.focused {
   background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
 }
@@ -360,8 +357,9 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1.5rem;
-  min-width: 320px;
-  max-width: 90vw;
+  width: min(92vw, 640px);
+  min-width: min(280px, 92vw);
+  max-width: 92vw;
 }
 
 .modal h2 {
@@ -455,18 +453,10 @@ select, select option {
   color: white;
 }
 
-.btn-primary:hover {
-  background: var(--accent-hover);
-}
-
 .btn-ghost {
   background: transparent;
   color: var(--text);
   border: 1px solid var(--border);
-}
-
-.btn-ghost:hover {
-  background: var(--bg-elevated);
 }
 
 .key-hint {
@@ -492,12 +482,53 @@ select, select option {
   z-index: 50;
 }
 
+.navbar-wrap {
+  border-bottom: 1px solid var(--border);
+}
+
+.navbar-hover-strip {
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: var(--bg-elevated);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  padding: 0 1rem;
+}
+
+.navbar-hover-strip:hover {
+  background: var(--border);
+  color: var(--text);
+}
+
+.navbar-hover-strip-text {
+  white-space: nowrap;
+}
+
 .toolbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 1rem;
-  padding: 0.5rem 0 0.5rem 1rem;
+  padding: 0.5rem 1rem;
   flex-wrap: wrap;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-left: auto;
 }
 
 /* Dropdown with title inside the box, above the select */
@@ -556,6 +587,29 @@ select, select option {
   font-size: 0.875rem;
 }
 
+.subtoolbar {
+  border-bottom: 1px solid var(--border);
+}
+
+.calendar-height-wrapper {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-height-slider-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.calendar-height-slider {
+  width: 6rem;
+  accent-color: var(--accent);
+}
+
 #main {
   flex: 1;
   display: flex;
@@ -602,10 +656,6 @@ select, select option {
   color: var(--text-muted);
   font-size: 0.875rem;
   text-decoration: none;
-}
-
-.settings-page .back-link:hover {
-  color: var(--text);
 }
 
 .settings-page .form-section {

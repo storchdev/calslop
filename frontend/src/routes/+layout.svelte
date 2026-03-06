@@ -17,6 +17,13 @@
     }
     const tz = localStorage.getItem('calslop-timezone');
     if (tz !== null) app.setTimezone(tz);
+    const ratio = localStorage.getItem('calslop-calendar-height-ratio');
+    if (ratio !== null) {
+      const r = parseFloat(ratio);
+      if (!Number.isNaN(r)) app.setCalendarHeightRatio(r);
+    }
+    const navCollapsed = localStorage.getItem('calslop-navbar-collapsed');
+    if (navCollapsed === '1') app.setNavbarCollapsed(true);
   });
 
   function handleTimezoneChange(e: Event) {
@@ -43,34 +50,95 @@
 <a href="#calendar-view" class="skip-link">Skip to calendar</a>
 <a href="#todo-view" class="skip-link">Skip to todos</a>
 
-<div class="toolbar">
-  <div class="dropdown-box">
-    <span class="dropdown-box-label">Theme</span>
-    <select bind:value={themeValue} onchange={handleThemeChange}>
-      <option value="system">System</option>
-      <option value="light">Light</option>
-      <option value="dark">Dark</option>
-    </select>
-  </div>
-  <div class="dropdown-box">
-    <span class="dropdown-box-label">Time zone</span>
-    <select value={app.timezone} onchange={handleTimezoneChange}>
-      <option value="">Local (browser)</option>
-      <option value="America/New_York">Eastern</option>
-      <option value="America/Chicago">Central</option>
-      <option value="America/Denver">Mountain</option>
-      <option value="America/Los_Angeles">Pacific</option>
-      <option value="Europe/London">London</option>
-      <option value="Europe/Paris">Paris</option>
-      <option value="Asia/Tokyo">Tokyo</option>
-      <option value="UTC">UTC</option>
-    </select>
-  </div>
-  <a href="/settings" class="btn btn-ghost">Settings</a>
-  <button class="btn btn-ghost inline-flex items-baseline gap-1.5" onclick={() => app.setModalOpen('shortcuts')} type="button">
-    Shortcuts
-    <span class="key-hint">?</span>
-  </button>
+<div
+  class="navbar-wrap"
+  class:navbar-collapsed={app.navbarCollapsed}
+  onmouseenter={() => app.navbarCollapsed && app.setNavbarCollapsed(false)}
+>
+  {#if app.navbarCollapsed}
+    <div class="navbar-hover-strip" role="button" tabindex="0" onclick={() => app.setNavbarCollapsed(false)} onkeydown={(e) => e.key === 'Enter' && app.setNavbarCollapsed(false)} title="Show navbar">
+      <span class="navbar-hover-strip-text">▼ Show nav</span>
+    </div>
+  {:else}
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <button
+          class="btn btn-ghost inline-flex items-baseline gap-1.5"
+          class:bg-[var(--bg-elevated)]={app.viewMode === 'calendar'}
+          class:font-semibold={app.viewMode === 'calendar'}
+          onclick={() => app.setViewMode('calendar')}
+          type="button"
+        >
+          Calendar
+          <span class="key-hint">1</span>
+        </button>
+        <button
+          class="btn btn-ghost inline-flex items-baseline gap-1.5"
+          class:bg-[var(--bg-elevated)]={app.viewMode === 'todo'}
+          class:font-semibold={app.viewMode === 'todo'}
+          onclick={() => app.setViewMode('todo')}
+          type="button"
+        >
+          Todos
+          <span class="key-hint">2</span>
+        </button>
+        {#if app.viewMode === 'calendar'}
+          <button
+            class="btn btn-ghost inline-flex items-baseline gap-1.5"
+            class:bg-[var(--bg-elevated)]={app.calendarView === 'month'}
+            class:font-semibold={app.calendarView === 'month'}
+            onclick={() => app.setCalendarView('month')}
+            type="button"
+          >
+            Month
+            <span class="key-hint">M</span>
+          </button>
+          <button
+            class="btn btn-ghost inline-flex items-baseline gap-1.5"
+            class:bg-[var(--bg-elevated)]={app.calendarView === 'day'}
+            class:font-semibold={app.calendarView === 'day'}
+            onclick={() => app.setCalendarView('day')}
+            type="button"
+          >
+            Day
+            <span class="key-hint">D</span>
+          </button>
+        {/if}
+      </div>
+      <div class="toolbar-right">
+        <div class="dropdown-box">
+          <span class="dropdown-box-label">Theme</span>
+          <select bind:value={themeValue} onchange={handleThemeChange}>
+            <option value="system">System</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </div>
+        <div class="dropdown-box">
+          <span class="dropdown-box-label">Time zone</span>
+          <select value={app.timezone} onchange={handleTimezoneChange}>
+            <option value="">Local (browser)</option>
+            <option value="America/New_York">Eastern</option>
+            <option value="America/Chicago">Central</option>
+            <option value="America/Denver">Mountain</option>
+            <option value="America/Los_Angeles">Pacific</option>
+            <option value="Europe/London">London</option>
+            <option value="Europe/Paris">Paris</option>
+            <option value="Asia/Tokyo">Tokyo</option>
+            <option value="UTC">UTC</option>
+          </select>
+        </div>
+        <a href="/settings" class="btn btn-ghost">Settings</a>
+        <button class="btn btn-ghost inline-flex items-baseline gap-1.5" onclick={() => app.setModalOpen('shortcuts')} type="button">
+          Shortcuts
+          <span class="key-hint">?</span>
+        </button>
+        <button class="btn btn-ghost" type="button" onclick={() => app.setNavbarCollapsed(true)} title="Hide navbar">
+          ▲ Hide nav
+        </button>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <KeyboardHandler />
