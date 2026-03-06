@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { createTodo, updateTodo, getTodo, getSources, deleteTodo } from '$lib/api';
+  import { createTodo, updateTodo, getTodo, getSources, deleteTodo, parseHumanDatetime } from '$lib/api';
   import type { Todo, TodoCreate, TodoUpdate } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
   import { toLocalDatetimeInput } from '$lib/date';
@@ -24,6 +24,8 @@
   let error = $state('');
   let saving = $state(false);
   let deleting = $state(false);
+  let activeDueField = $state(false);
+  let dueHuman = $state('');
 
   const repeatOptions = [
     { value: '', label: 'None' },
@@ -95,6 +97,7 @@
   let summaryEl: HTMLInputElement | undefined;
   let completedEl: HTMLInputElement | undefined;
   let dueEl: HTMLInputElement | undefined;
+  let dueHumanEl = $state<HTMLInputElement | undefined>(undefined);
   let descriptionEl: HTMLTextAreaElement | undefined;
   let recurrenceEl: HTMLSelectElement | undefined;
   let sourceIdEl: HTMLSelectElement | undefined;
@@ -114,19 +117,59 @@
     sel.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
+  function parseTimezone(): string | undefined {
+    return app.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  }
+
+  async function applyHumanDue() {
+    const text = dueHuman.trim();
+    if (!text) return;
+    error = '';
+    try {
+      const parsed = await parseHumanDatetime(text, parseTimezone());
+      due = toLocalDatetimeInput(parsed.iso, app.timezone || undefined);
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to parse date/time';
+    }
+  }
+
+  function clearDueFieldIfNeeded() {
+    tick().then(() => {
+      const active = document.activeElement;
+      if (active !== dueEl && active !== dueHumanEl) activeDueField = false;
+    });
+  }
+
+  function focusDueHumanField() {
+    activeDueField = true;
+    tick().then(() => dueHumanEl?.focus());
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     const target = e.target as HTMLElement;
+    const inHumanInput = target === dueHumanEl;
     const inTextInput = target instanceof HTMLInputElement && target.type !== 'checkbox' && target.type !== 'radio'
       || target instanceof HTMLTextAreaElement;
 
     if (e.key === 'Escape') {
       if (inTextInput) {
         e.preventDefault();
+        if (inHumanInput) activeDueField = false;
         target.blur();
         modalEl?.focus();
       } else {
         onclose();
       }
+      return;
+    }
+    if (e.key === 'Enter' && target === dueHumanEl) {
+      e.preventDefault();
+      void applyHumanDue();
+      return;
+    }
+    if (target === dueEl && e.key.toLowerCase() === 'h') {
+      e.preventDefault();
+      focusDueHumanField();
       return;
     }
     if (e.ctrlKey && e.key === 'Enter') {
@@ -175,7 +218,7 @@
       completedEl?.focus();
     } else if (key === 'u') {
       e.preventDefault();
-      dueEl?.focus();
+      focusDueHumanField();
     } else if (key === 'd') {
       e.preventDefault();
       descriptionEl?.focus();
@@ -235,8 +278,30 @@
         <span class="field-label">Due date</span>
         <span class="field-shortcut">U</span>
       </div>
-      <input type="datetime-local" bind:value={due} bind:this={dueEl} />
+      <input
+        type="datetime-local"
+        bind:value={due}
+        bind:this={dueEl}
+        onfocus={() => { activeDueField = true; }}
+        onblur={clearDueFieldIfNeeded}
+      />
     </div>
+    {#if activeDueField}
+      <div class="form-row">
+        <div class="form-row-header">
+          <span class="field-label">Human-friendly</span>
+          <span class="field-shortcut">H</span>
+        </div>
+        <input
+          type="text"
+          bind:value={dueHuman}
+          bind:this={dueHumanEl}
+          placeholder="e.g. next friday 5pm"
+          onfocus={() => { activeDueField = true; }}
+          onblur={clearDueFieldIfNeeded}
+        />
+      </div>
+    {/if}
     <div class="form-row">
       <div class="form-row-header">
         <span class="field-label">Repeat</span>

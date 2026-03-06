@@ -102,3 +102,18 @@ export async function updateSource(id: string, data: { name?: string; enabled?: 
 export async function deleteSource(id: string): Promise<void> {
   await fetchApi<unknown>(`/sources/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
+
+export async function parseHumanDatetime(
+  text: string,
+  timezone?: string,
+  contextLocal?: string,
+): Promise<{ iso: string; hasDate: boolean }> {
+  const payload: { text: string; timezone?: string; context_local?: string } = { text };
+  if (timezone) payload.timezone = timezone;
+  if (contextLocal) payload.context_local = contextLocal;
+  const res = await fetchApi<{ iso: string; has_date: boolean }>('/datetime/parse', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return { iso: res.iso, hasDate: res.has_date };
+}

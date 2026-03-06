@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { createEvent, updateEvent, getEvent, deleteEvent } from '$lib/api';
+  import { createEvent, updateEvent, getEvent, deleteEvent, parseHumanDatetime } from '$lib/api';
   import type { Event, EventCreate, EventUpdate } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
   import { toLocalDatetimeInput } from '$lib/date';
@@ -24,6 +24,10 @@
   let sources = $state<{ id: string; name: string; type: string }[]>([]);
   let error = $state('');
   let saving = $state(false);
+  let activeDateField = $state<'start' | 'end' | null>(null);
+  let startHuman = $state('');
+  let endHuman = $state('');
+  let endDateAdjustedHint = $state('');
 
   const editingId = $derived(app.editingId);
 
@@ -127,6 +131,8 @@
   let titleEl: HTMLInputElement | undefined;
   let startEl: HTMLInputElement | undefined;
   let endEl: HTMLInputElement | undefined;
+  let startHumanEl = $state<HTMLInputElement | undefined>(undefined);
+  let endHumanEl = $state<HTMLInputElement | undefined>(undefined);
   let allDayEl: HTMLInputElement | undefined;
   let locationEl: HTMLInputElement | undefined;
   let recurrenceEl: HTMLSelectElement | undefined;
@@ -148,18 +154,111 @@
     sel.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
+  function parseTimezone(): string | undefined {
+    return app.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  }
+
+  function addOneDay(localDatetime: string): string {
+    const [datePart, timePart = '00:00'] = localDatetime.split('T');
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hour, minute] = timePart.split(':').map(Number);
+    const d = new Date(year, (month ?? 1) - 1, day ?? 1, hour ?? 0, minute ?? 0);
+    d.setDate(d.getDate() + 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const h = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${dd}T${h}:${min}`;
+  }
+
+  async function applyHumanDate(field: 'start' | 'end'): Promise<boolean> {
+    const text = (field === 'start' ? startHuman : endHuman).trim();
+    if (!text) return false;
+    error = '';
+    endDateAdjustedHint = '';
+    try {
+      const contextLocal = field === 'end' ? (start || end || undefined) : (start || undefined);
+      const parsed = await parseHumanDatetime(text, parseTimezone(), contextLocal);
+      let localValue = toLocalDatetimeInput(parsed.iso, app.timezone || undefined);
+
+      if (field === 'end' && !parsed.hasDate && start && localValue <= start) {
+        localValue = addOneDay(localValue);
+        endDateAdjustedHint = 'Adjusted to next day to keep end after start.';
+      }
+
+      if (field === 'start') {
+        start = localValue;
+      } else {
+        end = localValue;
+      }
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to parse date/time';
+      return false;
+    }
+  }
+
+  function clearActiveDateFieldIfNeeded(field: 'start' | 'end') {
+    tick().then(() => {
+      const active = document.activeElement;
+      const stillInField = field === 'start'
+        ? active === startEl || active === startHumanEl
+        : active === endEl || active === endHumanEl;
+      if (!stillInField && activeDateField === field) activeDateField = null;
+    });
+  }
+
+  function focusHumanDateField(field: 'start' | 'end') {
+    activeDateField = field;
+    tick().then(() => {
+      if (field === 'start') startHumanEl?.focus();
+      else endHumanEl?.focus();
+    });
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     const target = e.target as HTMLElement;
+    const inHumanInput = target === startHumanEl || target === endHumanEl;
+    const inDateInput = target === startEl || target === endEl;
     const inTextInput = target instanceof HTMLInputElement && target.type !== 'checkbox' && target.type !== 'radio'
       || target instanceof HTMLTextAreaElement;
 
     if (e.key === 'Escape') {
       if (inTextInput) {
         e.preventDefault();
+        if (inHumanInput) activeDateField = null;
         target.blur();
         modalEl?.focus();
       } else {
         onclose();
+      }
+      return;
+    }
+    if (e.key === 'Enter' && target === startHumanEl) {
+      e.preventDefault();
+      void applyHumanDate('start').then((ok) => {
+        if (!ok) return;
+        focusHumanDateField('end');
+      });
+      return;
+    }
+    if (e.key === 'Enter' && target === endHumanEl) {
+      e.preventDefault();
+      void applyHumanDate('end').then((ok) => {
+        if (!ok) return;
+        activeDateField = null;
+        endHumanEl?.blur();
+        modalEl?.focus();
+      });
+      return;
+    }
+    if (inDateInput && e.key.toLowerCase() === 'h') {
+      e.preventDefault();
+      if (target === startEl) {
+        focusHumanDateField('start');
+      } else if (target === endEl) {
+        focusHumanDateField('end');
       }
       return;
     }
@@ -205,10 +304,10 @@
       titleEl?.focus();
     } else if (key === 's') {
       e.preventDefault();
-      startEl?.focus();
+      focusHumanDateField('start');
     } else if (key === 'e') {
       e.preventDefault();
-      endEl?.focus();
+      focusHumanDateField('end');
     } else if (key === 'a') {
       e.preventDefault();
       allDayEl?.focus();
@@ -259,15 +358,64 @@
         <span class="field-label">Start</span>
         <span class="field-shortcut">S</span>
       </div>
-      <input type="datetime-local" bind:value={start} disabled={allDay} bind:this={startEl} />
+      <input
+        type="datetime-local"
+        bind:value={start}
+        disabled={allDay}
+        bind:this={startEl}
+        onfocus={() => { activeDateField = 'start'; }}
+        onblur={() => clearActiveDateFieldIfNeeded('start')}
+      />
     </div>
+    {#if activeDateField === 'start'}
+      <div class="form-row">
+        <div class="form-row-header">
+          <span class="field-label">Human-friendly</span>
+          <span class="field-shortcut">H</span>
+        </div>
+        <input
+          type="text"
+          bind:value={startHuman}
+          bind:this={startHumanEl}
+          placeholder="e.g. tomorrow 9am"
+          onfocus={() => { activeDateField = 'start'; }}
+          onblur={() => clearActiveDateFieldIfNeeded('start')}
+        />
+      </div>
+    {/if}
     <div class="form-row">
       <div class="form-row-header">
         <span class="field-label">End</span>
         <span class="field-shortcut">E</span>
       </div>
-      <input type="datetime-local" bind:value={end} disabled={allDay} bind:this={endEl} />
+      <input
+        type="datetime-local"
+        bind:value={end}
+        disabled={allDay}
+        bind:this={endEl}
+        onfocus={() => { activeDateField = 'end'; }}
+        onblur={() => clearActiveDateFieldIfNeeded('end')}
+      />
     </div>
+    {#if activeDateField === 'end'}
+      <div class="form-row">
+        <div class="form-row-header">
+          <span class="field-label">Human-friendly</span>
+          <span class="field-shortcut">H</span>
+        </div>
+        <input
+          type="text"
+          bind:value={endHuman}
+          bind:this={endHumanEl}
+          placeholder="e.g. tomorrow 10am"
+          onfocus={() => { activeDateField = 'end'; }}
+          onblur={() => clearActiveDateFieldIfNeeded('end')}
+        />
+        {#if endDateAdjustedHint}
+          <p class="text-sm text-[var(--text-muted)] mt-1">{endDateAdjustedHint}</p>
+        {/if}
+      </div>
+    {/if}
     <div class="form-row form-row-checkbox">
       <div class="form-row-header">
         <span class="field-label">All day</span>

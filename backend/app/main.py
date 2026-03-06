@@ -4,12 +4,17 @@ from flask import Flask, abort, jsonify, send_from_directory
 from flask_cors import CORS
 from pydantic import ValidationError
 
-from app.routes import events_bp, todos_bp, sources_bp
+from app.routes import datetime_bp, events_bp, todos_bp, sources_bp
 
 app = Flask(__name__)
 CORS(
     app,
-    origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8765", "http://127.0.0.1:8765"],
+    origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:8765",
+        "http://127.0.0.1:8765",
+    ],
     allow_headers=["*"],
     supports_credentials=True,
 )
@@ -17,6 +22,7 @@ CORS(
 app.register_blueprint(events_bp, url_prefix="/api/events")
 app.register_blueprint(todos_bp, url_prefix="/api/todos")
 app.register_blueprint(sources_bp, url_prefix="/api/sources")
+app.register_blueprint(datetime_bp, url_prefix="/api/datetime")
 
 # Optional: serve built frontend (single-process install)
 STATIC_DIR = os.environ.get("CALSLOP_STATIC_DIR")
