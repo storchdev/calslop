@@ -13,7 +13,7 @@
     showToolbar?: boolean;
   }
 
-  let { todos, showCompleted = true, todoOrder = 'oldest', onToggle, onSelect, showToolbar = true }: Props = $props();
+  let { todos, showCompleted = false, todoOrder = 'oldest', onToggle, onSelect, showToolbar = true }: Props = $props();
 
   const filtered = $derived(showCompleted ? todos : todos.filter((t) => !t.completed));
   const visibleTodos = $derived(

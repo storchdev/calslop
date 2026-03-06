@@ -12,7 +12,7 @@ class AppStore {
   calendarDensity = $state<CalendarDensity>('balanced');
   showTodosOnCalendar = $state<boolean>(true);
   /** When false, hide completed todos in the todo list view */
-  showCompletedTodos = $state<boolean>(true);
+  showCompletedTodos = $state<boolean>(false);
   /** Todo list order: oldest first (by due) or newest first */
   todoOrder = $state<TodoOrder>('oldest');
   selectedDate = $state<Date>(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
