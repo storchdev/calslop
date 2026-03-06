@@ -74,66 +74,56 @@ Run the app as one process: Flask serves the built Svelte frontend and the API. 
 
    To use a different port, set the port in the command above and in the systemd unit below.
 
-### systemd service
+### systemd user service
 
-To run Calslop as a system service (starts on boot, restarts on failure):
+To run Calslop as a user service (runs as you, no sudo required):
 
-1. Create a user to run the app (optional but recommended):
-
-   ```bash
-   sudo useradd -r -s /bin/false calslop
-   ```
-
-2. Create an install directory, clone the repo, build, and set ownership. Replace `/opt/calslop` with your chosen path if different.
+1. Create an install directory in your home, clone the repo, and build. Example using `~/.local/share/calslop`:
 
    ```bash
-   sudo mkdir -p /opt/calslop
-   sudo chown "$USER" /opt/calslop
-   git clone https://github.com/storchdev/calslop.git /opt/calslop
-   cd /opt/calslop
+   mkdir -p ~/.local/share/calslop
+   git clone https://github.com/storchdev/calslop.git ~/.local/share/calslop
+   cd ~/.local/share/calslop
    cd backend && uv sync && cd ..
    cd frontend && npm ci && npm run build && cd ..
-   sudo chown -R calslop:calslop /opt/calslop
-   sudo mkdir -p /var/lib/calslop
-   sudo chown calslop:calslop /var/lib/calslop
    ```
 
-3. Create the systemd unit. Replace `/opt/calslop` in the following with your install path. If you used `pip install -e .` instead of `uv`, set `ExecStart` to your venv’s `python` (e.g. `/opt/calslop/backend/.venv/bin/python`).
+2. Create the user service unit. Uses `%h` for your home directory. If you used a different install path, replace `~/.local/share/calslop` in the unit. If you used `pip install -e .` instead of `uv`, set `ExecStart` to your venv’s `python`.
 
    ```bash
-   sudo tee /etc/systemd/system/calslop.service << 'EOF'
+   mkdir -p ~/.config/systemd/user
+   tee ~/.config/systemd/user/calslop.service << 'EOF'
    [Unit]
    Description=Calslop calendar and todo app
    After=network.target
 
    [Service]
    Type=simple
-   User=calslop
-   Group=calslop
-   WorkingDirectory=/opt/calslop/backend
-   Environment="PYTHONPATH=/opt/calslop/backend"
-   Environment="CALSLOP_STATIC_DIR=/opt/calslop/frontend/build"
-   Environment="CALSLOP_DATA_DIR=/var/lib/calslop"
-   Environment="PATH=/opt/calslop/backend/.venv/bin:/usr/local/bin:/usr/bin:/bin"
-   ExecStart=/opt/calslop/backend/.venv/bin/python -m flask --app app.main run --port 8765 --host 0.0.0.0
+   WorkingDirectory=%h/.local/share/calslop/backend
+   Environment="PYTHONPATH=%h/.local/share/calslop/backend"
+   Environment="CALSLOP_STATIC_DIR=%h/.local/share/calslop/frontend/build"
+   Environment="PATH=%h/.local/share/calslop/backend/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+   ExecStart=%h/.local/share/calslop/backend/.venv/bin/python -m flask --app app.main run --port 8765 --host 0.0.0.0
    Restart=on-failure
    RestartSec=5
 
    [Install]
-   WantedBy=multi-user.target
+   WantedBy=default.target
    EOF
    ```
 
-4. Enable and start:
+3. Enable and start:
 
    ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable calslop
-   sudo systemctl start calslop
-   sudo systemctl status calslop
+   systemctl --user daemon-reload
+   systemctl --user enable calslop
+   systemctl --user start calslop
+   systemctl --user status calslop
    ```
 
-   The app will be available on port **8765**. Adjust `ExecStart` and any reverse proxy (e.g. nginx) if you use a different port.
+   The app will be available on port **8765**. Source config uses the default `~/.config/calslop/sources.json` since the service runs as you.
+
+   To have the service start at boot even when you are not logged in, enable lingering: `loginctl enable-linger $USER`.
 
 ### Add a source
 
