@@ -67,7 +67,7 @@
       </span>
     </div>
   {/if}
-  {#each visibleTodos as todo, i}
+  {#each visibleTodos as todo, i (todo.id)}
     <div
       role="listitem"
       class="todo-item flex items-center gap-2"

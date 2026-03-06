@@ -25,7 +25,8 @@
 
   /** Fetch events for a wide range (6 months) and all todos. Only called on initial load and manual Sync. */
   async function refresh() {
-    loading = true;
+    const hasData = events.length > 0 || todos.length > 0;
+    if (!hasData) loading = true;
     try {
       const d = app.selectedDate;
       const start = new Date(d.getFullYear(), d.getMonth() - 2, 1).toISOString();
@@ -86,11 +87,12 @@
 </script>
 
 <div class="main-content flex flex-1 flex-col min-h-0">
-  {#if loading}
-    <p class="p-4 text-[var(--text-muted)]">Loading…</p>
-  {:else if app.viewMode === 'calendar'}
+  {#if app.viewMode === 'calendar'}
     <div class="flex flex-1 flex-col min-h-0">
       <div class="subtoolbar flex flex-wrap items-center gap-3 px-4 py-3 shrink-0">
+        {#if loading}
+          <span class="text-sm text-[var(--text-muted)]" role="status" aria-live="polite">Loading…</span>
+        {/if}
         <div class="dropdown-box">
           <span class="dropdown-box-label dropdown-box-label-with-key"><span>View</span><span class="key-hint">V</span></span>
           <select
@@ -161,6 +163,9 @@
   {:else}
     <div class="flex flex-1 flex-col min-h-0">
       <div class="subtoolbar flex flex-wrap items-center gap-3 px-4 py-3 shrink-0">
+        {#if loading}
+          <span class="text-sm text-[var(--text-muted)]" role="status" aria-live="polite">Loading…</span>
+        {/if}
         <button
           type="button"
           class="btn btn-ghost text-sm inline-flex items-baseline gap-1.5"
