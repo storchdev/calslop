@@ -2,3 +2,4 @@
 .svelte-kit/
 __pycache__/
 node_modules/
+build/
