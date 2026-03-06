@@ -40,7 +40,7 @@ Run the app as one process: Flask serves the built Svelte frontend and the API. 
 1. **Clone and install**
 
    ```bash
-   git clone https://github.com/your-org/calslop.git
+   git clone https://github.com/storchdev/calslop.git
    cd calslop
    ```
 
