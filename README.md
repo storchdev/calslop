@@ -37,6 +37,32 @@ Run the app as one process: Flask serves the built Svelte frontend and the API. 
 
 **Prerequisites:** Python 3.11+, Node.js 18+, and [uv](https://docs.astral.sh/uv/) (or pip).
 
+### Recommended: install and update scripts
+
+Clone the repo, then run the install script. It installs to `~/.local/share/calslop` by default (override with a path). Use `--service` to install and enable the systemd user unit.
+
+```bash
+git clone https://github.com/storchdev/calslop.git
+cd calslop
+./install.sh [INSTALL_DIR] [--service]
+```
+
+To update an existing install (pull and rebuild), run from the install directory or pass the path:
+
+```bash
+./update.sh [INSTALL_DIR]
+```
+
+Example: install with systemd user service enabled:
+
+```bash
+./install.sh --service
+```
+
+### Manual install
+
+The following steps are the manual equivalent of the scripts above.
+
 1. **Clone and install**
 
    ```bash
