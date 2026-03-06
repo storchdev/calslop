@@ -5,7 +5,7 @@ import icalendar
 from caldav.elements import dav
 
 from app.models.dtos import Event, Source, Todo
-from app.services.ical_utils import parse_events_from_ical, parse_todos_from_ical
+from app.services.ical_utils import parse_events_from_ical, parse_todos_from_ical, build_exception_vtodo
 from app.services.sources.base import FetchResult, SourceDriver
 
 
@@ -171,27 +171,108 @@ class CalDAVDriver(SourceDriver):
         return False
 
     def create_todo(self, source: Source, todo: Todo) -> Todo | None:
+        from app.services.ical_utils import todo_to_ical
+        client = self._get_client(source)
+        if not client:
+            return None
         try:
-            principal = self._get_client(source).principal()
+            principal = client.principal()
+            ical_str = todo_to_ical(todo).decode("utf-8")
             todo_sets = getattr(principal, "todo_sets", lambda: [])()
             if todo_sets:
                 ts = todo_sets[0]
-                from app.services.ical_utils import todo_to_ical
-                ical_str = todo_to_ical(todo).decode("utf-8")
                 ts.save_todo(ical_str)
                 return todo
+            # Many servers store todos in calendars, not todo_sets. Try each calendar.
+            for cal in principal.calendars():
+                save_todo = getattr(cal, "save_todo", None)
+                if callable(save_todo):
+                    try:
+                        save_todo(ical_str)
+                        return todo
+                    except Exception:
+                        continue
         except Exception:
             pass
         return None
 
     def _todo_ids_match(self, our_id: str, caldav_todo) -> bool:
-        """Match our todo id (source_id::uid) against CalDAV object id/url."""
-        uid = our_id.split("::")[-1] if ("::" in our_id and our_id) else our_id
+        """Match our todo id (source_id::uid or source_id::cal_id::uid) against CalDAV object id/url."""
+        parts = our_id.split("::")
+        uid = parts[-1] if parts else ""
         if not uid:
             return False
         t_id = str(getattr(caldav_todo, "id", "") or "")
         t_url = str(getattr(caldav_todo, "url", "") or "")
-        return our_id in t_id or our_id in t_url or uid in t_id or uid in t_url
+        if our_id in t_id or our_id in t_url or uid in t_id or uid in t_url:
+            return True
+        try:
+            comp = getattr(caldav_todo, "icalendar_component", None)
+            if comp:
+                for c in (comp.walk() if hasattr(comp, "walk") else [comp]):
+                    if getattr(c, "name", None) == "VTODO" and str(c.get("uid", "")) == uid:
+                        return True
+        except Exception:
+            pass
+        return False
+
+    def add_recurrence_exception(
+        self,
+        source: Source,
+        master_todo_id: str,
+        recurrence_id_str: str,
+        summary: str,
+        due,
+        description: str | None,
+        priority: int | None,
+    ) -> bool:
+        """Add a completed RECURRENCE-ID exception to the calendar object that contains the master."""
+        parts = master_todo_id.split("::")
+        if len(parts) < 3:
+            return False
+        uid = parts[-1]
+        client = self._get_client(source)
+        if not client:
+            return False
+        try:
+            principal = client.principal()
+            exc_bytes = build_exception_vtodo(
+                uid, recurrence_id_str, summary, due, description, priority
+            )
+            exc_cal = icalendar.Calendar.from_ical(exc_bytes)
+            exc_vtodo = None
+            for comp in exc_cal.walk():
+                if comp.name == "VTODO":
+                    exc_vtodo = comp
+                    break
+            if exc_vtodo is None:
+                return False
+            for cal in principal.calendars():
+                todos_fn = getattr(cal, "todos", None) or getattr(cal, "get_todos", None)
+                for t in (todos_fn(include_completed=True) if callable(todos_fn) else []):
+                    if self._todo_ids_match(master_todo_id, t):
+                        cal_inst = getattr(t, "icalendar_instance", None) or icalendar.Calendar.from_ical(
+                            t.data if getattr(t, "data", None) else t.icalendar_component.to_ical()
+                        )
+                        if cal_inst:
+                            cal_inst.add_component(exc_vtodo)
+                            t.icalendar_instance = cal_inst
+                            t.save()
+                        return True
+            for ts in getattr(principal, "todo_sets", lambda: [])():
+                for t in (ts.todos(include_completed=True) if hasattr(ts, "todos") else []):
+                    if self._todo_ids_match(master_todo_id, t):
+                        cal_inst = getattr(t, "icalendar_instance", None) or icalendar.Calendar.from_ical(
+                            t.data if getattr(t, "data", None) else t.icalendar_component.to_ical()
+                        )
+                        if cal_inst:
+                            cal_inst.add_component(exc_vtodo)
+                            t.icalendar_instance = cal_inst
+                            t.save()
+                        return True
+        except Exception:
+            pass
+        return False
 
     def update_todo(self, source: Source, todo: Todo) -> Todo | None:
         client = self._get_client(source)

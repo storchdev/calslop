@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 
 [[package]]
@@ -63,6 +63,7 @@ dependencies = [
     { name = "httpx" },
     { name = "icalendar" },
     { name = "pydantic" },
+    { name = "python-dateutil" },
     { name = "watchdog" },
 ]
 
@@ -83,6 +84,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-asyncio", marker = "extra == 'dev'" },
+    { name = "python-dateutil", specifier = ">=2.8" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "watchdog", specifier = ">=4.0" },
 ]

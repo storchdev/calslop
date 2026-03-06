@@ -68,8 +68,13 @@
 
   function handleToggleTodo(todo: Todo) {
     updateTodo(todo.id, { completed: !todo.completed }).then(() => {
-      todos = todos.map((t) => (t.id === todo.id ? { ...t, completed: !todo.completed } : t));
-      app.setUnsyncedChanges(true);
+      if (todo.recurrence) {
+        // Repeating todo: backend creates next occurrence; refetch to show it.
+        refresh();
+      } else {
+        todos = todos.map((t) => (t.id === todo.id ? { ...t, completed: !todo.completed } : t));
+        app.setUnsyncedChanges(true);
+      }
     });
   }
 

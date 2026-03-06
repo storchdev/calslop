@@ -1,12 +1,15 @@
 import uuid
 from pathlib import Path
 
+import icalendar
+
 from app.models.dtos import Event, Source, Todo
 from app.services.ical_utils import (
     parse_events_from_ical,
     parse_todos_from_ical,
     event_to_ical,
     todo_to_ical,
+    build_exception_vtodo,
 )
 from app.services.sources.base import FetchResult, SourceDriver
 
@@ -153,6 +156,45 @@ class LocalFolderDriver(SourceDriver):
             raise ValueError(f"Todo file not found: {stem}.ics")
         ics_path.write_bytes(todo_to_ical(todo))
         return todo
+
+    def add_recurrence_exception(
+        self,
+        source: Source,
+        master_todo_id: str,
+        recurrence_id_str: str,
+        summary: str,
+        due,
+        description: str | None,
+        priority: int | None,
+    ) -> bool:
+        parts = master_todo_id.split("::")
+        if len(parts) < 3:
+            return False
+        stem = parts[1]
+        uid = parts[2]
+        path_str = source.config.get("path")
+        if not path_str:
+            return False
+        ics_path = Path(path_str) / f"{stem}.ics"
+        if not ics_path.exists():
+            return False
+        try:
+            existing = ics_path.read_bytes()
+            cal = icalendar.Calendar.from_ical(existing)
+            if not cal:
+                return False
+            exc_bytes = build_exception_vtodo(
+                uid, recurrence_id_str, summary, due, description, priority
+            )
+            exc_cal = icalendar.Calendar.from_ical(exc_bytes)
+            for comp in exc_cal.walk():
+                if comp.name == "VTODO":
+                    cal.add_component(comp)
+                    break
+            ics_path.write_bytes(cal.to_ical())
+            return True
+        except Exception:
+            return False
 
     def delete_todo(self, source: Source, todo_id: str) -> bool:
         parts = todo_id.split("::")

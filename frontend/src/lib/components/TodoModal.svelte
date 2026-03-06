@@ -18,10 +18,21 @@
   let completed = $state(false);
   let due = $state('');
   let description = $state('');
+  let recurrence = $state('');
   let sourceId = $state('');
   let sources = $state<{ id: string; name: string; type: string }[]>([]);
   let error = $state('');
   let saving = $state(false);
+
+  const repeatOptions = [
+    { value: '', label: 'None' },
+    { value: 'FREQ=DAILY', label: 'Daily' },
+    { value: 'FREQ=WEEKLY', label: 'Weekly' },
+    { value: 'FREQ=MONTHLY', label: 'Monthly' },
+    { value: 'FREQ=YEARLY', label: 'Yearly' },
+  ];
+
+  const isInstance = $derived(todoId ? todoId.split('::').length >= 4 : false);
 
   $effect(() => {
     const tz = app.timezone || undefined;
@@ -31,6 +42,7 @@
         completed = initialTodo.completed;
         due = initialTodo.due ? toLocalDatetimeInput(initialTodo.due, tz) : '';
         description = initialTodo.description ?? '';
+        recurrence = initialTodo.recurrence ?? '';
         return;
       }
       getTodo(todoId).then((t) => {
@@ -38,7 +50,10 @@
         completed = t.completed;
         due = t.due ? toLocalDatetimeInput(t.due, tz) : '';
         description = t.description ?? '';
+        recurrence = t.recurrence ?? '';
       });
+    } else {
+      recurrence = '';
     }
   });
 
@@ -58,13 +73,13 @@
     saving = true;
     try {
       if (todoId) {
-        await updateTodo(todoId, { summary: summary.trim(), completed, due: due ? new Date(due).toISOString() : null, description: description || null });
+        await updateTodo(todoId, { summary: summary.trim(), completed, due: due ? new Date(due).toISOString() : null, description: description || null, recurrence: recurrence || null });
       } else {
         if (!sourceId) {
           error = 'Select a todo source';
           return;
         }
-        await createTodo({ source_id: sourceId, summary: summary.trim(), completed, due: due ? new Date(due).toISOString() : null, description: description || null });
+        await createTodo({ source_id: sourceId, summary: summary.trim(), completed, due: due ? new Date(due).toISOString() : null, description: description || null, recurrence: recurrence || null });
       }
       onsave();
       onclose();
@@ -80,6 +95,7 @@
   let completedEl: HTMLInputElement | undefined;
   let dueEl: HTMLInputElement | undefined;
   let descriptionEl: HTMLTextAreaElement | undefined;
+  let recurrenceEl: HTMLSelectElement | undefined;
   let sourceIdEl: HTMLSelectElement | undefined;
 
   $effect(() => {
@@ -156,6 +172,9 @@
     } else if (key === 'd') {
       e.preventDefault();
       descriptionEl?.focus();
+    } else if (key === 'r') {
+      e.preventDefault();
+      recurrenceEl?.focus();
     } else if (key === 'l' && sourceIdEl) {
       e.preventDefault();
       sourceIdEl.focus();
@@ -204,6 +223,17 @@
         <span class="field-shortcut">U</span>
       </div>
       <input type="datetime-local" bind:value={due} bind:this={dueEl} />
+    </div>
+    <div class="form-row">
+      <div class="form-row-header">
+        <span class="field-label">Repeat</span>
+        <span class="field-shortcut">R</span>
+      </div>
+      <select bind:value={recurrence} bind:this={recurrenceEl} disabled={isInstance} title={isInstance ? 'Repeat is set on the series' : undefined}>
+        {#each repeatOptions as opt}
+          <option value={opt.value}>{opt.label}</option>
+        {/each}
+      </select>
     </div>
     <div class="form-row">
       <div class="form-row-header">

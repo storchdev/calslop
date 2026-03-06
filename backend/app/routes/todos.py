@@ -85,6 +85,24 @@ def update_todo():
     if not resolved:
         abort(404, description="Todo not found or read-only")
     source, driver, current = resolved
+
+    # Completing one instance of a recurring todo: add RECURRENCE-ID exception instead of updating master.
+    parts = todo_id.split("::")
+    if len(parts) >= 4 and body.completed is True:
+        master_todo_id = "::".join(parts[:-1])
+        recurrence_id_str = parts[-1]
+        if driver.add_recurrence_exception(
+            source,
+            master_todo_id,
+            recurrence_id_str,
+            current.summary,
+            current.due,
+            current.description,
+            current.priority,
+        ):
+            updated = Todo(**{**current.model_dump(), "completed": True})
+            return jsonify(updated.model_dump(mode="json"))
+
     d = current.model_dump()
     if body.summary is not None:
         d["summary"] = body.summary

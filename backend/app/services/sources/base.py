@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 from app.models.dtos import Event, Todo, Source
 
@@ -47,4 +50,17 @@ class SourceDriver(ABC):
         return None
 
     def delete_todo(self, source: Source, todo_id: str) -> bool:
+        return False
+
+    def add_recurrence_exception(
+        self,
+        source: Source,
+        master_todo_id: str,
+        recurrence_id_str: str,
+        summary: str,
+        due: datetime | None,
+        description: str | None,
+        priority: int | None,
+    ) -> bool:
+        """Add a completed RECURRENCE-ID exception for one instance of a recurring todo. Returns True if done."""
         return False
