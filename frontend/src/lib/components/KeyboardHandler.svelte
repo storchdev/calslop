@@ -208,6 +208,19 @@
       }
       if (next) {
         app.setSelectedDate(next);
+        if (
+          isDayView
+          && !shift
+          && (key === 'h' || key === 'l' || key === 'arrowleft' || key === 'arrowright')
+        ) {
+          setTimeout(() => {
+            const firstDayItem = document.querySelector('[data-day-item-index="0"]') as HTMLElement | null;
+            if (!firstDayItem) return;
+            app.setFocusedEventIndex(0);
+            firstDayItem.focus();
+            firstDayItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }, 0);
+        }
         e.preventDefault();
         return;
       }
