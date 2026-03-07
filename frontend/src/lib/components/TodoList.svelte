@@ -1,20 +1,22 @@
 <script lang="ts">
   import type { Todo } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
-  import { formatInTimezone } from '$lib/date';
+  import { formatInTimezone, parseUtcIfNeeded } from '$lib/date';
 
   interface Props {
     todos: Todo[];
     showCompleted?: boolean;
     todoOrder?: 'oldest' | 'newest';
     searchQuery?: string;
+    /** When set, the todo with this id is shown as a loading row instead of normal content. */
+    loadingTodoId?: string | null;
     onToggle?: (todo: Todo) => void;
     onSelect?: (todo: Todo) => void;
     /** When false, only render the list (toolbar is rendered by parent). */
     showToolbar?: boolean;
   }
 
-  let { todos, showCompleted = false, todoOrder = 'oldest', searchQuery = '', onToggle, onSelect, showToolbar = true }: Props = $props();
+  let { todos, showCompleted = false, todoOrder = 'oldest', searchQuery = '', loadingTodoId = null, onToggle, onSelect, showToolbar = true }: Props = $props();
 
   function matchesSearch(todo: Todo, q: string): boolean {
     if (!q.trim()) return true;
@@ -25,7 +27,14 @@
     );
   }
 
-  const filtered = $derived(showCompleted ? todos : todos.filter((t) => !t.completed));
+  function isTodoOverdue(todo: Todo): boolean {
+    if (todo.completed || !todo.due) return false;
+    return parseUtcIfNeeded(todo.due).getTime() < Date.now();
+  }
+
+  const filtered = $derived(
+    showCompleted ? todos : todos.filter((t) => !t.completed || t.id === loadingTodoId)
+  );
   const searchFiltered = $derived(
     searchQuery.trim() ? filtered.filter((t) => matchesSearch(t, searchQuery)) : filtered
   );
@@ -84,12 +93,14 @@
     <div
       role="listitem"
       class="todo-item flex items-center gap-2"
-      class:completed={todo.completed}
-      class:focused={app.focusedTodoIndex === i}
+      class:completed={todo.completed && loadingTodoId !== todo.id}
+      class:focused={app.focusedTodoIndex === i && loadingTodoId !== todo.id}
+      class:overdue={isTodoOverdue(todo) && loadingTodoId !== todo.id}
       tabindex={app.focusedTodoIndex === i ? 0 : -1}
       data-todo-item-index={i}
-      onclick={() => onSelect?.(todo)}
+      onclick={() => loadingTodoId !== todo.id && onSelect?.(todo)}
       onkeydown={(e) => {
+        if (loadingTodoId === todo.id) return;
         if (e.key === 'Enter') onSelect?.(todo);
         if (e.key === ' ' || e.key === 'x' || e.key === 'X') {
           e.preventDefault();
@@ -111,19 +122,26 @@
         }
       }}
     >
-      <input
-        type="checkbox"
-        checked={todo.completed}
-        onchange={() => onToggle?.(todo)}
-        onclick={(e) => e.stopPropagation()}
-        aria-label="Toggle completed"
-      />
-      <span class="flex-1">{todo.summary}</span>
-      {#if todo.recurrence}
-        <span class="text-[var(--text-muted)]" title="Repeating" aria-hidden="true">↻</span>
-      {/if}
-      {#if todo.due}
-        <span class="text-sm text-[var(--text-muted)]">{formatInTimezone(todo.due, { dateStyle: 'short', timeStyle: 'short' }, app.timezone || undefined)}</span>
+      {#if loadingTodoId === todo.id}
+        <span class="flex-1 flex items-center gap-2 text-[var(--text-muted)]" aria-busy="true" aria-live="polite">
+          <span class="todo-loading-spinner" aria-hidden="true"></span>
+          Updating…
+        </span>
+      {:else}
+        <input
+          type="checkbox"
+          checked={todo.completed}
+          onchange={() => onToggle?.(todo)}
+          onclick={(e) => e.stopPropagation()}
+          aria-label="Toggle completed"
+        />
+        <span class="flex-1 todo-summary">{todo.summary}</span>
+        {#if todo.recurrence}
+          <span class="text-[var(--text-muted)]" title="Repeating" aria-hidden="true">↻</span>
+        {/if}
+        {#if todo.due}
+          <span class="text-sm text-[var(--text-muted)] todo-due">{formatInTimezone(todo.due, { dateStyle: 'short', timeStyle: 'short' }, app.timezone || undefined)}</span>
+        {/if}
       {/if}
     </div>
   {/each}

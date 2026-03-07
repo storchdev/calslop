@@ -61,7 +61,9 @@
     // Day view: J/K jump between events/todos, j/k scroll timeline, Enter open edit, x toggle todo
     if (app.viewMode === 'calendar' && app.calendarView === 'day') {
       const dayItems = Array.from(document.querySelectorAll('[data-day-item-index]'));
-      const scrollEl = document.querySelector('[data-day-timeline-scroll]') as HTMLElement | null;
+      const scrollEl =
+        (document.querySelector('#calendar-view .day-view') as HTMLElement | null)
+        ?? (document.querySelector('.content-scroll') as HTMLElement | null);
       const scrollAmount = 80;
 
       if (e.key === 'J' || (e.key === 'j' && e.shiftKey)) {
@@ -166,10 +168,21 @@
       }
     }
 
+    function focusFirstDayItemSoon() {
+      setTimeout(() => {
+        const firstDayItem = document.querySelector('[data-day-item-index="0"]') as HTMLElement | null;
+        if (!firstDayItem) return;
+        app.setFocusedEventIndex(0);
+        firstDayItem.focus();
+        firstDayItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }, 0);
+    }
+
     if (app.viewMode === 'calendar' && app.calendarView === 'month' && key === 'enter') {
       const dateToUse = app.focusedDayDate ?? app.selectedDate;
       app.setSelectedDate(dateToUse);
       app.setCalendarView('day');
+      focusFirstDayItemSoon();
       e.preventDefault();
       return;
     }
@@ -206,6 +219,13 @@
       }
       if (next) {
         app.setSelectedDate(next);
+        if (
+          isDayView
+          && !shift
+          && (key === 'h' || key === 'l' || key === 'arrowleft' || key === 'arrowright')
+        ) {
+          focusFirstDayItemSoon();
+        }
         e.preventDefault();
         return;
       }
@@ -237,7 +257,7 @@
           app.setFocusedDayIndex(nextIdx);
           app.setFocusedDayDate(d);
           app.setSelectedDate(d);
-          document.querySelector(`[data-day-index="${nextIdx}"]`)?.focus();
+          (document.querySelector(`[data-day-index="${nextIdx}"]`) as HTMLElement | null)?.focus();
         }
       } else {
         const nextIndices = indices.filter((i) => i > curr);
@@ -247,7 +267,7 @@
           app.setFocusedDayIndex(nextIdx);
           app.setFocusedDayDate(d);
           app.setSelectedDate(d);
-          document.querySelector(`[data-day-index="${nextIdx}"]`)?.focus();
+          (document.querySelector(`[data-day-index="${nextIdx}"]`) as HTMLElement | null)?.focus();
         }
       }
       e.preventDefault();

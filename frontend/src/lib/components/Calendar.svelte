@@ -7,6 +7,9 @@
   interface Props {
     events: Event[];
     todos?: Todo[];
+    loadingTodoId?: string | null;
+    focusEventRequest?: { id: string; start: string; title: string } | null;
+    onFocusEventRequestHandled?: () => void;
     selectedDate: Date;
     searchQuery?: string;
     onSelectDay?: (d: Date) => void;
@@ -14,7 +17,18 @@
     onSelectTodo?: (todo: Todo) => void;
   }
 
-  let { events, todos = [], selectedDate, searchQuery = '', onSelectDay, onSelectEvent, onSelectTodo }: Props = $props();
+  let {
+    events,
+    todos = [],
+    loadingTodoId = null,
+    focusEventRequest = null,
+    onFocusEventRequestHandled,
+    selectedDate,
+    searchQuery = '',
+    onSelectDay,
+    onSelectEvent,
+    onSelectTodo,
+  }: Props = $props();
 
   function matchesSearchEvent(ev: Event, q: string): boolean {
     if (!q) return false;
@@ -86,7 +100,43 @@
     });
   }
 
+  function isTodoOverdue(todo: Todo): boolean {
+    if (todo.completed || !todo.due) return false;
+    return parseUtcIfNeeded(todo.due).getTime() < Date.now();
+  }
+
   const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  // Measure day cell height so we can show more/fewer events based on available space (dense + balanced)
+  let dayCellHeightPx = $state(0);
+  let monthGridEl: HTMLDivElement | undefined;
+  $effect(() => {
+    const el = monthGridEl;
+    const w = weeks;
+    if (!el || app.calendarView !== 'month' || w < 1) return;
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      dayCellHeightPx = entry.contentRect.height / w;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+
+  // Approximate line heights: balanced 0.7rem ~14px, dense 0.65rem leading-none ~11px
+  const BALANCED_LINE_PX = 18;
+  const BALANCED_RESERVED_PX = 32; // day number + padding
+  const DENSE_LINE_PX = 14;
+  const DENSE_RESERVED_PX = 14;
+
+  const balancedMaxSlots = $derived(
+    dayCellHeightPx > 0
+      ? Math.max(1, Math.floor((dayCellHeightPx - BALANCED_RESERVED_PX) / BALANCED_LINE_PX))
+      : 2
+  );
+  const denseMaxSlots = $derived(
+    dayCellHeightPx > 0 ? Math.max(1, Math.floor((dayCellHeightPx - DENSE_RESERVED_PX) / DENSE_LINE_PX)) : 5
+  );
 
   // When switching to month view, sync focused day to selected date so Enter works without re-focusing a cell
   $effect(() => {
@@ -167,7 +217,103 @@
   const timedItemsSorted = $derived(
     [...timedEvents, ...timedTodos].sort((a, b) => a.startMin - b.startMin)
   );
+  function withOverlapLayout<T extends { startMin: number; endMin: number }>(
+    items: T[]
+  ): Array<T & { overlapColumn: number; overlapColumns: number }> {
+    const groupMaxCols: number[] = [];
+    const placed: Array<T & { overlapColumn: number; _group: number }> = [];
+    let active: Array<{ end: number; col: number; group: number }> = [];
+    let group = -1;
+
+    for (const item of items) {
+      active = active.filter((a) => a.end > item.startMin);
+
+      if (active.length === 0) {
+        group += 1;
+        groupMaxCols[group] = 0;
+      }
+
+      const usedCols = new Set(active.map((a) => a.col));
+      let col = 0;
+      while (usedCols.has(col)) col += 1;
+
+      const effectiveEnd = Math.max(item.endMin, item.startMin + 1 / 60);
+      active.push({ end: effectiveEnd, col, group });
+
+      groupMaxCols[group] = Math.max(groupMaxCols[group], col + 1, active.length);
+      placed.push({ ...item, overlapColumn: col, _group: group });
+    }
+
+    return placed.map((p) => ({
+      ...p,
+      overlapColumns: Math.max(1, groupMaxCols[p._group] ?? 1),
+    }));
+  }
+  const timedItemsLaidOut = $derived(withOverlapLayout(timedItemsSorted));
   const dayItems = $derived([...allDayItems, ...timedItemsSorted]);
+
+  function findDayEventElement(req: { id: string; start: string; title: string }): HTMLElement | null {
+    const dayItemsEls = Array.from(document.querySelectorAll('[data-day-item-index]')) as HTMLElement[];
+    const byId = dayItemsEls.find((el) => el.getAttribute('data-day-item-event-id') === req.id);
+    if (byId) return byId;
+
+    const targetStartMs = new Date(req.start).getTime();
+    const targetTitle = req.title.trim().toLowerCase();
+    const candidates = dayItemsEls
+      .map((el) => {
+        const title = (el.getAttribute('data-day-item-event-title') || '').trim().toLowerCase();
+        const startRaw = el.getAttribute('data-day-item-event-start') || '';
+        const startMs = startRaw ? new Date(startRaw).getTime() : Number.NaN;
+        return { el, title, startMs, startRaw };
+      })
+      .filter((x) => x.title && x.title === targetTitle && Number.isFinite(x.startMs));
+
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => Math.abs(a.startMs - targetStartMs) - Math.abs(b.startMs - targetStartMs));
+    return candidates[0].el;
+  }
+
+  // Created-event focus request from parent (used after creating from day view)
+  $effect(() => {
+    if (app.calendarView !== 'day') return;
+    const req = focusEventRequest;
+    if (!req) return;
+
+    let cancelled = false;
+    let attempts = 0;
+
+    const tryFocus = () => {
+      if (cancelled) return;
+      attempts += 1;
+      const el = findDayEventElement(req);
+      if (el) {
+        const indexAttr = el.getAttribute('data-day-item-index');
+        const idx = indexAttr ? Number.parseInt(indexAttr, 10) : -1;
+        if (idx >= 0) app.setFocusedEventIndex(idx);
+
+        const bringIntoView = () => {
+          el.focus({ preventScroll: true });
+          el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        };
+        bringIntoView();
+        setTimeout(bringIntoView, 120);
+
+        onFocusEventRequestHandled?.();
+        return;
+      }
+
+      if (attempts < 12) {
+        setTimeout(tryFocus, 60);
+      } else {
+        onFocusEventRequestHandled?.();
+      }
+    };
+
+    tick().then(tryFocus);
+    return () => {
+      cancelled = true;
+    };
+  });
 
   // Day view: keep focused item index in range; set to 0 when there are items and index was invalid
   $effect(() => {
@@ -204,33 +350,39 @@
     const date = selectedDate;
     if (!calendarEl) return;
     tick().then(() => {
-      const scrollParent = calendarEl?.closest('.content-scroll') as HTMLElement | null;
-      if (!scrollParent) return;
       if (view === 'month') {
         const sel = calendarEl?.querySelector('.day-cell.selected') as HTMLElement | null;
         if (sel) sel.scrollIntoView({ block: 'nearest', behavior: 'smooth', inline: 'nearest' });
       } else if (view === 'day') {
         const nowLine = calendarEl?.querySelector('.day-view-now-line') as HTMLElement | null;
-        if (nowLine) nowLine.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        const dayView = calendarEl?.querySelector('.day-view') as HTMLElement | null;
+        if (nowLine && dayView) {
+          const lineTop = nowLine.offsetTop;
+          const target = Math.max(0, lineTop - dayView.clientHeight / 2);
+          dayView.scrollTo({ top: target, behavior: 'smooth' });
+        }
       }
     });
   });
 </script>
 
-<div id="calendar-view" class="p-4 flex-1 min-h-0 flex flex-col" style="--calendar-height-ratio: {app.calendarHeightRatio}" role="application" aria-label="Calendar" bind:this={calendarEl}>
+<div id="calendar-view" class="p-4 flex-1 min-h-0 flex flex-col" style="--calendar-height-ratio: {app.calendarHeightRatio}; --calendar-row-height: calc(60px * var(--calendar-height-ratio, 1))" role="application" aria-label="Calendar" bind:this={calendarEl}>
   {#if app.calendarView === 'month'}
     <div class="flex flex-1 min-h-0 flex-col">
-      <h2 class="text-xl font-semibold mb-3 text-[var(--text)] shrink-0">
-        {selectedDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-      </h2>
-      <div class="grid grid-cols-7 gap-1 mb-1 text-xs text-[var(--text-muted)] shrink-0">
-        {#each dayLabels as label}
-          <span>{label}</span>
-        {/each}
+      <div class="calendar-month-sticky-header shrink-0">
+        <h2 class="calendar-month-title text-xl font-semibold mb-3 text-[var(--text)]">
+          {selectedDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+        </h2>
+        <div class="calendar-weekday-header grid grid-cols-7 gap-1 mb-1 text-xs text-[var(--text-muted)]">
+          {#each dayLabels as label}
+            <span>{label}</span>
+          {/each}
+        </div>
       </div>
       <div
-        class="grid grid-cols-7 gap-1 flex-1 min-h-0"
-        style="grid-template-rows: repeat({weeks}, 1fr);"
+        bind:this={monthGridEl}
+        class="grid grid-cols-7 gap-1 shrink-0 min-h-0"
+        style="--calendar-weeks: {weeks}; height: calc(var(--calendar-row-height, 60px) * var(--calendar-weeks)); grid-template-rows: repeat({weeks}, 1fr);"
         role="grid"
       >
         {#each Array(weeks * 7) as _, i}
@@ -273,11 +425,11 @@
                   app.setFocusedDayIndex(i + 7);
                   const row = Math.floor(i / 7);
                   const next = (row + 1) * 7 + (i % 7);
-                  document.querySelector(`[data-day-index="${next}"]`)?.focus();
+                  (document.querySelector(`[data-day-index="${next}"]`) as HTMLElement | null)?.focus();
                 }
                 if (e.key === 'ArrowUp' && i >= 7) {
                   app.setFocusedDayIndex(i - 7);
-                  document.querySelector(`[data-day-index="${i - 7}"]`)?.focus();
+                  (document.querySelector(`[data-day-index="${i - 7}"]`) as HTMLElement | null)?.focus();
                 }
               }}
             >
@@ -286,11 +438,14 @@
               {:else if density === 'dense'}
                 {@const evs = eventsForDay(d)}
                 {@const tds = showTodos ? todosForDay(d) : []}
-                {@const combined = [...evs.map((e) => ({ kind: 'event' as const, event: e })), ...tds.map((todo) => ({ kind: 'todo' as const, todo }))].sort((a, b) => {
+                {@const combinedAll = [...evs.map((e) => ({ kind: 'event' as const, event: e })), ...tds.map((todo) => ({ kind: 'todo' as const, todo }))].sort((a, b) => {
                   const at = a.kind === 'event' ? new Date(a.event.start).getTime() : new Date(a.todo.due ?? 0).getTime();
                   const bt = b.kind === 'event' ? new Date(b.event.start).getTime() : new Date(b.todo.due ?? 0).getTime();
                   return at - bt;
-                }).slice(0, 5)}
+                })}
+                {@const denseHasMore = combinedAll.length > denseMaxSlots}
+                {@const denseVisibleCount = denseHasMore ? Math.min(combinedAll.length, denseMaxSlots - 1) : Math.min(combinedAll.length, denseMaxSlots)}
+                {@const combined = combinedAll.slice(0, denseVisibleCount)}
                 <div class="dense-day-inner flex flex-row items-baseline gap-1.5 absolute inset-1 overflow-hidden text-left">
                   <span class="font-semibold text-sm shrink-0 leading-none">{d.getDate()}</span>
                   <div class="flex-1 min-w-0 overflow-hidden flex flex-col gap-0.5">
@@ -300,51 +455,59 @@
                           {item.event.all_day ? '' : formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)} {item.event.title}
                         </div>
                       {:else}
-                        <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center gap-0.5 leading-none italic text-[var(--text-muted)]" class:line-through={item.todo.completed} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
+                        <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center gap-0.5 leading-none italic text-[var(--text-muted)]" class:line-through={item.todo.completed} class:todo-overdue-text={isTodoOverdue(item.todo)} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
                           <span class="min-w-0 truncate">{item.todo.due ? formatInTimezone(item.todo.due, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined) : '–'} {item.todo.summary}</span>
                           {#if item.todo.completed}
                             <span class="opacity-80 shrink-0" aria-hidden="true">✓</span>
+                          {:else}
+                            <span class="opacity-80 shrink-0" aria-hidden="true">•</span>
                           {/if}
                         </div>
                       {/if}
                     {/each}
+                    {#if denseHasMore}
+                      <div class="text-[0.65rem] leading-none text-[var(--text-muted)] truncate">+{combinedAll.length - denseVisibleCount} more</div>
+                    {/if}
                   </div>
                 </div>
               {:else}
                 <!-- balanced: events and todos combined, centered; (+N) only when truncated -->
                 {@const evs = eventsForDay(d)}
                 {@const tds = showTodos ? todosForDay(d) : []}
-                {@const combined = [...evs.map((e) => ({ kind: 'event' as const, event: e })), ...tds.map((t) => ({ kind: 'todo' as const, todo: t }))].sort((a, b) => {
+                {@const combinedAll = [...evs.map((e) => ({ kind: 'event' as const, event: e })), ...tds.map((t) => ({ kind: 'todo' as const, todo: t }))].sort((a, b) => {
                   const at = a.kind === 'event' ? new Date(a.event.start).getTime() : new Date(a.todo.due ?? 0).getTime();
                   const bt = b.kind === 'event' ? new Date(b.event.start).getTime() : new Date(b.todo.due ?? 0).getTime();
                   return at - bt;
                 })}
-                {@const visible = combined.slice(0, 2)}
-                {@const hasMore = combined.length > 2}
-                <span class="day-num-centered block font-semibold">{d.getDate()}</span>
+                {@const balancedVisibleCount = combinedAll.length > balancedMaxSlots ? balancedMaxSlots - 1 : Math.min(combinedAll.length, balancedMaxSlots)}
+                {@const visible = combinedAll.slice(0, balancedVisibleCount)}
+                {@const hasMore = combinedAll.length > balancedVisibleCount}
+                <span class="day-num-centered balanced-day-num block font-semibold">{d.getDate()}</span>
                 <div class="balanced-view-content">
                   {#each visible as item}
                     {#if item.kind === 'event'}
-                      <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap text-center" class:line-through={item.event.cancelled} title={item.event.title}>{item.event.title}</span>
+                      <span class="balanced-item-text block text-[0.82rem] overflow-hidden text-ellipsis whitespace-nowrap text-center" class:line-through={item.event.cancelled} title={item.event.title}>{item.event.title}</span>
                     {:else}
-                      <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center justify-center gap-0.5 italic text-[var(--text-muted)]" class:line-through={item.todo.completed} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
+                      <span class="balanced-item-text block text-[0.82rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center justify-center gap-0.5 italic text-[var(--text-muted)]" class:line-through={item.todo.completed} class:todo-overdue-text={isTodoOverdue(item.todo)} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
                         {#if item.todo.completed}
                           <span class="opacity-80 shrink-0" aria-hidden="true">✓</span>
+                        {:else}
+                          <span class="opacity-80 shrink-0" aria-hidden="true">•</span>
                         {/if}
                         {item.todo.summary}
                       </span>
                     {/if}
                   {/each}
                   {#if hasMore}
-                    <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap text-center text-[var(--text-muted)]">
-                      +{combined.length - 2} more
+                    <span class="balanced-item-text block text-[0.82rem] overflow-hidden text-ellipsis whitespace-nowrap text-center text-[var(--text-muted)]">
+                      +{combinedAll.length - balancedVisibleCount} more
                     </span>
                   {/if}
                 </div>
               {/if}
             </button>
           {:else}
-            <div class="day-cell min-h-[60px] bg-transparent border-none cursor-default"></div>
+            <div class="day-cell bg-transparent border-none cursor-default"></div>
           {/if}
         {/each}
       </div>
@@ -352,7 +515,12 @@
   {:else}
     <!-- Day view: 24h timeline -->
     <div class="day-view flex flex-col flex-1 min-h-0">
-      <h3 class="day-view-title shrink-0 mb-2">{selectedDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+      <div class="day-view-sticky-header shrink-0">
+        <h3 class="day-view-title mb-2">{selectedDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+        {#if dayItems.length === 0}
+          <p class="text-[var(--text-muted)] mb-2">No events or todos this day.</p>
+        {/if}
+      </div>
 
       {#if allDayItems.length > 0}
         <div class="day-view-allday shrink-0 mb-2">
@@ -367,6 +535,9 @@
                   class:line-through={item.event.cancelled}
                   tabindex={app.focusedEventIndex === i ? 0 : -1}
                   data-day-item-index={i}
+                  data-day-item-event-id={item.event.id}
+                  data-day-item-event-title={item.event.title}
+                  data-day-item-event-start={item.event.start}
                   onfocus={() => app.setFocusedEventIndex(i)}
                   onclick={() => onSelectEvent?.(item.event)}
                 >
@@ -378,16 +549,25 @@
                   class="day-todo day-todo-block"
                   class:focused={app.focusedEventIndex === i}
                   class:completed={item.todo.completed}
+                  class:overdue={isTodoOverdue(item.todo)}
+                  disabled={loadingTodoId === item.todo.id}
                   tabindex={app.focusedEventIndex === i ? 0 : -1}
                   data-day-item-index={i}
                   data-day-item-todo-id={item.todo.id}
                   onfocus={() => app.setFocusedEventIndex(i)}
                   onclick={() => onSelectTodo?.(item.todo)}
                 >
-                  <span class="day-todo-checkbox" aria-hidden="true">
-                    {#if item.todo.completed}✓{:else}<span class="checkbox-empty"></span>{/if}
-                  </span>
-                  <span class="day-todo-label">{item.todo.summary}</span>
+                  {#if loadingTodoId === item.todo.id}
+                    <span class="flex items-center gap-2 text-[var(--text-muted)]" aria-busy="true" aria-live="polite">
+                      <span class="todo-loading-spinner" aria-hidden="true"></span>
+                      Updating…
+                    </span>
+                  {:else}
+                    <span class="day-todo-checkbox" aria-hidden="true">
+                      {#if item.todo.completed}✓{:else}<span class="checkbox-empty"></span>{/if}
+                    </span>
+                    <span class="day-todo-label">{item.todo.summary}</span>
+                  {/if}
                 </button>
               {/if}
             {/each}
@@ -395,7 +575,7 @@
         </div>
       {/if}
 
-      <div class="day-view-timeline-wrap flex-1 min-h-0 flex flex-col" data-day-timeline-scroll>
+      <div class="day-view-timeline-wrap flex-1 min-h-0 flex flex-col">
         <div class="day-view-timeline" style="height: {24 * rowHeight}px;">
           {#if currentTimeTopPx != null && currentTimeTopPx >= 0 && currentTimeTopPx <= 24 * rowHeight}
             <div
@@ -413,10 +593,14 @@
             </div>
           {/each}
 
-          {#each timedItemsSorted as item, idx}
+          <div class="day-view-items-layer">
+          {#each timedItemsLaidOut as item, idx}
             {@const i = allDayItems.length + idx}
             {@const topPx = item.startMin / 60 * rowHeight}
             {@const heightPx = Math.max(MIN_BLOCK_HEIGHT, (item.endMin - item.startMin) / 60 * rowHeight)}
+            {@const leftPct = item.overlapColumn / item.overlapColumns * 100}
+            {@const widthPct = 100 / item.overlapColumns}
+            {@const laneGapPx = 4}
             {#if item.type === 'event'}
               <button
                 type="button"
@@ -425,7 +609,12 @@
                 class:line-through={item.event.cancelled}
                 tabindex={app.focusedEventIndex === i ? 0 : -1}
                 data-day-item-index={i}
-                style="top: {topPx}px; height: {heightPx}px;"
+                data-day-item-event-id={item.event.id}
+                data-day-item-event-title={item.event.title}
+                data-day-item-event-start={item.event.start}
+                style={
+                  `top: ${topPx}px; height: ${heightPx}px; left: calc(${leftPct}% + ${laneGapPx / 2}px); width: calc(${widthPct}% - ${laneGapPx}px);`
+                }
                 onfocus={() => app.setFocusedEventIndex(i)}
                 onclick={() => onSelectEvent?.(item.event)}
               >
@@ -438,34 +627,43 @@
                 <span class="day-event-title">{item.event.title}</span>
               </button>
             {:else}
-              <button
-                type="button"
-                class="day-todo day-todo-timed"
-                class:focused={app.focusedEventIndex === i}
-                class:completed={item.todo.completed}
-                tabindex={app.focusedEventIndex === i ? 0 : -1}
-                data-day-item-index={i}
-                data-day-item-todo-id={item.todo.id}
-                style="top: {topPx}px; height: {heightPx}px;"
-                onfocus={() => app.setFocusedEventIndex(i)}
-                onclick={() => onSelectTodo?.(item.todo)}
-              >
-                <span class="day-todo-checkbox" aria-hidden="true">
-                  {#if item.todo.completed}✓{:else}<span class="checkbox-empty"></span>{/if}
-                </span>
-                <span class="day-todo-time">
-                  {formatInTimezone(item.todo.due ?? '', { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
-                </span>
-                <span class="day-todo-label">{item.todo.summary}</span>
-              </button>
-            {/if}
-          {/each}
+                <button
+                  type="button"
+                  class="day-todo day-todo-timed"
+                  class:focused={app.focusedEventIndex === i}
+                  class:completed={item.todo.completed}
+                  class:overdue={isTodoOverdue(item.todo)}
+                  disabled={loadingTodoId === item.todo.id}
+                  tabindex={app.focusedEventIndex === i ? 0 : -1}
+                  data-day-item-index={i}
+                  data-day-item-todo-id={item.todo.id}
+                  style={
+                    `top: ${topPx}px; height: ${heightPx}px; left: calc(${leftPct}% + ${laneGapPx / 2}px); width: calc(${widthPct}% - ${laneGapPx}px);`
+                  }
+                  onfocus={() => app.setFocusedEventIndex(i)}
+                  onclick={() => onSelectTodo?.(item.todo)}
+                >
+                  {#if loadingTodoId === item.todo.id}
+                    <span class="flex items-center gap-2 text-[var(--text-muted)]" aria-busy="true" aria-live="polite">
+                      <span class="todo-loading-spinner" aria-hidden="true"></span>
+                      Updating…
+                    </span>
+                  {:else}
+                    <span class="day-todo-checkbox" aria-hidden="true">
+                      {#if item.todo.completed}✓{:else}<span class="checkbox-empty"></span>{/if}
+                    </span>
+                    <span class="day-todo-time">
+                      {formatInTimezone(item.todo.due ?? '', { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
+                    </span>
+                    <span class="day-todo-label">{item.todo.summary}</span>
+                  {/if}
+                </button>
+              {/if}
+            {/each}
+          </div>
         </div>
       </div>
 
-      {#if dayItems.length === 0}
-        <p class="text-[var(--text-muted)] shrink-0 mt-2">No events or todos this day.</p>
-      {/if}
     </div>
   {/if}
 </div>

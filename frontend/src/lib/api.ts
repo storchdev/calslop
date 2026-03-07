@@ -1,24 +1,30 @@
 import type { Event, Todo, Source, EventCreate, EventUpdate, TodoCreate, TodoUpdate } from '$lib/types';
+import { app } from '$lib/stores/app.svelte';
 
 const API = '/api';
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(API + path, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error((err as { detail?: string }).detail || res.statusText);
+  app.startApiRequest();
+  try {
+    const res = await fetch(API + path, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error((err as { detail?: string }).detail || res.statusText);
+    }
+    // 204 No Content has no body
+    if (res.status === 204) {
+      return undefined as T;
+    }
+    return res.json();
+  } finally {
+    app.endApiRequest();
   }
-  // 204 No Content has no body
-  if (res.status === 204) {
-    return undefined as T;
-  }
-  return res.json();
 }
 
 export async function getEvents(start?: string, end?: string): Promise<Event[]> {
@@ -101,4 +107,26 @@ export async function updateSource(id: string, data: { name?: string; enabled?: 
 
 export async function deleteSource(id: string): Promise<void> {
   await fetchApi<unknown>(`/sources/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function parseHumanDatetime(
+  text: string,
+  timezone?: string,
+  contextLocal?: string,
+): Promise<{ iso: string; hasDate: boolean }> {
+  const payload: { text: string; timezone?: string; context_local?: string } = { text };
+  if (timezone) payload.timezone = timezone;
+  if (contextLocal) payload.context_local = contextLocal;
+  const res = await fetchApi<{ iso: string; has_date: boolean }>('/datetime/parse', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return { iso: res.iso, hasDate: res.has_date };
+}
+
+export async function parseHumanRecurrence(text: string): Promise<{ rrule: string; label: string }> {
+  return fetchApi<{ rrule: string; label: string }>('/recurrence/parse', {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
 }

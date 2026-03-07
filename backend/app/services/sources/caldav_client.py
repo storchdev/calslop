@@ -5,7 +5,16 @@ import icalendar
 from caldav.elements import dav
 
 from app.models.dtos import Event, Source, Todo
-from app.services.ical_utils import parse_events_from_ical, parse_todos_from_ical, build_exception_vtodo
+from app.services.ical_utils import (
+    parse_events_from_ical,
+    parse_todos_from_ical,
+    build_exception_vtodo,
+    build_cancelled_exception_vtodo,
+    is_recurrence_id_str,
+    merge_instance_todo_into_ical,
+    todo_id_to_master_id,
+    _update_master_vtodo_metadata,
+)
 from app.services.sources.base import FetchResult, SourceDriver
 
 
@@ -196,10 +205,18 @@ class CalDAVDriver(SourceDriver):
             pass
         return None
 
+    def _resource_uid_from_todo_id(self, todo_id: str) -> str:
+        """Extract the UID that identifies the CalDAV resource (master VTODO). For instance ids, strip recurrence-id suffix."""
+        parts = todo_id.split("::")
+        if not parts:
+            return ""
+        if len(parts) >= 2 and is_recurrence_id_str(parts[-1]):
+            return parts[-2]
+        return parts[-1]
+
     def _todo_ids_match(self, our_id: str, caldav_todo) -> bool:
-        """Match our todo id (source_id::uid or source_id::cal_id::uid) against CalDAV object id/url."""
-        parts = our_id.split("::")
-        uid = parts[-1] if parts else ""
+        """Match our todo id (source_id::uid or source_id::cal_id::uid, or instance with ::recurrence_id) against CalDAV object."""
+        uid = self._resource_uid_from_todo_id(our_id)
         if not uid:
             return False
         t_id = str(getattr(caldav_todo, "id", "") or "")
@@ -227,10 +244,9 @@ class CalDAVDriver(SourceDriver):
         priority: int | None,
     ) -> bool:
         """Add a completed RECURRENCE-ID exception to the calendar object that contains the master."""
-        parts = master_todo_id.split("::")
-        if len(parts) < 3:
+        uid = self._resource_uid_from_todo_id(master_todo_id)
+        if not uid:
             return False
-        uid = parts[-1]
         client = self._get_client(source)
         if not client:
             return False
@@ -256,6 +272,7 @@ class CalDAVDriver(SourceDriver):
                         )
                         if cal_inst:
                             cal_inst.add_component(exc_vtodo)
+                            _update_master_vtodo_metadata(cal_inst, uid, summary, description, priority)
                             t.icalendar_instance = cal_inst
                             t.save()
                         return True
@@ -267,6 +284,58 @@ class CalDAVDriver(SourceDriver):
                         )
                         if cal_inst:
                             cal_inst.add_component(exc_vtodo)
+                            _update_master_vtodo_metadata(cal_inst, uid, summary, description, priority)
+                            t.icalendar_instance = cal_inst
+                            t.save()
+                        return True
+        except Exception:
+            pass
+        return False
+
+    def cancel_recurrence_instance(
+        self,
+        source: Source,
+        master_todo_id: str,
+        recurrence_id_str: str,
+    ) -> bool:
+        """Add a CANCELLED RECURRENCE-ID exception so this instance is removed from the series."""
+        uid = self._resource_uid_from_todo_id(master_todo_id)
+        if not uid:
+            return False
+        client = self._get_client(source)
+        if not client:
+            return False
+        try:
+            principal = client.principal()
+            cancelled_bytes = build_cancelled_exception_vtodo(uid, recurrence_id_str)
+            cancelled_cal = icalendar.Calendar.from_ical(cancelled_bytes)
+            cancelled_vtodo = None
+            for comp in cancelled_cal.walk():
+                if comp.name == "VTODO":
+                    cancelled_vtodo = comp
+                    break
+            if cancelled_vtodo is None:
+                return False
+            for cal in principal.calendars():
+                todos_fn = getattr(cal, "todos", None) or getattr(cal, "get_todos", None)
+                for t in (todos_fn(include_completed=True) if callable(todos_fn) else []):
+                    if self._todo_ids_match(master_todo_id, t):
+                        cal_inst = getattr(t, "icalendar_instance", None) or icalendar.Calendar.from_ical(
+                            t.data if getattr(t, "data", None) else t.icalendar_component.to_ical()
+                        )
+                        if cal_inst:
+                            cal_inst.add_component(cancelled_vtodo)
+                            t.icalendar_instance = cal_inst
+                            t.save()
+                        return True
+            for ts in getattr(principal, "todo_sets", lambda: [])():
+                for t in (ts.todos(include_completed=True) if hasattr(ts, "todos") else []):
+                    if self._todo_ids_match(master_todo_id, t):
+                        cal_inst = getattr(t, "icalendar_instance", None) or icalendar.Calendar.from_ical(
+                            t.data if getattr(t, "data", None) else t.icalendar_component.to_ical()
+                        )
+                        if cal_inst:
+                            cal_inst.add_component(cancelled_vtodo)
                             t.icalendar_instance = cal_inst
                             t.save()
                         return True
@@ -278,24 +347,44 @@ class CalDAVDriver(SourceDriver):
         client = self._get_client(source)
         if not client:
             raise ValueError("CalDAV connection failed (check URL and credentials)")
+        master_id = todo_id_to_master_id(todo.id)
+        parts = todo.id.split("::")
+        recurrence_id_str = parts[-1] if (master_id and len(parts) > 1) else None
         try:
             principal = client.principal()
             for cal in principal.calendars():
                 todos_fn = getattr(cal, "todos", None) or getattr(cal, "get_todos", None)
                 for t in (todos_fn(include_completed=True) if callable(todos_fn) else []):
-                    if self._todo_ids_match(todo.id, t):
+                    if not self._todo_ids_match(todo.id, t):
+                        continue
+                    if master_id and recurrence_id_str:
+                        ical_bytes = t.data if getattr(t, "data", None) else (t.icalendar_component.to_ical() if hasattr(t, "icalendar_component") else b"")
+                        if isinstance(ical_bytes, str):
+                            ical_bytes = ical_bytes.encode("utf-8")
+                        new_ical = merge_instance_todo_into_ical(ical_bytes, todo, recurrence_id_str)
+                        t.icalendar_instance = icalendar.Calendar.from_ical(new_ical)
+                        t.save()
+                    else:
                         from app.services.ical_utils import todo_to_ical
                         t.icalendar_instance = icalendar.Calendar.from_ical(todo_to_ical(todo))
                         t.save()
-                        return todo
-            # Also try todo_sets (some servers store todos in task lists, not calendars)
+                    return todo
             for ts in getattr(principal, "todo_sets", lambda: [])():
                 for t in (ts.todos(include_completed=True) if hasattr(ts, "todos") else []):
-                    if self._todo_ids_match(todo.id, t):
+                    if not self._todo_ids_match(todo.id, t):
+                        continue
+                    if master_id and recurrence_id_str:
+                        ical_bytes = t.data if getattr(t, "data", None) else (t.icalendar_component.to_ical() if hasattr(t, "icalendar_component") else b"")
+                        if isinstance(ical_bytes, str):
+                            ical_bytes = ical_bytes.encode("utf-8")
+                        new_ical = merge_instance_todo_into_ical(ical_bytes, todo, recurrence_id_str)
+                        t.icalendar_instance = icalendar.Calendar.from_ical(new_ical)
+                        t.save()
+                    else:
                         from app.services.ical_utils import todo_to_ical
                         t.icalendar_instance = icalendar.Calendar.from_ical(todo_to_ical(todo))
                         t.save()
-                        return todo
+                    return todo
             raise ValueError("Todo not found on CalDAV server")
         except ValueError:
             raise
@@ -303,6 +392,10 @@ class CalDAVDriver(SourceDriver):
             raise ValueError(f"CalDAV todo update failed: {e}") from e
 
     def delete_todo(self, source: Source, todo_id: str) -> bool:
+        """Delete a todo. For recurring instance ids, we do not delete the resource; the route should call add_recurrence_exception instead."""
+        master_id = todo_id_to_master_id(todo_id)
+        if master_id:
+            return False
         try:
             principal = self._get_client(source).principal()
             for cal in principal.calendars():

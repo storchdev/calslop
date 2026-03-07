@@ -11,6 +11,7 @@
   --border: #d6d3d1;
   --focus-ring: 0 0 0 2px var(--accent);
   --now-line: #dc2626;
+  --todo-overdue: #b91c1c;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +24,7 @@
     --accent-hover: #60a5fa;
     --border: #44403c;
     --now-line: #f87171;
+    --todo-overdue: #fca5a5;
   }
 }
 
@@ -36,6 +38,7 @@
   --accent-hover: #1d4ed8;
   --border: #d6d3d1;
   --now-line: #dc2626;
+  --todo-overdue: #b91c1c;
 }
 
 [data-theme="dark"] {
@@ -48,6 +51,7 @@
   --accent-hover: #60a5fa;
   --border: #44403c;
   --now-line: #f87171;
+  --todo-overdue: #fca5a5;
 }
 
 * {
@@ -93,7 +97,8 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .day-cell {
   position: relative;
-  min-height: calc(80px * var(--calendar-height-ratio, 1));
+  min-height: 0; /* allow grid row to shrink; we clip overflow and show "+N more" */
+  overflow: hidden;
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -122,6 +127,14 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   white-space: nowrap;
   max-width: 100%;
   min-width: 0;
+}
+
+.day-cell .balanced-day-num {
+  font-size: 1.05rem;
+}
+
+.day-cell .balanced-item-text {
+  line-height: 1.15;
 }
 
 .day-cell:focus-visible {
@@ -167,7 +180,36 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   text-decoration: line-through;
 }
 
+.todo-item.overdue .todo-summary,
+.todo-item.overdue .todo-due {
+  color: var(--todo-overdue);
+}
+
+.todo-loading-spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: todo-spin 0.7s linear infinite;
+}
+
+@keyframes todo-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Day view timeline */
+.day-view {
+  overflow-y: auto;
+}
+
+.day-view-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--bg);
+}
+
 .day-view-title {
   font-size: 1.125rem;
   font-weight: 600;
@@ -175,15 +217,21 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 }
 
 .day-view-timeline-wrap {
-  overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  overflow: visible;
   background: var(--bg);
 }
 
 .day-view-timeline {
   position: relative;
   min-height: 100%;
+}
+
+.day-view-items-layer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2.75rem;
+  right: 0.5rem;
 }
 
 .day-view-now-line {
@@ -257,12 +305,11 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .day-event-timed {
   position: absolute;
-  left: 2.75rem;
-  right: 0.5rem;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
+  min-width: 0;
 }
 
 .day-event-time {
@@ -305,6 +352,11 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   opacity: 0.8;
 }
 
+.day-todo.overdue .day-todo-label,
+.day-todo.overdue .day-todo-time {
+  color: var(--todo-overdue);
+}
+
 .day-todo-checkbox {
   flex-shrink: 0;
   width: 1rem;
@@ -329,13 +381,12 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .day-todo-timed {
   position: absolute;
-  left: 2.75rem;
-  right: 0.5rem;
   overflow: hidden;
   display: flex;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.8125rem;
+  min-width: 0;
 }
 
 .day-todo-time {
@@ -348,6 +399,10 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.todo-overdue-text {
+  color: var(--todo-overdue);
 }
 
 .modal-backdrop {
@@ -376,6 +431,12 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .modal h2 {
   margin-top: 0;
+  margin-bottom: 0.9rem;
+  font-weight: 700;
+}
+
+.modal-loading {
+  margin: 0.5rem 0;
 }
 
 .form-row {
@@ -427,6 +488,18 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   color: var(--text);
 }
 
+.repeat-human-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.repeat-human-prefix {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
 select, select option {
   background-color: var(--bg);
   color: var(--text);
@@ -471,6 +544,23 @@ select, select option {
   border: 1px solid var(--border);
 }
 
+.search-input-wrap {
+  position: relative;
+  display: inline-block;
+}
+.search-input-wrap .search-input {
+  padding-right: 1.5rem;
+}
+.search-input-key-hint {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 0.8em;
+  color: var(--text-muted);
+  font-family: ui-monospace, monospace;
+}
 .search-input {
   padding: 0.35rem 0.6rem;
   border: 1px solid var(--border);
@@ -539,6 +629,22 @@ select, select option {
   margin-left: auto;
 }
 
+.calendar-month-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--bg);
+  padding-top: 0.1rem;
+}
+
+.calendar-month-title {
+  margin-bottom: 0.5rem;
+}
+
+.calendar-weekday-header {
+  padding-bottom: 0.15rem;
+}
+
 /* Dropdown with title inside the box, above the select */
 .dropdown-box {
   display: inline-flex;
@@ -551,7 +657,7 @@ select, select option {
 }
 
 .dropdown-box-label {
-  padding: 0.2rem 0.5rem 0.05rem 0.5rem;
+  padding: 0.2rem 0.5rem 0 0.5rem;
   font-size: 0.7rem;
   font-weight: 500;
   text-transform: uppercase;
@@ -567,7 +673,7 @@ select, select option {
 }
 
 .dropdown-box select {
-  padding: 0.2rem 0.5rem 0.3rem 0.5rem;
+  padding: 0.14rem 0.5rem 0.3rem 0.5rem;
   padding-right: 1.75rem;
   margin: 0;
   border: none;
@@ -613,11 +719,11 @@ select, select option {
 }
 
 .option-box .dropdown-box-label {
-  padding: 0.2rem 0.5rem 0.05rem 0.5rem;
+  padding: 0.2rem 0.5rem 0 0.5rem;
 }
 
 .option-box-content {
-  padding: 0.2rem 0.5rem 0.3rem 0.5rem;
+  padding: 0.14rem 0.5rem 0.3rem 0.5rem;
 }
 
 .subtoolbar {
@@ -654,6 +760,22 @@ select, select option {
   color: var(--text-muted);
   z-index: 200;
   font-size: 1rem;
+}
+
+.api-loading-indicator {
+  position: fixed;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 190;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+  color: var(--text-muted);
+  font-size: 0.875rem;
 }
 
 /* Settings page */

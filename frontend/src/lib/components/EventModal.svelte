@@ -1,15 +1,15 @@
 <script lang="ts">
-  import { tick } from 'svelte';
-  import { createEvent, updateEvent, getEvent, deleteEvent } from '$lib/api';
+  import { onMount, tick } from 'svelte';
+  import { createEvent, updateEvent, getEvent, deleteEvent, parseHumanDatetime, parseHumanRecurrence } from '$lib/api';
   import type { Event, EventCreate, EventUpdate } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
   import { toLocalDatetimeInput } from '$lib/date';
 
-  interface Props {
-    initialEvent?: Event | null;
-    onclose: () => void;
-    onsave: () => void;
-  }
+interface Props {
+  initialEvent?: Event | null;
+  onclose: () => void;
+  onsave: (saved?: { id: string; start: string; title: string }) => void | Promise<void>;
+}
 
   let { initialEvent = null, onclose, onsave }: Props = $props();
 
@@ -24,6 +24,15 @@
   let sources = $state<{ id: string; name: string; type: string }[]>([]);
   let error = $state('');
   let saving = $state(false);
+  let deleting = $state(false);
+  let activeDateField = $state<'start' | 'end' | null>(null);
+  let activeRepeatField = $state(false);
+  let startHuman = $state('');
+  let endHuman = $state('');
+  let repeatHuman = $state('');
+  let endDateAdjustedHint = $state('');
+  let customRepeatOption = $state<{ value: string; label: string } | null>(null);
+  let fetchedEventId = $state<string | null>(null);
 
   const editingId = $derived(app.editingId);
 
@@ -37,9 +46,12 @@
 
   $effect(() => {
     const tz = app.timezone || undefined;
+    if (saving || deleting) return;
+
     if (editingId) {
       const prefill = initialEvent?.id === editingId ? initialEvent : null;
       if (prefill) {
+        fetchedEventId = editingId;
         title = prefill.title;
         start = toLocalDatetimeInput(prefill.start, tz);
         end = toLocalDatetimeInput(prefill.end, tz);
@@ -48,7 +60,11 @@
         location = prefill.location ?? '';
         recurrence = prefill.recurrence ?? '';
       } else {
-        getEvent(editingId).then((e) => {
+        if (fetchedEventId === editingId) return;
+        fetchedEventId = editingId;
+        const currentId = editingId;
+        getEvent(currentId).then((e) => {
+          if (editingId !== currentId) return;
           title = e.title;
           start = toLocalDatetimeInput(e.start, tz);
           end = toLocalDatetimeInput(e.end, tz);
@@ -56,9 +72,13 @@
           description = e.description ?? '';
           location = e.location ?? '';
           recurrence = e.recurrence ?? '';
+        }).catch((err) => {
+          if (editingId !== currentId || deleting) return;
+          error = err instanceof Error ? err.message : 'Failed to load event';
         });
       }
     } else {
+      fetchedEventId = null;
       const d = app.selectedDate;
       title = '';
       start = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T09:00`;
@@ -71,7 +91,7 @@
   });
 
   import { getSources } from '$lib/api';
-  $effect(() => {
+  onMount(() => {
     getSources().then((s) => {
       sources = s.filter((x) => x.type === 'local_folder' || x.type === 'caldav').map((x) => ({ id: x.id, name: x.name, type: x.type }));
       if (sources.length && !editingId) sourceId = sources[0].id;
@@ -79,42 +99,40 @@
   });
 
   async function submit() {
+    if (saving || deleting) return;
     error = '';
     if (!title.trim()) {
       error = 'Title is required';
       return;
     }
+    if (!editingId && !sourceId) {
+      error = 'Select a calendar source';
+      return;
+    }
+
+    const currentEditingId = editingId;
     const startIso = new Date(start).toISOString();
     const endIso = new Date(end).toISOString();
+    const payload = {
+      title: title.trim(),
+      start: startIso,
+      end: endIso,
+      all_day: allDay,
+      description: description || null,
+      location: location.trim() || null,
+      recurrence: recurrence || null,
+    };
+
     saving = true;
     try {
-      if (editingId) {
-        await updateEvent(editingId, {
-          title: title.trim(),
-          start: startIso,
-          end: endIso,
-          all_day: allDay,
-          description: description || null,
-          location: location.trim() || null,
-          recurrence: recurrence || null,
-        });
+      let saved: { id: string; start: string; title: string } | undefined;
+      if (currentEditingId) {
+        await updateEvent(currentEditingId, payload);
       } else {
-        if (!sourceId) {
-          error = 'Select a calendar source';
-          return;
-        }
-        await createEvent({
-          source_id: sourceId,
-          title: title.trim(),
-          start: startIso,
-          end: endIso,
-          all_day: allDay,
-          description: description || null,
-          location: location.trim() || null,
-          recurrence: recurrence || null,
-        });
+        const created = await createEvent({ source_id: sourceId, ...payload });
+        saved = { id: created.id, start: created.start, title: created.title };
       }
-      onsave();
+      await onsave(saved);
       onclose();
     } catch (e) {
       error = e instanceof Error ? e.message : 'Failed to save';
@@ -123,19 +141,37 @@
     }
   }
 
+  async function performDelete() {
+    if (!editingId || deleting || saving) return;
+    deleting = true;
+    error = '';
+    try {
+      await deleteEvent(editingId);
+      await onsave();
+      onclose();
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to delete';
+    } finally {
+      deleting = false;
+    }
+  }
+
   let modalEl: HTMLDivElement | undefined;
   let titleEl: HTMLInputElement | undefined;
   let startEl: HTMLInputElement | undefined;
   let endEl: HTMLInputElement | undefined;
+  let startHumanEl = $state<HTMLInputElement | undefined>(undefined);
+  let endHumanEl = $state<HTMLInputElement | undefined>(undefined);
   let allDayEl: HTMLInputElement | undefined;
   let locationEl: HTMLInputElement | undefined;
   let recurrenceEl: HTMLSelectElement | undefined;
+  let repeatHumanEl = $state<HTMLInputElement | undefined>(undefined);
   let descriptionEl: HTMLTextAreaElement | undefined;
   let sourceIdEl: HTMLSelectElement | undefined;
 
   $effect(() => {
     if (app.modalOpen === 'event') {
-      tick().then(() => modalEl?.focus());
+      tick().then(() => titleEl?.focus());
     }
   });
 
@@ -148,19 +184,153 @@
     sel.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
+  function parseTimezone(): string | undefined {
+    return app.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  }
+
+  function addOneDay(localDatetime: string): string {
+    const [datePart, timePart = '00:00'] = localDatetime.split('T');
+    const [year, month, day] = datePart.split('-').map(Number);
+    const [hour, minute] = timePart.split(':').map(Number);
+    const d = new Date(year, (month ?? 1) - 1, day ?? 1, hour ?? 0, minute ?? 0);
+    d.setDate(d.getDate() + 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const h = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${dd}T${h}:${min}`;
+  }
+
+  async function applyHumanDate(field: 'start' | 'end'): Promise<boolean> {
+    const text = (field === 'start' ? startHuman : endHuman).trim();
+    if (!text) return false;
+    error = '';
+    endDateAdjustedHint = '';
+    try {
+      const contextLocal = field === 'end' ? (start || end || undefined) : (start || undefined);
+      const parsed = await parseHumanDatetime(text, parseTimezone(), contextLocal);
+      let localValue = toLocalDatetimeInput(parsed.iso, app.timezone || undefined);
+
+      if (field === 'end' && !parsed.hasDate && start && localValue <= start) {
+        localValue = addOneDay(localValue);
+        endDateAdjustedHint = 'Adjusted to next day to keep end after start.';
+      }
+
+      if (field === 'start') {
+        start = localValue;
+      } else {
+        end = localValue;
+      }
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to parse date/time';
+      return false;
+    }
+  }
+
+  function clearActiveDateFieldIfNeeded(field: 'start' | 'end') {
+    tick().then(() => {
+      const active = document.activeElement;
+      const stillInField = field === 'start'
+        ? active === startEl || active === startHumanEl
+        : active === endEl || active === endHumanEl;
+      if (!stillInField && activeDateField === field) activeDateField = null;
+    });
+  }
+
+  function focusHumanDateField(field: 'start' | 'end') {
+    activeDateField = field;
+    tick().then(() => {
+      if (field === 'start') startHumanEl?.focus();
+      else endHumanEl?.focus();
+    });
+  }
+
+  function clearRepeatFieldIfNeeded() {
+    tick().then(() => {
+      const active = document.activeElement;
+      if (active !== recurrenceEl && active !== repeatHumanEl) activeRepeatField = false;
+    });
+  }
+
+  function focusRepeatHumanField() {
+    activeRepeatField = true;
+    tick().then(() => repeatHumanEl?.focus());
+  }
+
+  async function applyHumanRepeat(): Promise<boolean> {
+    const text = repeatHuman.trim();
+    if (!text) return false;
+    error = '';
+    try {
+      const parsed = await parseHumanRecurrence(text);
+      customRepeatOption = { value: parsed.rrule, label: parsed.label };
+      recurrence = parsed.rrule;
+      activeRepeatField = false;
+      repeatHumanEl?.blur();
+      modalEl?.focus();
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to parse recurrence';
+      return false;
+    }
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     const target = e.target as HTMLElement;
+    const inHumanInput = target === startHumanEl || target === endHumanEl || target === repeatHumanEl;
+    const inDateInput = target === startEl || target === endEl;
     const inTextInput = target instanceof HTMLInputElement && target.type !== 'checkbox' && target.type !== 'radio'
       || target instanceof HTMLTextAreaElement;
 
     if (e.key === 'Escape') {
       if (inTextInput) {
         e.preventDefault();
+        if (target === startHumanEl || target === endHumanEl) activeDateField = null;
+        if (target === repeatHumanEl) activeRepeatField = false;
         target.blur();
         modalEl?.focus();
       } else {
         onclose();
       }
+      return;
+    }
+    if (e.key === 'Enter' && target === startHumanEl) {
+      e.preventDefault();
+      void applyHumanDate('start').then((ok) => {
+        if (!ok) return;
+        focusHumanDateField('end');
+      });
+      return;
+    }
+    if (e.key === 'Enter' && target === endHumanEl) {
+      e.preventDefault();
+      void applyHumanDate('end').then((ok) => {
+        if (!ok) return;
+        activeDateField = null;
+        endHumanEl?.blur();
+        modalEl?.focus();
+      });
+      return;
+    }
+    if (e.key === 'Enter' && target === repeatHumanEl) {
+      e.preventDefault();
+      void applyHumanRepeat();
+      return;
+    }
+    if (inDateInput && e.key.toLowerCase() === 'h') {
+      e.preventDefault();
+      if (target === startEl) {
+        focusHumanDateField('start');
+      } else if (target === endEl) {
+        focusHumanDateField('end');
+      }
+      return;
+    }
+    if (target === recurrenceEl && e.key.toLowerCase() === 'h') {
+      e.preventDefault();
+      focusRepeatHumanField();
       return;
     }
     if (e.ctrlKey && e.key === 'Enter') {
@@ -171,12 +341,7 @@
     if (editingId && e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
       e.preventDefault();
       if (confirm('Delete this event?')) {
-        deleteEvent(editingId).then(() => {
-          onsave();
-          onclose();
-        }).catch((err) => {
-          error = err instanceof Error ? err.message : 'Failed to delete';
-        });
+        void performDelete();
       }
       return;
     }
@@ -205,10 +370,10 @@
       titleEl?.focus();
     } else if (key === 's') {
       e.preventDefault();
-      startEl?.focus();
+      focusHumanDateField('start');
     } else if (key === 'e') {
       e.preventDefault();
-      endEl?.focus();
+      focusHumanDateField('end');
     } else if (key === 'a') {
       e.preventDefault();
       allDayEl?.focus();
@@ -233,6 +398,18 @@
     <h2>{editingId ? 'Edit event' : 'New event'}</h2>
     {#if error}
       <p class="text-red-600 text-sm">{error}</p>
+    {/if}
+    {#if deleting}
+      <p class="modal-loading flex items-center gap-2 text-[var(--text-muted)]" aria-busy="true" aria-live="polite">
+        <span class="todo-loading-spinner" aria-hidden="true"></span>
+        Deleting…
+      </p>
+    {/if}
+    {#if saving}
+      <p class="modal-loading flex items-center gap-2 text-[var(--text-muted)]" aria-busy="true" aria-live="polite">
+        <span class="todo-loading-spinner" aria-hidden="true"></span>
+        {editingId ? 'Saving…' : 'Creating…'}
+      </p>
     {/if}
     {#if !editingId}
       <div class="form-row">
@@ -259,15 +436,64 @@
         <span class="field-label">Start</span>
         <span class="field-shortcut">S</span>
       </div>
-      <input type="datetime-local" bind:value={start} disabled={allDay} bind:this={startEl} />
+      <input
+        type="datetime-local"
+        bind:value={start}
+        disabled={allDay}
+        bind:this={startEl}
+        onfocus={() => { activeDateField = 'start'; }}
+        onblur={() => clearActiveDateFieldIfNeeded('start')}
+      />
     </div>
+    {#if activeDateField === 'start'}
+      <div class="form-row">
+        <div class="form-row-header">
+          <span class="field-label">Human-friendly</span>
+          <span class="field-shortcut">H</span>
+        </div>
+        <input
+          type="text"
+          bind:value={startHuman}
+          bind:this={startHumanEl}
+          placeholder="e.g. tomorrow 9am"
+          onfocus={() => { activeDateField = 'start'; }}
+          onblur={() => clearActiveDateFieldIfNeeded('start')}
+        />
+      </div>
+    {/if}
     <div class="form-row">
       <div class="form-row-header">
         <span class="field-label">End</span>
         <span class="field-shortcut">E</span>
       </div>
-      <input type="datetime-local" bind:value={end} disabled={allDay} bind:this={endEl} />
+      <input
+        type="datetime-local"
+        bind:value={end}
+        disabled={allDay}
+        bind:this={endEl}
+        onfocus={() => { activeDateField = 'end'; }}
+        onblur={() => clearActiveDateFieldIfNeeded('end')}
+      />
     </div>
+    {#if activeDateField === 'end'}
+      <div class="form-row">
+        <div class="form-row-header">
+          <span class="field-label">Human-friendly</span>
+          <span class="field-shortcut">H</span>
+        </div>
+        <input
+          type="text"
+          bind:value={endHuman}
+          bind:this={endHumanEl}
+          placeholder="e.g. tomorrow 10am"
+          onfocus={() => { activeDateField = 'end'; }}
+          onblur={() => clearActiveDateFieldIfNeeded('end')}
+        />
+        {#if endDateAdjustedHint}
+          <p class="text-sm text-[var(--text-muted)] mt-1">{endDateAdjustedHint}</p>
+        {/if}
+      </div>
+    {/if}
     <div class="form-row form-row-checkbox">
       <div class="form-row-header">
         <span class="field-label">All day</span>
@@ -289,12 +515,39 @@
         <span class="field-label">Repeat</span>
         <span class="field-shortcut">R</span>
       </div>
-      <select bind:value={recurrence} bind:this={recurrenceEl}>
+      <select
+        bind:value={recurrence}
+        bind:this={recurrenceEl}
+        onfocus={() => { activeRepeatField = true; }}
+        onblur={clearRepeatFieldIfNeeded}
+      >
         {#each repeatOptions as opt}
           <option value={opt.value}>{opt.label}</option>
         {/each}
+        {#if customRepeatOption && !repeatOptions.some((opt) => opt.value === customRepeatOption?.value)}
+          <option value={customRepeatOption.value}>{customRepeatOption.label}</option>
+        {/if}
       </select>
     </div>
+    {#if activeRepeatField}
+      <div class="form-row">
+        <div class="form-row-header">
+          <span class="field-label">Human-friendly</span>
+          <span class="field-shortcut">H</span>
+        </div>
+        <div class="repeat-human-input">
+          <span class="repeat-human-prefix">Every</span>
+          <input
+            type="text"
+            bind:value={repeatHuman}
+            bind:this={repeatHumanEl}
+            placeholder="e.g. 2 weeks"
+            onfocus={() => { activeRepeatField = true; }}
+            onblur={clearRepeatFieldIfNeeded}
+          />
+        </div>
+      </div>
+    {/if}
     <div class="form-row">
       <div class="form-row-header">
         <span class="field-label">Description</span>
@@ -304,7 +557,7 @@
     </div>
     <div class="form-actions">
       <div class="form-action-with-hint">
-        <button class="btn btn-primary" onclick={submit} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        <button class="btn btn-primary" onclick={submit} disabled={saving || deleting}>Save</button>
         <span class="action-hint">Ctrl+Enter</span>
       </div>
       {#if editingId}
@@ -312,16 +565,10 @@
           <button
             class="btn btn-ghost"
             type="button"
-            disabled={saving}
+            disabled={saving || deleting}
             onclick={async () => {
               if (!confirm('Delete this event?')) return;
-              try {
-                await deleteEvent(editingId);
-                onsave();
-                onclose();
-              } catch (e) {
-                error = e instanceof Error ? e.message : 'Failed to delete';
-              }
+              void performDelete();
             }}
           >Delete</button>
           <span class="action-hint">Ctrl+Shift+D</span>

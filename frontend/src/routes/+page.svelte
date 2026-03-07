@@ -17,10 +17,40 @@
   let syncing = $state(false);
   let selectedTodo = $state<Todo | null>(null);
   let selectedEvent = $state<Event | null>(null);
+  let cacheReady = $state(false);
+
+  const CACHE_KEY = 'calslop-home-cache-v1';
+
+  function readCachedData(): { events: Event[]; todos: Todo[] } | null {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { events?: Event[]; todos?: Todo[] };
+      if (!Array.isArray(parsed.events) || !Array.isArray(parsed.todos)) return null;
+      return { events: parsed.events, todos: parsed.todos };
+    } catch {
+      return null;
+    }
+  }
+
+  function writeCachedData(nextEvents: Event[], nextTodos: Todo[]) {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ events: nextEvents, todos: nextTodos }));
+    } catch {
+      // ignore quota/storage errors
+    }
+  }
 
   $effect(() => {
     if (data?.events) events = data.events;
     if (data?.todos) todos = data.todos;
+  });
+
+  $effect(() => {
+    if (!cacheReady) return;
+    writeCachedData(events, todos);
   });
 
   /** Fetch events for a wide range (6 months) and all todos. Only called on initial load and manual Sync. */
@@ -51,6 +81,12 @@
   }
 
   onMount(() => {
+    const cached = readCachedData();
+    if (cached) {
+      events = cached.events;
+      todos = cached.todos;
+    }
+    cacheReady = true;
     refresh();
     function onToggleDayTodo(ev: CustomEvent<{ todoId: string }>) {
       const todo = todos.find((t) => t.id === ev.detail.todoId);
@@ -67,22 +103,82 @@
     };
   });
 
-  function handleToggleTodo(todo: Todo) {
-    updateTodo(todo.id, { completed: !todo.completed }).then(() => {
-      if (todo.recurrence) {
-        // Repeating todo: backend creates next occurrence; refetch to show it.
-        refresh();
-      } else {
-        todos = todos.map((t) => (t.id === todo.id ? { ...t, completed: !todo.completed } : t));
-        app.setUnsyncedChanges(true);
+  let togglingTodoId = $state<string | null>(null);
+  let pendingCreatedEventFocus = $state<{ id: string; start: string; title: string } | null>(null);
+
+  function isSameLocalDay(a: Date, b: Date): boolean {
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  }
+
+  async function handleEventSave(saved?: { id: string; start: string; title: string }) {
+    const shouldFocusCreated =
+      app.viewMode === 'calendar' &&
+      app.calendarView === 'day' &&
+      !!saved;
+
+    if (shouldFocusCreated && saved) {
+      const d = new Date(saved.start);
+      const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      if (!isSameLocalDay(target, app.selectedDate)) {
+        app.setSelectedDate(target);
       }
-    });
+    }
+
+    await refresh();
+
+    if (shouldFocusCreated && saved) {
+      pendingCreatedEventFocus = saved;
+    }
+  }
+
+  function closeEventModal() {
+    app.setModalOpen(null);
+    app.setEditingId(null);
+    selectedEvent = null;
+  }
+
+  async function handleToggleTodo(todo: Todo) {
+    if (togglingTodoId === todo.id) return;
+    const nextCompleted = !todo.completed;
+    togglingTodoId = todo.id;
+    if (todo.recurrence) {
+      // Recurring: replace row with loading until update + refetch complete
+      try {
+        await updateTodo(todo.id, { completed: nextCompleted });
+        await refresh();
+      } catch {
+        // Revert not needed; we didn't change local state
+      } finally {
+        togglingTodoId = null;
+      }
+      return;
+    }
+    // Non-recurring: optimistic update + immediate server save
+    const prev = todos;
+    todos = todos.map((t) => (t.id === todo.id ? { ...t, completed: nextCompleted } : t));
+    try {
+      await updateTodo(todo.id, { completed: nextCompleted });
+      app.setUnsyncedChanges(false);
+    } catch {
+      todos = prev;
+    } finally {
+      togglingTodoId = null;
+    }
   }
 
   function handleSelectTodo(todo: Todo) {
     selectedTodo = todo;
     app.setEditingId(todo.id);
     app.setModalOpen('todo');
+  }
+
+  async function handleTodoSave() {
+    await refresh();
+    selectedTodo = null;
   }
 </script>
 
@@ -119,39 +215,42 @@
             <input
               type="range"
               class="calendar-height-slider"
-              min="0.5"
-              max="2"
+              min="1"
+              max="3"
               step="0.05"
               value={app.calendarHeightRatio}
               oninput={(e) => app.setCalendarHeightRatio(+(e.currentTarget as HTMLInputElement).value)}
-              title="Day cell height (ratio)"
+              title="Calendar height (100–300%)"
             />
             <span class="text-xs text-[var(--text-muted)]">{Math.round(app.calendarHeightRatio * 100)}%</span>
           </div>
         </div>
         {#if app.calendarView === 'month'}
-          <input
-            id="calslop-search-input"
-            type="search"
-            class="search-input"
-            placeholder="Search…"
-            value={app.searchInputValue}
-            oninput={(e) => app.setSearchInputValue((e.currentTarget as HTMLInputElement).value)}
-            onkeydown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                app.applySearch();
-                (e.currentTarget as HTMLInputElement).blur();
-              }
-              if (e.key === 'Escape') {
-                e.preventDefault();
-                app.clearSearch();
-                (e.currentTarget as HTMLInputElement).blur();
-              }
-            }}
-            title="Search events and todos (/ to focus, Enter to filter, Escape to exit search)"
-            aria-label="Search events and todos"
-          />
+          <span class="search-input-wrap">
+            <input
+              id="calslop-search-input"
+              type="search"
+              class="search-input"
+              placeholder="Search…"
+              value={app.searchInputValue}
+              oninput={(e) => app.setSearchInputValue((e.currentTarget as HTMLInputElement).value)}
+              onkeydown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  app.applySearch();
+                  (e.currentTarget as HTMLInputElement).blur();
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  app.clearSearch();
+                  (e.currentTarget as HTMLInputElement).blur();
+                }
+              }}
+              title="Search events and todos (/ to focus, Enter to filter, Escape to exit search)"
+              aria-label="Search events and todos"
+            />
+            <span class="search-input-key-hint">/</span>
+          </span>
         {/if}
         <button
           class="btn btn-ghost"
@@ -164,23 +263,28 @@
           <span class="key-hint">R</span>
         </button>
       </div>
-      <div class="content-scroll flex-1 min-h-0 overflow-auto">
-        <div class="calendar-height-wrapper">
+      <div class="content-scroll flex flex-col flex-1 min-h-0 overflow-auto">
+        <div class="calendar-height-wrapper min-h-0" style="--calendar-height-ratio: {app.calendarHeightRatio}">
           <Calendar
-      events={events}
-      todos={todos}
-      searchQuery={app.searchQuery}
-      selectedDate={app.selectedDate}
-      onSelectEvent={(ev) => {
-        selectedEvent = ev;
-        app.setEditingId(ev.id);
-        app.setModalOpen('event');
-      }}
-      onSelectTodo={(todo) => {
-        selectedTodo = todo;
-        app.setEditingId(todo.id);
-        app.setModalOpen('todo');
-      }}
+            events={events}
+            todos={todos}
+            loadingTodoId={togglingTodoId}
+            focusEventRequest={pendingCreatedEventFocus}
+            onFocusEventRequestHandled={() => {
+              pendingCreatedEventFocus = null;
+            }}
+            searchQuery={app.searchQuery}
+            selectedDate={app.selectedDate}
+            onSelectEvent={(ev) => {
+              selectedEvent = ev;
+              app.setEditingId(ev.id);
+              app.setModalOpen('event');
+            }}
+            onSelectTodo={(todo) => {
+              selectedTodo = todo;
+              app.setEditingId(todo.id);
+              app.setModalOpen('todo');
+            }}
           />
         </div>
       </div>
@@ -213,28 +317,31 @@
         <span class="text-xs text-[var(--text-muted)]" title="Total and completed count in current data">
           ({todos.length} total, {todos.filter((t) => t.completed).length} completed)
         </span>
-        <input
-          id="calslop-search-input"
-          type="search"
-          class="search-input"
-          placeholder="Search todos…"
-          value={app.searchInputValue}
-          oninput={(e) => app.setSearchInputValue((e.currentTarget as HTMLInputElement).value)}
-          onkeydown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              app.applySearch();
-              (e.currentTarget as HTMLInputElement).blur();
-            }
-            if (e.key === 'Escape') {
-              e.preventDefault();
-              app.clearSearch();
-              (e.currentTarget as HTMLInputElement).blur();
-            }
-          }}
-          title="Search todos (/ to focus, Enter to filter, Escape to exit search)"
-          aria-label="Search todos"
-        />
+        <span class="search-input-wrap">
+          <input
+            id="calslop-search-input"
+            type="search"
+            class="search-input"
+            placeholder="Search todos…"
+            value={app.searchInputValue}
+            oninput={(e) => app.setSearchInputValue((e.currentTarget as HTMLInputElement).value)}
+            onkeydown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                app.applySearch();
+                (e.currentTarget as HTMLInputElement).blur();
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                app.clearSearch();
+                (e.currentTarget as HTMLInputElement).blur();
+              }
+            }}
+            title="Search todos (/ to focus, Enter to filter, Escape to exit search)"
+            aria-label="Search todos"
+          />
+          <span class="search-input-key-hint">/</span>
+        </span>
         <button
           class="btn btn-ghost ml-auto"
           type="button"
@@ -252,6 +359,7 @@
           showCompleted={app.showCompletedTodos}
           todoOrder={app.todoOrder}
           searchQuery={app.searchQuery}
+          loadingTodoId={togglingTodoId}
           onToggle={handleToggleTodo}
           onSelect={handleSelectTodo}
           showToolbar={false}
@@ -261,24 +369,18 @@
   {/if}
 </div>
 
-{#if app.hasUnsyncedChanges}
-  <div class="unsynced-notifier" role="status">
-    Unsaved changes — Sync or refresh to update
-  </div>
-{/if}
-
 {#if app.modalOpen === 'event'}
   <EventModal
     initialEvent={selectedEvent}
-    onclose={() => { app.setModalOpen(null); app.setEditingId(null); selectedEvent = null; }}
-    onsave={refresh}
+    onclose={closeEventModal}
+    onsave={handleEventSave}
   />
 {:else if app.modalOpen === 'todo'}
   <TodoModal
     todoId={app.editingId}
     initialTodo={selectedTodo}
     onclose={() => { app.setModalOpen(null); app.setEditingId(null); selectedTodo = null; }}
-    onsave={() => { refresh().then(() => { selectedTodo = null; }); }}
+    onsave={handleTodoSave}
   />
 {:else if app.modalOpen === 'shortcuts'}
   <ShortcutsModal onclose={() => app.setModalOpen(null)} />

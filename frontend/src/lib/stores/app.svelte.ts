@@ -24,9 +24,11 @@ class AppStore {
   modalOpen = $state<'event' | 'todo' | 'shortcuts' | null>(null);
   editingId = $state<string | null>(null);
   hasUnsyncedChanges = $state(false);
+  pendingApiRequests = $state(0);
+  apiLoading = $state(false);
   /** IANA timezone (e.g. America/New_York) or empty string for browser local */
   timezone = $state<string>('');
-  /** Calendar height as ratio of container width (0.5 = 50%, 2 = 200%). Used for manual height control. */
+  /** Calendar height ratio (1 = 100%, 3 = 300%). Used for manual height control. */
   calendarHeightRatio = $state<number>(1);
   /** When true, navbar is collapsed; hover at top to show again. */
   navbarCollapsed = $state<boolean>(false);
@@ -36,6 +38,7 @@ class AppStore {
   searchQuery = $state<string>('');
   /** Month view search mode: cell indices of days that match the search (set by Calendar). */
   highlightedDayIndices = $state<number[]>([]);
+  private apiHideTimer: ReturnType<typeof setTimeout> | null = null;
 
   setViewMode(mode: ViewMode) {
     this.viewMode = mode;
@@ -111,12 +114,30 @@ class AppStore {
     this.hasUnsyncedChanges = unsynced;
   }
 
+  startApiRequest() {
+    if (this.apiHideTimer) {
+      clearTimeout(this.apiHideTimer);
+      this.apiHideTimer = null;
+    }
+    this.pendingApiRequests += 1;
+    this.apiLoading = true;
+  }
+
+  endApiRequest() {
+    this.pendingApiRequests = Math.max(0, this.pendingApiRequests - 1);
+    if (this.pendingApiRequests > 0) return;
+    this.apiHideTimer = setTimeout(() => {
+      this.apiLoading = false;
+      this.apiHideTimer = null;
+    }, 220);
+  }
+
   setTimezone(tz: string) {
     this.timezone = tz;
   }
 
   setCalendarHeightRatio(ratio: number) {
-    const r = Math.max(0.5, Math.min(2, ratio));
+    const r = Math.max(1, Math.min(3, ratio));
     this.calendarHeightRatio = r;
     if (typeof localStorage !== 'undefined') localStorage.setItem('calslop-calendar-height-ratio', String(r));
   }
