@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify, abort
 from app.models.dtos import Todo, TodoCreate, TodoUpdate
 from app.db.sources_store import SourcesStore
 from app.services.aggregator import aggregate_events_todos, get_driver, resolve_todo_source
-from app.services.ical_utils import todo_id_to_master_id
+from app.services.ical_utils import next_recurrence_occurrence, todo_id_to_master_id
 
 
 def get_sources_store() -> SourcesStore:
@@ -87,9 +87,48 @@ def update_todo():
         abort(404, description="Todo not found or read-only")
     source, driver, current = resolved
 
-    # Completing one instance of a recurring todo: add RECURRENCE-ID exception instead of updating master.
+    # Completing one instance of a recurring todo: mirror iOS Reminders behavior.
+    # Advance the recurring master to the next occurrence and create a separate
+    # completed non-recurring todo for the completed instance.
     master_todo_id = todo_id_to_master_id(todo_id)
     if master_todo_id and body.completed is True:
+        recurrence = current.recurrence or ""
+        next_due = next_recurrence_occurrence(recurrence, current.due)
+        if next_due is not None:
+            try:
+                master_updated = driver.update_todo(
+                    source,
+                    Todo(
+                        id=master_todo_id,
+                        source_id=current.source_id,
+                        summary=current.summary,
+                        completed=False,
+                        due=next_due,
+                        description=current.description,
+                        priority=current.priority,
+                        recurrence=recurrence,
+                    ),
+                )
+                completed_created = driver.create_todo(
+                    source,
+                    Todo(
+                        id="",
+                        source_id=current.source_id,
+                        summary=current.summary,
+                        completed=True,
+                        due=current.due,
+                        description=current.description,
+                        priority=current.priority,
+                        recurrence=None,
+                    ),
+                )
+                if master_updated and completed_created:
+                    updated = Todo(**{**current.model_dump(), "completed": True, "recurrence": None})
+                    return jsonify(updated.model_dump(mode="json"))
+            except Exception:
+                pass
+
+        # Fallback for sources that cannot create detached completions.
         recurrence_id_str = todo_id.split("::")[-1]
         if driver.add_recurrence_exception(
             source,
@@ -100,7 +139,7 @@ def update_todo():
             current.description,
             current.priority,
         ):
-            updated = Todo(**{**current.model_dump(), "completed": True})
+            updated = Todo(**{**current.model_dump(), "completed": True, "recurrence": None})
             return jsonify(updated.model_dump(mode="json"))
 
     d = current.model_dump()

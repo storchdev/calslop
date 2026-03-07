@@ -179,6 +179,8 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                 )
                 continue
             # Show all completed instances and the next incomplete occurrence.
+            # Completed instances are represented as one-off todos (no recurrence),
+            # matching iOS Reminders behavior.
             now = datetime.now(timezone.utc)
             start = max(due_start, now - timedelta(days=1)) if due_start else now
             exceptions_by_rec: dict[str, _exc] = {}
@@ -235,7 +237,7 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                                 due=lc_due,
                                 description=lc_desc,
                                 priority=lc_pri,
-                                recurrence=recurrence,
+                                recurrence=None,
                             )
                         )
                     todos.append(
@@ -263,7 +265,7 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                             due=lc_due,
                             description=lc_desc,
                             priority=lc_pri,
-                            recurrence=recurrence,
+                            recurrence=None,
                         )
                     )
                 todos.append(
