@@ -218,6 +218,14 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   min-height: 100%;
 }
 
+.day-view-items-layer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2.75rem;
+  right: 0.5rem;
+}
+
 .day-view-now-line {
   position: absolute;
   left: 2.75rem;
@@ -289,12 +297,11 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .day-event-timed {
   position: absolute;
-  left: 2.75rem;
-  right: 0.5rem;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 0.125rem;
+  min-width: 0;
 }
 
 .day-event-time {
@@ -366,13 +373,12 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .day-todo-timed {
   position: absolute;
-  left: 2.75rem;
-  right: 0.5rem;
   overflow: hidden;
   display: flex;
   align-items: center;
   gap: 0.5rem;
   font-size: 0.8125rem;
+  min-width: 0;
 }
 
 .day-todo-time {

@@ -217,6 +217,39 @@
   const timedItemsSorted = $derived(
     [...timedEvents, ...timedTodos].sort((a, b) => a.startMin - b.startMin)
   );
+  function withOverlapLayout<T extends { startMin: number; endMin: number }>(
+    items: T[]
+  ): Array<T & { overlapColumn: number; overlapColumns: number }> {
+    const groupMaxCols: number[] = [];
+    const placed: Array<T & { overlapColumn: number; _group: number }> = [];
+    let active: Array<{ end: number; col: number; group: number }> = [];
+    let group = -1;
+
+    for (const item of items) {
+      active = active.filter((a) => a.end > item.startMin);
+
+      if (active.length === 0) {
+        group += 1;
+        groupMaxCols[group] = 0;
+      }
+
+      const usedCols = new Set(active.map((a) => a.col));
+      let col = 0;
+      while (usedCols.has(col)) col += 1;
+
+      const effectiveEnd = Math.max(item.endMin, item.startMin + 1 / 60);
+      active.push({ end: effectiveEnd, col, group });
+
+      groupMaxCols[group] = Math.max(groupMaxCols[group], col + 1, active.length);
+      placed.push({ ...item, overlapColumn: col, _group: group });
+    }
+
+    return placed.map((p) => ({
+      ...p,
+      overlapColumns: Math.max(1, groupMaxCols[p._group] ?? 1),
+    }));
+  }
+  const timedItemsLaidOut = $derived(withOverlapLayout(timedItemsSorted));
   const dayItems = $derived([...allDayItems, ...timedItemsSorted]);
 
   function findDayEventElement(req: { id: string; start: string; title: string }): HTMLElement | null {
@@ -554,10 +587,14 @@
             </div>
           {/each}
 
-          {#each timedItemsSorted as item, idx}
+          <div class="day-view-items-layer">
+          {#each timedItemsLaidOut as item, idx}
             {@const i = allDayItems.length + idx}
             {@const topPx = item.startMin / 60 * rowHeight}
             {@const heightPx = Math.max(MIN_BLOCK_HEIGHT, (item.endMin - item.startMin) / 60 * rowHeight)}
+            {@const leftPct = item.overlapColumn / item.overlapColumns * 100}
+            {@const widthPct = 100 / item.overlapColumns}
+            {@const laneGapPx = 4}
             {#if item.type === 'event'}
               <button
                 type="button"
@@ -569,7 +606,9 @@
                 data-day-item-event-id={item.event.id}
                 data-day-item-event-title={item.event.title}
                 data-day-item-event-start={item.event.start}
-                style="top: {topPx}px; height: {heightPx}px;"
+                style={
+                  `top: ${topPx}px; height: ${heightPx}px; left: calc(${leftPct}% + ${laneGapPx / 2}px); width: calc(${widthPct}% - ${laneGapPx}px);`
+                }
                 onfocus={() => app.setFocusedEventIndex(i)}
                 onclick={() => onSelectEvent?.(item.event)}
               >
@@ -592,7 +631,9 @@
                   tabindex={app.focusedEventIndex === i ? 0 : -1}
                   data-day-item-index={i}
                   data-day-item-todo-id={item.todo.id}
-                  style="top: {topPx}px; height: {heightPx}px;"
+                  style={
+                    `top: ${topPx}px; height: ${heightPx}px; left: calc(${leftPct}% + ${laneGapPx / 2}px); width: calc(${widthPct}% - ${laneGapPx}px);`
+                  }
                   onfocus={() => app.setFocusedEventIndex(i)}
                   onclick={() => onSelectTodo?.(item.todo)}
                 >
@@ -613,6 +654,7 @@
                 </button>
               {/if}
             {/each}
+          </div>
         </div>
       </div>
 
