@@ -62,6 +62,8 @@
       <dd class="m-0">Cycle calendar density (minimal → balanced → dense)</dd>
       <dt class="font-mono font-semibold">Y</dt>
       <dd class="m-0">Toggle show todos on calendar</dd>
+      <dt class="font-mono font-semibold">O</dt>
+      <dd class="m-0">Toggle desktop notifications</dd>
       <dt class="font-mono font-semibold">R</dt>
       <dd class="m-0">Sync calendars and todos</dd>
       <dt class="font-mono font-semibold">/</dt>
@@ -79,7 +81,7 @@
       <dt class="font-mono font-semibold">j / k</dt>
       <dd class="m-0">Modals: scroll content</dd>
       <dt class="font-mono font-semibold">Event/todo modals</dt>
-      <dd class="m-0">Ctrl+Enter save, Ctrl+Shift+D delete (when editing), Esc cancel. Single key (T, S, …) jumps to field. In date/repeat inputs, H opens Human-friendly parse; Enter applies; Esc exits. Shift+J / Shift+K cycle dropdown options.</dd>
+      <dd class="m-0">Ctrl+Enter save, Ctrl+Shift+D delete (when editing), Esc cancel. Single key (T, S, …) jumps to field. In date/repeat/alert inputs, H opens Human-friendly parse; Enter applies; Esc exits. Shift+J / Shift+K cycle dropdown options.</dd>
     </dl>
     <div class="form-actions">
       <button class="btn btn-primary" onclick={onclose} type="button">Close</button>

@@ -43,6 +43,72 @@ def _is_all_day(component: icalendar.cal.Component) -> bool:
     return isinstance(dt, date) and not isinstance(dt, datetime)
 
 
+def _extract_alarm_minutes_before(
+    component: icalendar.cal.Component,
+    reference_dt: datetime | None,
+) -> list[int] | None:
+    """Extract minutes-before reminders from DISPLAY VALARM triggers."""
+    if not reference_dt:
+        return None
+    values: set[int] = set()
+    for sub in list(getattr(component, "subcomponents", []) or []):
+        if getattr(sub, "name", "") != "VALARM":
+            continue
+        action = str(sub.get("action", "")).upper()
+        if action and action != "DISPLAY":
+            continue
+        trigger = sub.get("trigger")
+        if trigger is None:
+            continue
+
+        try:
+            # Relative trigger (e.g. -PT15M)
+            trigger_td = getattr(trigger, "td", None)
+            if isinstance(trigger_td, timedelta):
+                delta_seconds = trigger_td.total_seconds()
+                if delta_seconds <= 0:
+                    values.add(int(round(abs(delta_seconds) / 60)))
+                continue
+
+            # Some icalendar objects expose timedelta as .dt as well.
+            trigger_dt = getattr(trigger, "dt", None)
+            if isinstance(trigger_dt, timedelta):
+                delta_seconds = trigger_dt.total_seconds()
+                if delta_seconds <= 0:
+                    values.add(int(round(abs(delta_seconds) / 60)))
+                continue
+
+            # Absolute trigger datetime
+            if trigger_dt is not None:
+                trigger_as_dt = _to_naive_utc(trigger_dt)
+                if isinstance(trigger_as_dt, datetime):
+                    delta_seconds = (reference_dt - trigger_as_dt).total_seconds()
+                    if delta_seconds >= 0:
+                        values.add(int(round(delta_seconds / 60)))
+        except Exception:
+            # Ignore malformed alarm trigger values.
+            continue
+    if not values:
+        return None
+    return sorted(values)
+
+
+def _set_display_alarm(component: icalendar.cal.Component, minutes_before: list[int] | None) -> None:
+    """Replace VALARM entries with DISPLAY alarms at minutes-before values."""
+    if getattr(component, "subcomponents", None):
+        component.subcomponents = [
+            sub for sub in list(component.subcomponents) if getattr(sub, "name", "") != "VALARM"
+        ]
+    if not minutes_before:
+        return
+    for mins in sorted({max(0, int(m)) for m in minutes_before}):
+        alarm = icalendar.Alarm()
+        alarm.add("action", "DISPLAY")
+        alarm.add("description", "Reminder")
+        alarm.add("trigger", -timedelta(minutes=mins))
+        component.add_component(alarm)
+
+
 def parse_events_from_ical(ical_text: str | bytes, source_id: str) -> list[Event]:
     """Parse VCALENDAR/VEVENT from .ics content. Returns list of Event DTOs."""
     if isinstance(ical_text, str):
@@ -72,6 +138,7 @@ def parse_events_from_ical(ical_text: str | bytes, source_id: str) -> list[Event
         url = str(url_val) if url_val is not None else None
         status = (component.get("status") or "").upper()
         cancelled = status == "CANCELLED"
+        alert_minutes_before = _extract_alarm_minutes_before(component, start)
         events.append(
             Event(
                 id=f"{source_id}::{uid}",
@@ -84,6 +151,7 @@ def parse_events_from_ical(ical_text: str | bytes, source_id: str) -> list[Event
                 recurrence=None,  # Could parse RRULE if needed
                 location=location,
                 url=url,
+                alert_minutes_before=alert_minutes_before,
                 cancelled=cancelled,
             )
         )
@@ -98,8 +166,8 @@ def _recurrence_id_str(dt: datetime) -> str:
     return dt.strftime("%Y%m%dT%H%M%SZ")
 
 
-def _parse_vtodo_component(component) -> tuple[str, datetime | None, bool, str, str | None, int | None, str | None]:
-    """Extract (uid, due, completed, summary, description, priority, recurrence) from a VTODO."""
+def _parse_vtodo_component(component) -> tuple[str, datetime | None, bool, str, str | None, int | None, str | None, list[int] | None]:
+    """Extract (uid, due, completed, summary, description, priority, recurrence, alert_minutes_before) from a VTODO."""
     uid = str(component.get("uid", ""))
     summary = str(component.get("summary", "Untitled"))
     completed = str(component.get("completed", "")).strip() != ""
@@ -110,7 +178,9 @@ def _parse_vtodo_component(component) -> tuple[str, datetime | None, bool, str, 
     priority = int(priority) if priority is not None else None
     rrule = component.get("rrule")
     recurrence = rrule.to_ical().decode() if rrule and hasattr(rrule, "to_ical") else None
-    return uid, due, completed, summary, description, priority, recurrence
+    due_or_start = due or _get_dt(component, "dtstart")
+    alert_minutes_before = _extract_alarm_minutes_before(component, due_or_start)
+    return uid, due, completed, summary, description, priority, recurrence, alert_minutes_before
 
 
 def _recurrence_id_from_component(component) -> datetime | None:
@@ -132,26 +202,26 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
         return []
     components = [c for c in cal.walk() if c.name == "VTODO"]
     # Group by UID: master (has RRULE) + exceptions (have RECURRENCE-ID); exceptions include cancelled flag
-    _exc = tuple[datetime | None, bool, datetime | None, str, str | None, int | None, str, bool]
+    _exc = tuple[datetime | None, bool, datetime | None, str, str | None, int | None, str, bool, list[int] | None]
     by_uid: dict[str, list[_exc]] = {}
-    masters: dict[str, tuple[datetime | None, str, str | None, int | None, str]] = {}
+    masters: dict[str, tuple[datetime | None, str, str | None, int | None, str, list[int] | None]] = {}
     for component in components:
-        uid, due, completed, summary, description, priority, recurrence = _parse_vtodo_component(component)
+        uid, due, completed, summary, description, priority, recurrence, alert_minutes_before = _parse_vtodo_component(component)
         if not uid:
             continue
         rec_id = _recurrence_id_from_component(component)
         status = (component.get("status") or "").upper()
         cancelled = status == "CANCELLED"
         if recurrence:
-            masters[uid] = (due, summary, description, priority, recurrence)
+            masters[uid] = (due, summary, description, priority, recurrence, alert_minutes_before)
         if rec_id is not None:
             if uid not in by_uid:
                 by_uid[uid] = []
-            by_uid[uid].append((rec_id, completed, due, summary, description, priority, recurrence or "", cancelled))
+            by_uid[uid].append((rec_id, completed, due, summary, description, priority, recurrence or "", cancelled, alert_minutes_before))
     todos: list[Todo] = []
     seen_uid_no_rrule: set[str] = set()
     for component in components:
-        uid, due, completed, summary, description, priority, recurrence = _parse_vtodo_component(component)
+        uid, due, completed, summary, description, priority, recurrence, alert_minutes_before = _parse_vtodo_component(component)
         if not uid:
             continue
         rec_id = _recurrence_id_from_component(component)
@@ -175,6 +245,7 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                         description=description,
                         priority=priority,
                         recurrence=recurrence,
+                        alert_minutes_before=alert_minutes_before,
                     )
                 )
                 continue
@@ -197,14 +268,14 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                 existing_d = exceptions_by_rec.get(rec_date_k)
                 if existing_d is None or r[7] or r[1]:
                     exceptions_by_rec[rec_date_k] = r
-            completed_list: list[tuple[str, str, datetime | None, str | None, int | None]] = []
+            completed_list: list[tuple[str, str, datetime | None, str | None, int | None, list[int] | None]] = []
             for occ in rule:
                 if occ < start:
                     continue
                 rec_str = _recurrence_id_str(occ)
                 exc = exceptions_by_rec.get(rec_str) or exceptions_by_rec.get(occ.strftime("%Y%m%d"))
                 if exc is not None:
-                    rec_dt_exc, exc_completed, exc_due, exc_summary, exc_desc, exc_pri, _, exc_cancelled = exc
+                    rec_dt_exc, exc_completed, exc_due, exc_summary, exc_desc, exc_pri, _, exc_cancelled, exc_alert = exc
                     if exc_cancelled:
                         continue
                     if exc_completed:
@@ -219,6 +290,7 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                                 due_val,
                                 exc_desc if exc_desc is not None else description,
                                 exc_pri if exc_pri is not None else priority,
+                                exc_alert if exc_alert is not None else alert_minutes_before,
                             )
                         )
                         continue
@@ -227,7 +299,7 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                     due_val = exc_due or occ
                     if due_val and getattr(due_val, "tzinfo", None):
                         due_val = _to_naive_utc(due_val)
-                    for lc_id, lc_sum, lc_due, lc_desc, lc_pri in completed_list:
+                    for lc_id, lc_sum, lc_due, lc_desc, lc_pri, lc_alert in completed_list:
                         todos.append(
                             Todo(
                                 id=f"{source_id}::{uid}::{lc_id}",
@@ -238,6 +310,7 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                                 description=lc_desc,
                                 priority=lc_pri,
                                 recurrence=None,
+                                alert_minutes_before=lc_alert,
                             )
                         )
                     todos.append(
@@ -250,12 +323,13 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                             description=exc_desc if exc_desc is not None else description,
                             priority=exc_pri if exc_pri is not None else priority,
                             recurrence=recurrence,
+                            alert_minutes_before=exc_alert if exc_alert is not None else alert_minutes_before,
                         )
                     )
                     break
                 # No exception: next instance from rule
                 due_val = _to_naive_utc(occ) if (occ and getattr(occ, "tzinfo", None)) else occ
-                for lc_id, lc_sum, lc_due, lc_desc, lc_pri in completed_list:
+                for lc_id, lc_sum, lc_due, lc_desc, lc_pri, lc_alert in completed_list:
                     todos.append(
                         Todo(
                             id=f"{source_id}::{uid}::{lc_id}",
@@ -266,6 +340,7 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                             description=lc_desc,
                             priority=lc_pri,
                             recurrence=None,
+                            alert_minutes_before=lc_alert,
                         )
                     )
                 todos.append(
@@ -278,6 +353,7 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                         description=description,
                         priority=priority,
                         recurrence=recurrence,
+                        alert_minutes_before=alert_minutes_before,
                     )
                 )
                 break
@@ -298,6 +374,7 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                 description=description,
                 priority=priority,
                 recurrence=None,
+                alert_minutes_before=alert_minutes_before,
             )
         )
     return todos
@@ -331,6 +408,7 @@ def event_to_ical(event: Event) -> bytes:
             pass  # skip invalid RRULE
     if event.url:
         vevent.add("url", event.url)
+    _set_display_alarm(vevent, getattr(event, "alert_minutes_before", None))
     cal.add_component(vevent)
     return cal.to_ical()
 
@@ -361,6 +439,7 @@ def todo_to_ical(todo: Todo) -> bytes:
             vtodo.add("rrule", vRecur.from_ical(recurrence))
         except Exception:
             pass
+    _set_display_alarm(vtodo, getattr(todo, "alert_minutes_before", None))
     cal.add_component(vtodo)
     return cal.to_ical()
 
@@ -438,6 +517,7 @@ def merge_instance_todo_into_ical(ical_bytes: bytes, todo: Todo, recurrence_id_s
         vtodo.add("description", todo.description)
     if todo.priority is not None:
         vtodo.add("priority", todo.priority)
+    _set_display_alarm(vtodo, getattr(todo, "alert_minutes_before", None))
     cal.add_component(vtodo)
     _update_master_vtodo_metadata(cal, uid, todo.summary, todo.description, todo.priority)
     return cal.to_ical()
@@ -479,6 +559,7 @@ def build_exception_vtodo(
     due: datetime | None,
     description: str | None,
     priority: int | None,
+    alert_minutes_before: list[int] | None = None,
 ) -> bytes:
     """Build a VTODO component for a completed RECURRENCE-ID exception (same UID as master)."""
     cal = icalendar.Calendar()
@@ -498,6 +579,7 @@ def build_exception_vtodo(
         vtodo.add("description", description)
     if priority is not None:
         vtodo.add("priority", priority)
+    _set_display_alarm(vtodo, alert_minutes_before)
     cal.add_component(vtodo)
     return cal.to_ical()
 

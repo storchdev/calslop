@@ -61,6 +61,7 @@ class SourceDriver(ABC):
         due: datetime | None,
         description: str | None,
         priority: int | None,
+        alert_minutes_before: list[int] | None,
     ) -> bool:
         """Add a completed RECURRENCE-ID exception for one instance of a recurring todo. Returns True if done."""
         return False

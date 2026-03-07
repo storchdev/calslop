@@ -9,6 +9,7 @@ export interface Event {
   recurrence?: string | null;
   location?: string | null;
   url?: string | null;
+  alert_minutes_before?: number[] | null;
   cancelled?: boolean;
 }
 
@@ -21,6 +22,7 @@ export interface Todo {
   description?: string | null;
   priority?: number | null;
   recurrence?: string | null; // RRULE e.g. FREQ=DAILY
+  alert_minutes_before?: number[] | null;
 }
 
 export type SourceType = 'ics_url' | 'local_folder' | 'caldav';
@@ -43,6 +45,7 @@ export interface EventCreate {
   location?: string | null;
   recurrence?: string | null;
   url?: string | null;
+  alert_minutes_before?: number[] | null;
 }
 
 export interface EventUpdate {
@@ -54,6 +57,7 @@ export interface EventUpdate {
   location?: string | null;
   recurrence?: string | null;
   url?: string | null;
+  alert_minutes_before?: number[] | null;
 }
 
 export interface TodoCreate {
@@ -64,6 +68,7 @@ export interface TodoCreate {
   description?: string | null;
   priority?: number | null;
   recurrence?: string | null;
+  alert_minutes_before?: number[] | null;
 }
 
 export interface TodoUpdate {
@@ -73,4 +78,5 @@ export interface TodoUpdate {
   description?: string | null;
   priority?: number | null;
   recurrence?: string | null;
+  alert_minutes_before?: number[] | null;
 }

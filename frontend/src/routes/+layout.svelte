@@ -22,6 +22,8 @@
     }
     const navCollapsed = localStorage.getItem('calslop-navbar-collapsed');
     if (navCollapsed === '1') app.setNavbarCollapsed(true);
+    const desktopNotificationsEnabled = localStorage.getItem('calslop-desktop-notifications-enabled');
+    if (desktopNotificationsEnabled === '1') app.setDesktopNotificationsEnabled(true);
   });
 
   function handleThemeChange(e: Event) {

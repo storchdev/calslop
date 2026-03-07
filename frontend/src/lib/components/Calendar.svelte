@@ -333,14 +333,17 @@
     }
   });
 
-  // Current time line: update every minute when viewing today
+  // Current time line: update continuously when viewing today
   let now = $state(new Date());
   $effect(() => {
     if (app.calendarView !== 'day' || !isToday(selectedDate)) return;
-    const id = setInterval(() => {
+    let raf = 0;
+    const updateNow = () => {
       now = new Date();
-    }, 60_000);
-    return () => clearInterval(id);
+      raf = window.requestAnimationFrame(updateNow);
+    };
+    updateNow();
+    return () => window.cancelAnimationFrame(raf);
   });
   const currentTimeTopPx = $derived.by(() => {
     if (!isToday(selectedDate)) return null;

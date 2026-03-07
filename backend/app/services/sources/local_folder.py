@@ -178,6 +178,7 @@ class LocalFolderDriver(SourceDriver):
         due,
         description: str | None,
         priority: int | None,
+        alert_minutes_before: list[int] | None,
     ) -> bool:
         parts = master_todo_id.split("::")
         if len(parts) < 3:
@@ -196,7 +197,7 @@ class LocalFolderDriver(SourceDriver):
             if not cal:
                 return False
             exc_bytes = build_exception_vtodo(
-                uid, recurrence_id_str, summary, due, description, priority
+                uid, recurrence_id_str, summary, due, description, priority, alert_minutes_before
             )
             exc_cal = icalendar.Calendar.from_ical(exc_bytes)
             for comp in exc_cal.walk():

@@ -11,6 +11,7 @@ class AppStore {
   calendarView = $state<CalendarView>('month');
   calendarDensity = $state<CalendarDensity>('balanced');
   showTodosOnCalendar = $state<boolean>(true);
+  desktopNotificationsEnabled = $state<boolean>(false);
   /** When false, hide completed todos in the todo list view */
   showCompletedTodos = $state<boolean>(false);
   /** Todo list order: oldest first (by due) or newest first */
@@ -64,6 +65,17 @@ class AppStore {
 
   toggleShowTodosOnCalendar() {
     this.showTodosOnCalendar = !this.showTodosOnCalendar;
+  }
+
+  setDesktopNotificationsEnabled(enabled: boolean) {
+    this.desktopNotificationsEnabled = enabled;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('calslop-desktop-notifications-enabled', enabled ? '1' : '0');
+    }
+  }
+
+  toggleDesktopNotificationsEnabled() {
+    this.setDesktopNotificationsEnabled(!this.desktopNotificationsEnabled);
   }
 
   setShowCompletedTodos(show: boolean) {

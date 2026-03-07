@@ -242,6 +242,7 @@ class CalDAVDriver(SourceDriver):
         due,
         description: str | None,
         priority: int | None,
+        alert_minutes_before: list[int] | None,
     ) -> bool:
         """Add a completed RECURRENCE-ID exception to the calendar object that contains the master."""
         uid = self._resource_uid_from_todo_id(master_todo_id)
@@ -253,7 +254,7 @@ class CalDAVDriver(SourceDriver):
         try:
             principal = client.principal()
             exc_bytes = build_exception_vtodo(
-                uid, recurrence_id_str, summary, due, description, priority
+                uid, recurrence_id_str, summary, due, description, priority, alert_minutes_before
             )
             exc_cal = icalendar.Calendar.from_ical(exc_bytes)
             exc_vtodo = None

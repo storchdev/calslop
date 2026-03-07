@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { createEvent, updateEvent, getEvent, deleteEvent, parseHumanDatetime, parseHumanRecurrence } from '$lib/api';
+  import { createEvent, updateEvent, getEvent, deleteEvent, parseHumanDatetime, parseHumanRecurrence, parseHumanAlerts } from '$lib/api';
   import type { Event, EventCreate, EventUpdate } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
   import { toLocalDatetimeInput } from '$lib/date';
@@ -20,6 +20,8 @@ interface Props {
   let description = $state('');
   let location = $state('');
   let recurrence = $state('');
+  let alertMinutesBefore = $state<number[]>([]);
+  let alertSelectValue = $state('');
   let sourceId = $state('');
   let sources = $state<{ id: string; name: string; type: string }[]>([]);
   let error = $state('');
@@ -27,11 +29,14 @@ interface Props {
   let deleting = $state(false);
   let activeDateField = $state<'start' | 'end' | null>(null);
   let activeRepeatField = $state(false);
+  let activeAlertField = $state(false);
   let startHuman = $state('');
   let endHuman = $state('');
   let repeatHuman = $state('');
+  let alertHuman = $state('');
   let endDateAdjustedHint = $state('');
   let customRepeatOption = $state<{ value: string; label: string } | null>(null);
+  let customAlertOption = $state<{ value: string; label: string } | null>(null);
   let fetchedEventId = $state<string | null>(null);
 
   const editingId = $derived(app.editingId);
@@ -43,6 +48,44 @@ interface Props {
     { value: 'FREQ=MONTHLY', label: 'Monthly' },
     { value: 'FREQ=YEARLY', label: 'Yearly' },
   ];
+  const alertOptions = [
+    { value: '', label: 'None' },
+    { value: '0', label: 'At time' },
+    { value: '5', label: '5 minutes before' },
+    { value: '10', label: '10 minutes before' },
+    { value: '15', label: '15 minutes before' },
+    { value: '30', label: '30 minutes before' },
+    { value: '60', label: '1 hour before' },
+    { value: '120', label: '2 hours before' },
+    { value: '1440', label: '1 day before' },
+  ];
+
+  function formatAlertLabel(minutes: number[]): string {
+    return minutes.map((m) => {
+      if (m === 0) return 'at time';
+      if (m % 1440 === 0) return `${m / 1440}d before`;
+      if (m % 60 === 0) return `${m / 60}h before`;
+      return `${m}m before`;
+    }).join(', ');
+  }
+
+  function setAlertMinutes(minutes: number[] | null | undefined) {
+    const normalized = Array.from(new Set((minutes ?? []).map((m) => Math.max(0, Number(m))))).sort((a, b) => a - b);
+    alertMinutesBefore = normalized;
+    if (!normalized.length) {
+      customAlertOption = null;
+      alertSelectValue = '';
+      return;
+    }
+    if (normalized.length === 1 && alertOptions.some((opt) => opt.value === String(normalized[0]))) {
+      customAlertOption = null;
+      alertSelectValue = String(normalized[0]);
+      return;
+    }
+    const value = `custom:${normalized.join(',')}`;
+    customAlertOption = { value, label: `Custom (${formatAlertLabel(normalized)})` };
+    alertSelectValue = value;
+  }
 
   $effect(() => {
     const tz = app.timezone || undefined;
@@ -59,6 +102,7 @@ interface Props {
         description = prefill.description ?? '';
         location = prefill.location ?? '';
         recurrence = prefill.recurrence ?? '';
+        setAlertMinutes(prefill.alert_minutes_before);
       } else {
         if (fetchedEventId === editingId) return;
         fetchedEventId = editingId;
@@ -72,6 +116,7 @@ interface Props {
           description = e.description ?? '';
           location = e.location ?? '';
           recurrence = e.recurrence ?? '';
+          setAlertMinutes(e.alert_minutes_before);
         }).catch((err) => {
           if (editingId !== currentId || deleting) return;
           error = err instanceof Error ? err.message : 'Failed to load event';
@@ -87,6 +132,7 @@ interface Props {
       description = '';
       location = '';
       recurrence = '';
+      setAlertMinutes(null);
     }
   });
 
@@ -113,6 +159,7 @@ interface Props {
     const currentEditingId = editingId;
     const startIso = new Date(start).toISOString();
     const endIso = new Date(end).toISOString();
+    const resolvedAlertMinutes = resolveAlertMinutesForSubmit();
     const payload = {
       title: title.trim(),
       start: startIso,
@@ -121,6 +168,7 @@ interface Props {
       description: description || null,
       location: location.trim() || null,
       recurrence: recurrence || null,
+      alert_minutes_before: resolvedAlertMinutes.length ? resolvedAlertMinutes : null,
     };
 
     saving = true;
@@ -165,6 +213,8 @@ interface Props {
   let allDayEl: HTMLInputElement | undefined;
   let locationEl: HTMLInputElement | undefined;
   let recurrenceEl: HTMLSelectElement | undefined;
+  let alertEl: HTMLSelectElement | undefined;
+  let alertHumanEl = $state<HTMLInputElement | undefined>(undefined);
   let repeatHumanEl = $state<HTMLInputElement | undefined>(undefined);
   let descriptionEl: HTMLTextAreaElement | undefined;
   let sourceIdEl: HTMLSelectElement | undefined;
@@ -262,6 +312,18 @@ interface Props {
     tick().then(() => repeatHumanEl?.focus());
   }
 
+  function clearAlertFieldIfNeeded() {
+    tick().then(() => {
+      const active = document.activeElement;
+      if (active !== alertEl && active !== alertHumanEl) activeAlertField = false;
+    });
+  }
+
+  function focusAlertHumanField() {
+    activeAlertField = true;
+    tick().then(() => alertHumanEl?.focus());
+  }
+
   async function applyHumanRepeat(): Promise<boolean> {
     const text = repeatHuman.trim();
     if (!text) return false;
@@ -280,9 +342,41 @@ interface Props {
     }
   }
 
+  async function applyHumanAlerts(): Promise<boolean> {
+    const text = alertHuman.trim();
+    if (!text) return false;
+    error = '';
+    try {
+      const parsed = await parseHumanAlerts(text);
+      setAlertMinutes(parsed.minutes);
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to parse alerts';
+      return false;
+    }
+  }
+
+  function applyAlertSelect() {
+    if (!alertSelectValue) {
+      setAlertMinutes([]);
+      return;
+    }
+    if (alertSelectValue.startsWith('custom:')) return;
+    const v = Number(alertSelectValue);
+    if (Number.isFinite(v)) setAlertMinutes([v]);
+  }
+
+  function resolveAlertMinutesForSubmit(): number[] {
+    if (alertSelectValue && !alertSelectValue.startsWith('custom:')) {
+      const v = Number(alertSelectValue);
+      if (Number.isFinite(v)) return [Math.max(0, Math.trunc(v))];
+    }
+    return alertMinutesBefore;
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     const target = e.target as HTMLElement;
-    const inHumanInput = target === startHumanEl || target === endHumanEl || target === repeatHumanEl;
+    const inHumanInput = target === startHumanEl || target === endHumanEl || target === repeatHumanEl || target === alertHumanEl;
     const inDateInput = target === startEl || target === endEl;
     const inTextInput = target instanceof HTMLInputElement && target.type !== 'checkbox' && target.type !== 'radio'
       || target instanceof HTMLTextAreaElement;
@@ -292,6 +386,7 @@ interface Props {
         e.preventDefault();
         if (target === startHumanEl || target === endHumanEl) activeDateField = null;
         if (target === repeatHumanEl) activeRepeatField = false;
+        if (target === alertHumanEl) activeAlertField = false;
         target.blur();
         modalEl?.focus();
       } else {
@@ -322,6 +417,16 @@ interface Props {
       void applyHumanRepeat();
       return;
     }
+    if (e.key === 'Enter' && target === alertHumanEl) {
+      e.preventDefault();
+      void applyHumanAlerts().then((ok) => {
+        if (!ok) return;
+        activeAlertField = false;
+        alertHumanEl?.blur();
+        modalEl?.focus();
+      });
+      return;
+    }
     if (inDateInput && e.key.toLowerCase() === 'h') {
       e.preventDefault();
       if (target === startEl) {
@@ -334,6 +439,11 @@ interface Props {
     if (target === recurrenceEl && e.key.toLowerCase() === 'h') {
       e.preventDefault();
       focusRepeatHumanField();
+      return;
+    }
+    if (target === alertEl && e.key.toLowerCase() === 'h') {
+      e.preventDefault();
+      focusAlertHumanField();
       return;
     }
     if (e.ctrlKey && e.key === 'Enter') {
@@ -386,6 +496,9 @@ interface Props {
     } else if (key === 'r') {
       e.preventDefault();
       recurrenceEl?.focus();
+    } else if (key === 'n') {
+      e.preventDefault();
+      alertEl?.focus();
     } else if (key === 'd') {
       e.preventDefault();
       descriptionEl?.focus();
@@ -549,6 +662,42 @@ interface Props {
             onblur={clearRepeatFieldIfNeeded}
           />
         </div>
+      </div>
+    {/if}
+    <div class="form-row">
+      <div class="form-row-header">
+        <span class="field-label">Alert</span>
+        <span class="field-shortcut">N</span>
+      </div>
+      <select
+        bind:value={alertSelectValue}
+        bind:this={alertEl}
+        onfocus={() => { activeAlertField = true; }}
+        onblur={clearAlertFieldIfNeeded}
+        onchange={applyAlertSelect}
+      >
+        {#each alertOptions as opt}
+          <option value={opt.value}>{opt.label}</option>
+        {/each}
+        {#if customAlertOption}
+          <option value={customAlertOption.value}>{customAlertOption.label}</option>
+        {/if}
+      </select>
+    </div>
+    {#if activeAlertField}
+      <div class="form-row">
+        <div class="form-row-header">
+          <span class="field-label">Human-friendly</span>
+          <span class="field-shortcut">H</span>
+        </div>
+        <input
+          type="text"
+          bind:value={alertHuman}
+          bind:this={alertHumanEl}
+          placeholder="e.g. 10m before, 1h before (comma-separated)"
+          onfocus={() => { activeAlertField = true; }}
+          onblur={clearAlertFieldIfNeeded}
+        />
       </div>
     {/if}
     <div class="form-row">

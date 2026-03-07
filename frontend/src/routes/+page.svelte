@@ -9,17 +9,105 @@
   import ShortcutsModal from '$lib/components/ShortcutsModal.svelte';
   import { getEvents, getTodos, updateTodo } from '$lib/api';
   import type { Event, Todo } from '$lib/types';
+  import { parseUtcIfNeeded } from '$lib/date';
 
   let { data }: PageProps = $props();
   let events = $state<Event[]>([]);
   let todos = $state<Todo[]>([]);
   let loading = $state(false);
   let syncing = $state(false);
+  let notificationError = $state('');
   let selectedTodo = $state<Todo | null>(null);
   let selectedEvent = $state<Event | null>(null);
   let cacheReady = $state(false);
 
   const CACHE_KEY = 'calslop-home-cache-v1';
+  const notifiedAlerts = new Set<string>();
+  let lastNotificationCheckMs = Date.now();
+
+  type ArmedAlert = {
+    key: string;
+    kind: 'event' | 'todo';
+    title: string;
+    iso: string;
+    minutes: number;
+    alertAtMs: number;
+    ongoingUntilMs: number | null;
+  };
+  let armedAlerts = $state<ArmedAlert[]>([]);
+
+  function notifDebug(...args: unknown[]) {
+    console.debug('[calslop:notifications]', ...args);
+  }
+
+  function rebuildArmedAlerts() {
+    const now = Date.now();
+    const next: ArmedAlert[] = [];
+
+    for (const ev of events) {
+      if (ev.cancelled || !ev.alert_minutes_before?.length) continue;
+      const startMs = parseUtcIfNeeded(ev.start).getTime();
+      const endMs = parseUtcIfNeeded(ev.end).getTime();
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) continue;
+
+      for (const rawMinutes of ev.alert_minutes_before) {
+        const minutes = Number(rawMinutes);
+        if (!Number.isFinite(minutes) || minutes < 0) continue;
+        const alertAtMs = startMs - minutes * 60_000;
+
+        // Keep only alerts that can still fire:
+        // - future reminder alerts
+        // - at-time event reminders when event is still active (for refresh behavior)
+        if (minutes === 0) {
+          if (endMs <= now) continue;
+        } else if (alertAtMs <= now) {
+          continue;
+        }
+
+        next.push({
+          key: `event:${ev.id}:${ev.start}:${minutes}`,
+          kind: 'event',
+          title: ev.title || 'Event reminder',
+          iso: ev.start,
+          minutes,
+          alertAtMs,
+          ongoingUntilMs: minutes === 0 ? endMs : null,
+        });
+      }
+    }
+
+    for (const todo of todos) {
+      if (todo.completed || !todo.due || !todo.alert_minutes_before?.length) continue;
+      const dueMs = parseUtcIfNeeded(todo.due).getTime();
+      if (!Number.isFinite(dueMs)) continue;
+
+      for (const rawMinutes of todo.alert_minutes_before) {
+        const minutes = Number(rawMinutes);
+        if (!Number.isFinite(minutes) || minutes < 0) continue;
+        const alertAtMs = dueMs - minutes * 60_000;
+        if (alertAtMs <= now) continue;
+
+        next.push({
+          key: `todo:${todo.id}:${todo.due}:${minutes}`,
+          kind: 'todo',
+          title: todo.summary || 'Todo reminder',
+          iso: todo.due,
+          minutes,
+          alertAtMs,
+          ongoingUntilMs: null,
+        });
+      }
+    }
+
+    next.sort((a, b) => a.alertAtMs - b.alertAtMs);
+    armedAlerts = next;
+
+    // Keep dedupe set in sync with active alert keys.
+    const keys = new Set(next.map((a) => a.key));
+    for (const k of Array.from(notifiedAlerts)) {
+      if (!keys.has(k)) notifiedAlerts.delete(k);
+    }
+  }
 
   function readCachedData(): { events: Event[]; todos: Todo[] } | null {
     if (typeof localStorage === 'undefined') return null;
@@ -51,6 +139,12 @@
   $effect(() => {
     if (!cacheReady) return;
     writeCachedData(events, todos);
+  });
+
+  $effect(() => {
+    events;
+    todos;
+    rebuildArmedAlerts();
   });
 
   /** Fetch events for a wide range (6 months) and all todos. Only called on initial load and manual Sync. */
@@ -95,12 +189,115 @@
     function onSync() {
       sync();
     }
+    function onToggleDesktopNotifications() {
+      void toggleDesktopNotifications();
+    }
     window.addEventListener('calslop-toggle-day-todo', onToggleDayTodo as EventListener);
     window.addEventListener('calslop-sync', onSync);
+    window.addEventListener('calslop-toggle-desktop-notifications', onToggleDesktopNotifications);
     return () => {
       window.removeEventListener('calslop-toggle-day-todo', onToggleDayTodo as EventListener);
       window.removeEventListener('calslop-sync', onSync);
+      window.removeEventListener('calslop-toggle-desktop-notifications', onToggleDesktopNotifications);
     };
+  });
+
+  async function toggleDesktopNotifications() {
+    notificationError = '';
+    notifDebug('toggle requested', {
+      currentlyEnabled: app.desktopNotificationsEnabled,
+      permission: typeof Notification !== 'undefined' ? Notification.permission : 'missing',
+    });
+    if (app.desktopNotificationsEnabled) {
+      app.setDesktopNotificationsEnabled(false);
+      lastNotificationCheckMs = Date.now();
+      notifDebug('disabled');
+      return;
+    }
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      notificationError = 'Desktop notifications are not supported in this browser.';
+      return;
+    }
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      notifDebug('permission prompt result', permission);
+      if (permission !== 'granted') {
+        notificationError = 'Notification permission was not granted.';
+        return;
+      }
+    }
+    if (Notification.permission !== 'granted') {
+      notificationError = 'Enable notification permission in your browser settings first.';
+      return;
+    }
+    app.setDesktopNotificationsEnabled(true);
+    lastNotificationCheckMs = Date.now();
+    notifDebug('enabled', { permission: Notification.permission, lastNotificationCheckMs });
+    try {
+      new Notification('Notifications enabled', { body: 'Calslop reminders are active.' });
+      notifDebug('sent test notification');
+    } catch (e) {
+      notifDebug('failed test notification', e);
+    }
+    checkDueNotifications();
+  }
+
+  function formatNotificationTime(iso: string): string {
+    return parseUtcIfNeeded(iso).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+  }
+
+  function checkDueNotifications() {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (!app.desktopNotificationsEnabled || Notification.permission !== 'granted') return;
+    const now = Date.now();
+    const since = lastNotificationCheckMs;
+    lastNotificationCheckMs = now;
+
+    const remaining: ArmedAlert[] = [];
+    for (const alert of armedAlerts) {
+      const isOngoingAtTimeEvent =
+        alert.kind === 'event' &&
+        alert.minutes === 0 &&
+        now >= alert.alertAtMs &&
+        alert.ongoingUntilMs !== null &&
+        now < alert.ongoingUntilMs;
+
+      const isDueNow = alert.alertAtMs <= now && alert.alertAtMs > since;
+      const shouldNotify = isOngoingAtTimeEvent || isDueNow;
+
+      if (shouldNotify && !notifiedAlerts.has(alert.key)) {
+        notifiedAlerts.add(alert.key);
+        const body = alert.minutes > 0
+          ? `${formatNotificationTime(alert.iso)} (${alert.minutes}m before)`
+          : formatNotificationTime(alert.iso);
+        try {
+          new Notification(alert.title, { body });
+        } catch {
+          // Ignore per-notification errors and continue checking others.
+        }
+      }
+
+      if (isOngoingAtTimeEvent || alert.alertAtMs > now) {
+        remaining.push(alert);
+      }
+    }
+
+    if (remaining.length !== armedAlerts.length) {
+      armedAlerts = remaining;
+    }
+  }
+
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+    if (!app.desktopNotificationsEnabled) return;
+    checkDueNotifications();
+    const interval = window.setInterval(checkDueNotifications, 1_000);
+    return () => window.clearInterval(interval);
   });
 
   let togglingTodoId = $state<string | null>(null);
@@ -208,6 +405,16 @@
               <span class="key-hint">Y</span>
             </label>
           </div>
+        {/if}
+        <div class="option-box">
+          <span class="dropdown-box-label">Notifications</span>
+          <label class="option-box-content inline-flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={app.desktopNotificationsEnabled} onchange={() => void toggleDesktopNotifications()} />
+            <span class="key-hint">O</span>
+          </label>
+        </div>
+        {#if notificationError}
+          <span class="text-xs text-red-600">{notificationError}</span>
         {/if}
         <div class="option-box">
           <span class="dropdown-box-label">Height</span>

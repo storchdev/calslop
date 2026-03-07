@@ -48,6 +48,7 @@ def create_event():
         location=body.location,
         recurrence=body.recurrence,
         url=body.url,
+        alert_minutes_before=body.alert_minutes_before,
     )
     try:
         created = driver.create_event(source, event)
@@ -107,6 +108,8 @@ def update_event():
         d["recurrence"] = body.recurrence
     if body.url is not None:
         d["url"] = body.url
+    if "alert_minutes_before" in body.model_fields_set:
+        d["alert_minutes_before"] = body.alert_minutes_before
     try:
         updated = driver.update_event(source, Event(**d))
     except Exception as e:

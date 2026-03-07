@@ -47,6 +47,7 @@ def create_todo():
         description=body.description,
         priority=body.priority,
         recurrence=body.recurrence,
+        alert_minutes_before=body.alert_minutes_before,
     )
     try:
         created = driver.create_todo(source, todo)
@@ -107,6 +108,7 @@ def update_todo():
                         description=current.description,
                         priority=current.priority,
                         recurrence=recurrence,
+                        alert_minutes_before=current.alert_minutes_before,
                     ),
                 )
                 completed_created = driver.create_todo(
@@ -120,6 +122,7 @@ def update_todo():
                         description=current.description,
                         priority=current.priority,
                         recurrence=None,
+                        alert_minutes_before=current.alert_minutes_before,
                     ),
                 )
                 if master_updated and completed_created:
@@ -138,6 +141,7 @@ def update_todo():
             current.due,
             current.description,
             current.priority,
+            current.alert_minutes_before,
         ):
             updated = Todo(**{**current.model_dump(), "completed": True, "recurrence": None})
             return jsonify(updated.model_dump(mode="json"))
@@ -155,6 +159,8 @@ def update_todo():
         d["priority"] = body.priority
     if body.recurrence is not None:
         d["recurrence"] = body.recurrence
+    if "alert_minutes_before" in body.model_fields_set:
+        d["alert_minutes_before"] = body.alert_minutes_before
     try:
         updated = driver.update_todo(source, Todo(**d))
     except Exception as e:

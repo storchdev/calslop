@@ -15,6 +15,7 @@ class Event(BaseModel):
     recurrence: str | None = None
     location: str | None = None
     url: str | None = None
+    alert_minutes_before: list[int] | None = None
     cancelled: bool = False
 
 
@@ -27,6 +28,7 @@ class Todo(BaseModel):
     description: str | None = None
     priority: int | None = None
     recurrence: str | None = None
+    alert_minutes_before: list[int] | None = None
 
 
 SourceType = Literal["ics_url", "local_folder", "caldav"]
@@ -63,6 +65,7 @@ class EventCreate(BaseModel):
     location: str | None = None
     recurrence: str | None = None
     url: str | None = None
+    alert_minutes_before: list[int] | None = None
 
 
 class EventUpdate(BaseModel):
@@ -74,6 +77,7 @@ class EventUpdate(BaseModel):
     location: str | None = None
     recurrence: str | None = None
     url: str | None = None
+    alert_minutes_before: list[int] | None = None
 
 
 class TodoCreate(BaseModel):
@@ -84,6 +88,7 @@ class TodoCreate(BaseModel):
     description: str | None = None
     priority: int | None = None
     recurrence: str | None = None
+    alert_minutes_before: list[int] | None = None
 
 
 class TodoUpdate(BaseModel):
@@ -93,3 +98,4 @@ class TodoUpdate(BaseModel):
     description: str | None = None
     priority: int | None = None
     recurrence: str | None = None
+    alert_minutes_before: list[int] | None = None

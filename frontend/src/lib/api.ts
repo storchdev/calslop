@@ -130,3 +130,10 @@ export async function parseHumanRecurrence(text: string): Promise<{ rrule: strin
     body: JSON.stringify({ text }),
   });
 }
+
+export async function parseHumanAlerts(text: string): Promise<{ minutes: number[]; label: string }> {
+  return fetchApi<{ minutes: number[]; label: string }>('/alerts/parse', {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
+}

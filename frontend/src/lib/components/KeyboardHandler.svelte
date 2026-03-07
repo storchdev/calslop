@@ -301,6 +301,12 @@
         if (!e.repeat && app.viewMode === 'calendar') app.toggleShowTodosOnCalendar();
         e.preventDefault();
         break;
+      case 'o':
+        if (!e.repeat && app.viewMode === 'calendar') {
+          window.dispatchEvent(new CustomEvent('calslop-toggle-desktop-notifications'));
+        }
+        e.preventDefault();
+        break;
       case 'g':
         if (e.key === 'g' && !e.shiftKey) {
           // gg = go to today (second g within 500ms)
