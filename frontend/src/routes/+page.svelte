@@ -17,10 +17,40 @@
   let syncing = $state(false);
   let selectedTodo = $state<Todo | null>(null);
   let selectedEvent = $state<Event | null>(null);
+  let cacheReady = $state(false);
+
+  const CACHE_KEY = 'calslop-home-cache-v1';
+
+  function readCachedData(): { events: Event[]; todos: Todo[] } | null {
+    if (typeof localStorage === 'undefined') return null;
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { events?: Event[]; todos?: Todo[] };
+      if (!Array.isArray(parsed.events) || !Array.isArray(parsed.todos)) return null;
+      return { events: parsed.events, todos: parsed.todos };
+    } catch {
+      return null;
+    }
+  }
+
+  function writeCachedData(nextEvents: Event[], nextTodos: Todo[]) {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ events: nextEvents, todos: nextTodos }));
+    } catch {
+      // ignore quota/storage errors
+    }
+  }
 
   $effect(() => {
     if (data?.events) events = data.events;
     if (data?.todos) todos = data.todos;
+  });
+
+  $effect(() => {
+    if (!cacheReady) return;
+    writeCachedData(events, todos);
   });
 
   /** Fetch events for a wide range (6 months) and all todos. Only called on initial load and manual Sync. */
@@ -51,6 +81,12 @@
   }
 
   onMount(() => {
+    const cached = readCachedData();
+    if (cached) {
+      events = cached.events;
+      todos = cached.todos;
+    }
+    cacheReady = true;
     refresh();
     function onToggleDayTodo(ev: CustomEvent<{ todoId: string }>) {
       const todo = todos.find((t) => t.id === ev.detail.todoId);
