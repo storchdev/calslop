@@ -137,6 +137,32 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   line-height: 1.15;
 }
 
+.day-cell .dense-item-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.day-cell .dense-item {
+  display: grid;
+  grid-template-columns: 3.2rem minmax(0, 1fr);
+  align-items: start;
+  column-gap: 0.35rem;
+}
+
+.day-cell .dense-item-time {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.day-cell .dense-item-todo .dense-item-time {
+  opacity: 0.9;
+}
+
 .day-cell:focus-visible {
   background: var(--bg-elevated);
 }

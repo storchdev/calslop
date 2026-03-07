@@ -105,6 +105,12 @@
     return parseUtcIfNeeded(todo.due).getTime() < Date.now();
   }
 
+  function truncateDenseText(text: string, maxChars = 96): string {
+    const normalized = text.trim();
+    if (normalized.length <= maxChars) return normalized;
+    return `${normalized.slice(0, maxChars - 1).trimEnd()}…`;
+  }
+
   const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   // Measure day cell height so we can show more/fewer events based on available space (dense + balanced)
@@ -451,17 +457,21 @@
                   <div class="flex-1 min-w-0 overflow-hidden flex flex-col gap-0.5">
                     {#each combined as item}
                       {#if item.kind === 'event'}
-                        <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap leading-none" class:line-through={item.event.cancelled} title={item.event.title}>
-                          {item.event.all_day ? '' : formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)} {item.event.title}
+                        <div class="dense-item text-[0.65rem] leading-tight" class:line-through={item.event.cancelled} title={item.event.title}>
+                          <span class="dense-item-time">{item.event.all_day ? 'All day' : formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}</span>
+                          <span class="dense-item-text">{truncateDenseText(item.event.title)}</span>
                         </div>
                       {:else}
-                        <div class="text-[0.65rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center gap-0.5 leading-none italic text-[var(--text-muted)]" class:line-through={item.todo.completed} class:todo-overdue-text={isTodoOverdue(item.todo)} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
-                          <span class="min-w-0 truncate">{item.todo.due ? formatInTimezone(item.todo.due, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined) : '–'} {item.todo.summary}</span>
-                          {#if item.todo.completed}
-                            <span class="opacity-80 shrink-0" aria-hidden="true">✓</span>
-                          {:else}
-                            <span class="opacity-80 shrink-0" aria-hidden="true">•</span>
-                          {/if}
+                        <div class="dense-item dense-item-todo text-[0.65rem] leading-tight italic text-[var(--text-muted)]" class:line-through={item.todo.completed} class:todo-overdue-text={isTodoOverdue(item.todo)} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
+                          <span class="dense-item-time">{item.todo.due ? formatInTimezone(item.todo.due, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined) : '–'}</span>
+                          <span class="dense-item-text">
+                            {#if item.todo.completed}
+                              ✓
+                            {:else}
+                              •
+                            {/if}
+                            {truncateDenseText(item.todo.summary)}
+                          </span>
                         </div>
                       {/if}
                     {/each}
