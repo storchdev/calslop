@@ -8,6 +8,8 @@
     events: Event[];
     todos?: Todo[];
     loadingTodoId?: string | null;
+    focusEventRequest?: { id: string; start: string; title: string } | null;
+    onFocusEventRequestHandled?: () => void;
     selectedDate: Date;
     searchQuery?: string;
     onSelectDay?: (d: Date) => void;
@@ -15,7 +17,18 @@
     onSelectTodo?: (todo: Todo) => void;
   }
 
-  let { events, todos = [], loadingTodoId = null, selectedDate, searchQuery = '', onSelectDay, onSelectEvent, onSelectTodo }: Props = $props();
+  let {
+    events,
+    todos = [],
+    loadingTodoId = null,
+    focusEventRequest = null,
+    onFocusEventRequestHandled,
+    selectedDate,
+    searchQuery = '',
+    onSelectDay,
+    onSelectEvent,
+    onSelectTodo,
+  }: Props = $props();
 
   function matchesSearchEvent(ev: Event, q: string): boolean {
     if (!q) return false;
@@ -206,6 +219,69 @@
   );
   const dayItems = $derived([...allDayItems, ...timedItemsSorted]);
 
+  function findDayEventElement(req: { id: string; start: string; title: string }): HTMLElement | null {
+    const dayItemsEls = Array.from(document.querySelectorAll('[data-day-item-index]')) as HTMLElement[];
+    const byId = dayItemsEls.find((el) => el.getAttribute('data-day-item-event-id') === req.id);
+    if (byId) return byId;
+
+    const targetStartMs = new Date(req.start).getTime();
+    const targetTitle = req.title.trim().toLowerCase();
+    const candidates = dayItemsEls
+      .map((el) => {
+        const title = (el.getAttribute('data-day-item-event-title') || '').trim().toLowerCase();
+        const startRaw = el.getAttribute('data-day-item-event-start') || '';
+        const startMs = startRaw ? new Date(startRaw).getTime() : Number.NaN;
+        return { el, title, startMs, startRaw };
+      })
+      .filter((x) => x.title && x.title === targetTitle && Number.isFinite(x.startMs));
+
+    if (candidates.length === 0) return null;
+    candidates.sort((a, b) => Math.abs(a.startMs - targetStartMs) - Math.abs(b.startMs - targetStartMs));
+    return candidates[0].el;
+  }
+
+  // Created-event focus request from parent (used after creating from day view)
+  $effect(() => {
+    if (app.calendarView !== 'day') return;
+    const req = focusEventRequest;
+    if (!req) return;
+
+    let cancelled = false;
+    let attempts = 0;
+
+    const tryFocus = () => {
+      if (cancelled) return;
+      attempts += 1;
+      const el = findDayEventElement(req);
+      if (el) {
+        const indexAttr = el.getAttribute('data-day-item-index');
+        const idx = indexAttr ? Number.parseInt(indexAttr, 10) : -1;
+        if (idx >= 0) app.setFocusedEventIndex(idx);
+
+        const bringIntoView = () => {
+          el.focus({ preventScroll: true });
+          el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        };
+        bringIntoView();
+        setTimeout(bringIntoView, 120);
+
+        onFocusEventRequestHandled?.();
+        return;
+      }
+
+      if (attempts < 12) {
+        setTimeout(tryFocus, 60);
+      } else {
+        onFocusEventRequestHandled?.();
+      }
+    };
+
+    tick().then(tryFocus);
+    return () => {
+      cancelled = true;
+    };
+  });
+
   // Day view: keep focused item index in range; set to 0 when there are items and index was invalid
   $effect(() => {
     if (app.calendarView !== 'day') return;
@@ -314,11 +390,11 @@
                   app.setFocusedDayIndex(i + 7);
                   const row = Math.floor(i / 7);
                   const next = (row + 1) * 7 + (i % 7);
-                  document.querySelector(`[data-day-index="${next}"]`)?.focus();
+                  (document.querySelector(`[data-day-index="${next}"]`) as HTMLElement | null)?.focus();
                 }
                 if (e.key === 'ArrowUp' && i >= 7) {
                   app.setFocusedDayIndex(i - 7);
-                  document.querySelector(`[data-day-index="${i - 7}"]`)?.focus();
+                  (document.querySelector(`[data-day-index="${i - 7}"]`) as HTMLElement | null)?.focus();
                 }
               }}
             >
@@ -420,6 +496,9 @@
                   class:line-through={item.event.cancelled}
                   tabindex={app.focusedEventIndex === i ? 0 : -1}
                   data-day-item-index={i}
+                  data-day-item-event-id={item.event.id}
+                  data-day-item-event-title={item.event.title}
+                  data-day-item-event-start={item.event.start}
                   onfocus={() => app.setFocusedEventIndex(i)}
                   onclick={() => onSelectEvent?.(item.event)}
                 >
@@ -487,6 +566,9 @@
                 class:line-through={item.event.cancelled}
                 tabindex={app.focusedEventIndex === i ? 0 : -1}
                 data-day-item-index={i}
+                data-day-item-event-id={item.event.id}
+                data-day-item-event-title={item.event.title}
+                data-day-item-event-start={item.event.start}
                 style="top: {topPx}px; height: {heightPx}px;"
                 onfocus={() => app.setFocusedEventIndex(i)}
                 onclick={() => onSelectEvent?.(item.event)}

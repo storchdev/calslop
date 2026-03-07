@@ -68,6 +68,42 @@
   });
 
   let togglingTodoId = $state<string | null>(null);
+  let pendingCreatedEventFocus = $state<{ id: string; start: string; title: string } | null>(null);
+
+  function isSameLocalDay(a: Date, b: Date): boolean {
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  }
+
+  async function handleEventSave(saved?: { id: string; start: string; title: string }) {
+    const shouldFocusCreated =
+      app.viewMode === 'calendar' &&
+      app.calendarView === 'day' &&
+      !!saved;
+
+    if (shouldFocusCreated && saved) {
+      const d = new Date(saved.start);
+      const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      if (!isSameLocalDay(target, app.selectedDate)) {
+        app.setSelectedDate(target);
+      }
+    }
+
+    await refresh();
+
+    if (shouldFocusCreated && saved) {
+      pendingCreatedEventFocus = saved;
+    }
+  }
+
+  function closeEventModal() {
+    app.setModalOpen(null);
+    app.setEditingId(null);
+    selectedEvent = null;
+  }
 
   async function handleToggleTodo(todo: Todo) {
     if (togglingTodoId === todo.id) return;
@@ -189,21 +225,25 @@
       <div class="content-scroll flex flex-col flex-1 min-h-0 overflow-auto">
         <div class="calendar-height-wrapper min-h-0" style="--calendar-height-ratio: {app.calendarHeightRatio}">
           <Calendar
-      events={events}
-      todos={todos}
-      loadingTodoId={togglingTodoId}
-      searchQuery={app.searchQuery}
-      selectedDate={app.selectedDate}
-      onSelectEvent={(ev) => {
-        selectedEvent = ev;
-        app.setEditingId(ev.id);
-        app.setModalOpen('event');
-      }}
-      onSelectTodo={(todo) => {
-        selectedTodo = todo;
-        app.setEditingId(todo.id);
-        app.setModalOpen('todo');
-      }}
+            events={events}
+            todos={todos}
+            loadingTodoId={togglingTodoId}
+            focusEventRequest={pendingCreatedEventFocus}
+            onFocusEventRequestHandled={() => {
+              pendingCreatedEventFocus = null;
+            }}
+            searchQuery={app.searchQuery}
+            selectedDate={app.selectedDate}
+            onSelectEvent={(ev) => {
+              selectedEvent = ev;
+              app.setEditingId(ev.id);
+              app.setModalOpen('event');
+            }}
+            onSelectTodo={(todo) => {
+              selectedTodo = todo;
+              app.setEditingId(todo.id);
+              app.setModalOpen('todo');
+            }}
           />
         </div>
       </div>
@@ -291,8 +331,8 @@
 {#if app.modalOpen === 'event'}
   <EventModal
     initialEvent={selectedEvent}
-    onclose={() => { app.setModalOpen(null); app.setEditingId(null); selectedEvent = null; }}
-    onsave={refresh}
+    onclose={closeEventModal}
+    onsave={handleEventSave}
   />
 {:else if app.modalOpen === 'todo'}
   <TodoModal

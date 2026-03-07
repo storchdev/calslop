@@ -168,10 +168,21 @@
       }
     }
 
+    function focusFirstDayItemSoon() {
+      setTimeout(() => {
+        const firstDayItem = document.querySelector('[data-day-item-index="0"]') as HTMLElement | null;
+        if (!firstDayItem) return;
+        app.setFocusedEventIndex(0);
+        firstDayItem.focus();
+        firstDayItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }, 0);
+    }
+
     if (app.viewMode === 'calendar' && app.calendarView === 'month' && key === 'enter') {
       const dateToUse = app.focusedDayDate ?? app.selectedDate;
       app.setSelectedDate(dateToUse);
       app.setCalendarView('day');
+      focusFirstDayItemSoon();
       e.preventDefault();
       return;
     }
@@ -213,13 +224,7 @@
           && !shift
           && (key === 'h' || key === 'l' || key === 'arrowleft' || key === 'arrowright')
         ) {
-          setTimeout(() => {
-            const firstDayItem = document.querySelector('[data-day-item-index="0"]') as HTMLElement | null;
-            if (!firstDayItem) return;
-            app.setFocusedEventIndex(0);
-            firstDayItem.focus();
-            firstDayItem.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-          }, 0);
+          focusFirstDayItemSoon();
         }
         e.preventDefault();
         return;
@@ -252,7 +257,7 @@
           app.setFocusedDayIndex(nextIdx);
           app.setFocusedDayDate(d);
           app.setSelectedDate(d);
-          document.querySelector(`[data-day-index="${nextIdx}"]`)?.focus();
+          (document.querySelector(`[data-day-index="${nextIdx}"]`) as HTMLElement | null)?.focus();
         }
       } else {
         const nextIndices = indices.filter((i) => i > curr);
@@ -262,7 +267,7 @@
           app.setFocusedDayIndex(nextIdx);
           app.setFocusedDayDate(d);
           app.setSelectedDate(d);
-          document.querySelector(`[data-day-index="${nextIdx}"]`)?.focus();
+          (document.querySelector(`[data-day-index="${nextIdx}"]`) as HTMLElement | null)?.focus();
         }
       }
       e.preventDefault();

@@ -5,11 +5,11 @@
   import { app } from '$lib/stores/app.svelte';
   import { toLocalDatetimeInput } from '$lib/date';
 
-  interface Props {
-    initialEvent?: Event | null;
-    onclose: () => void;
-    onsave: () => void;
-  }
+interface Props {
+  initialEvent?: Event | null;
+  onclose: () => void;
+  onsave: (saved?: { id: string; start: string; title: string }) => void | Promise<void>;
+}
 
   let { initialEvent = null, onclose, onsave }: Props = $props();
 
@@ -95,6 +95,7 @@
     const endIso = new Date(end).toISOString();
     saving = true;
     try {
+      let saved: { id: string; start: string; title: string } | undefined;
       if (editingId) {
         await updateEvent(editingId, {
           title: title.trim(),
@@ -110,7 +111,7 @@
           error = 'Select a calendar source';
           return;
         }
-        await createEvent({
+        const created = await createEvent({
           source_id: sourceId,
           title: title.trim(),
           start: startIso,
@@ -120,8 +121,9 @@
           location: location.trim() || null,
           recurrence: recurrence || null,
         });
+        saved = { id: created.id, start: created.start, title: created.title };
       }
-      onsave();
+      await onsave(saved);
       onclose();
     } catch (e) {
       error = e instanceof Error ? e.message : 'Failed to save';
