@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { getSources, createSource, deleteSource } from '$lib/api';
   import type { Source } from '$lib/types';
 
@@ -20,7 +21,9 @@
       .finally(() => (loading = false));
   }
 
-  $effect(() => load());
+  onMount(() => {
+    load();
+  });
 
   async function addSource() {
     error = '';
