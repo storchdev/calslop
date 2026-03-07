@@ -24,6 +24,7 @@ interface Props {
   let sources = $state<{ id: string; name: string; type: string }[]>([]);
   let error = $state('');
   let saving = $state(false);
+  let deleting = $state(false);
   let activeDateField = $state<'start' | 'end' | null>(null);
   let activeRepeatField = $state(false);
   let startHuman = $state('');
@@ -31,6 +32,7 @@ interface Props {
   let repeatHuman = $state('');
   let endDateAdjustedHint = $state('');
   let customRepeatOption = $state<{ value: string; label: string } | null>(null);
+  let fetchedEventId = $state<string | null>(null);
 
   const editingId = $derived(app.editingId);
 
@@ -44,9 +46,12 @@ interface Props {
 
   $effect(() => {
     const tz = app.timezone || undefined;
+    if (saving || deleting) return;
+
     if (editingId) {
       const prefill = initialEvent?.id === editingId ? initialEvent : null;
       if (prefill) {
+        fetchedEventId = editingId;
         title = prefill.title;
         start = toLocalDatetimeInput(prefill.start, tz);
         end = toLocalDatetimeInput(prefill.end, tz);
@@ -55,7 +60,11 @@ interface Props {
         location = prefill.location ?? '';
         recurrence = prefill.recurrence ?? '';
       } else {
-        getEvent(editingId).then((e) => {
+        if (fetchedEventId === editingId) return;
+        fetchedEventId = editingId;
+        const currentId = editingId;
+        getEvent(currentId).then((e) => {
+          if (editingId !== currentId) return;
           title = e.title;
           start = toLocalDatetimeInput(e.start, tz);
           end = toLocalDatetimeInput(e.end, tz);
@@ -63,9 +72,13 @@ interface Props {
           description = e.description ?? '';
           location = e.location ?? '';
           recurrence = e.recurrence ?? '';
+        }).catch((err) => {
+          if (editingId !== currentId || deleting) return;
+          error = err instanceof Error ? err.message : 'Failed to load event';
         });
       }
     } else {
+      fetchedEventId = null;
       const d = app.selectedDate;
       title = '';
       start = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T09:00`;
@@ -86,41 +99,37 @@ interface Props {
   });
 
   async function submit() {
+    if (saving || deleting) return;
     error = '';
     if (!title.trim()) {
       error = 'Title is required';
       return;
     }
+    if (!editingId && !sourceId) {
+      error = 'Select a calendar source';
+      return;
+    }
+
+    const currentEditingId = editingId;
     const startIso = new Date(start).toISOString();
     const endIso = new Date(end).toISOString();
+    const payload = {
+      title: title.trim(),
+      start: startIso,
+      end: endIso,
+      all_day: allDay,
+      description: description || null,
+      location: location.trim() || null,
+      recurrence: recurrence || null,
+    };
+
     saving = true;
     try {
       let saved: { id: string; start: string; title: string } | undefined;
-      if (editingId) {
-        await updateEvent(editingId, {
-          title: title.trim(),
-          start: startIso,
-          end: endIso,
-          all_day: allDay,
-          description: description || null,
-          location: location.trim() || null,
-          recurrence: recurrence || null,
-        });
+      if (currentEditingId) {
+        await updateEvent(currentEditingId, payload);
       } else {
-        if (!sourceId) {
-          error = 'Select a calendar source';
-          return;
-        }
-        const created = await createEvent({
-          source_id: sourceId,
-          title: title.trim(),
-          start: startIso,
-          end: endIso,
-          all_day: allDay,
-          description: description || null,
-          location: location.trim() || null,
-          recurrence: recurrence || null,
-        });
+        const created = await createEvent({ source_id: sourceId, ...payload });
         saved = { id: created.id, start: created.start, title: created.title };
       }
       await onsave(saved);
@@ -129,6 +138,21 @@ interface Props {
       error = e instanceof Error ? e.message : 'Failed to save';
     } finally {
       saving = false;
+    }
+  }
+
+  async function performDelete() {
+    if (!editingId || deleting || saving) return;
+    deleting = true;
+    error = '';
+    try {
+      await deleteEvent(editingId);
+      await onsave();
+      onclose();
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to delete';
+    } finally {
+      deleting = false;
     }
   }
 
@@ -317,12 +341,7 @@ interface Props {
     if (editingId && e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
       e.preventDefault();
       if (confirm('Delete this event?')) {
-        deleteEvent(editingId).then(() => {
-          onsave();
-          onclose();
-        }).catch((err) => {
-          error = err instanceof Error ? err.message : 'Failed to delete';
-        });
+        void performDelete();
       }
       return;
     }
@@ -379,6 +398,18 @@ interface Props {
     <h2>{editingId ? 'Edit event' : 'New event'}</h2>
     {#if error}
       <p class="text-red-600 text-sm">{error}</p>
+    {/if}
+    {#if deleting}
+      <p class="modal-loading flex items-center gap-2 text-[var(--text-muted)]" aria-busy="true" aria-live="polite">
+        <span class="todo-loading-spinner" aria-hidden="true"></span>
+        Deleting…
+      </p>
+    {/if}
+    {#if saving}
+      <p class="modal-loading flex items-center gap-2 text-[var(--text-muted)]" aria-busy="true" aria-live="polite">
+        <span class="todo-loading-spinner" aria-hidden="true"></span>
+        {editingId ? 'Saving…' : 'Creating…'}
+      </p>
     {/if}
     {#if !editingId}
       <div class="form-row">
@@ -526,7 +557,7 @@ interface Props {
     </div>
     <div class="form-actions">
       <div class="form-action-with-hint">
-        <button class="btn btn-primary" onclick={submit} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+        <button class="btn btn-primary" onclick={submit} disabled={saving || deleting}>Save</button>
         <span class="action-hint">Ctrl+Enter</span>
       </div>
       {#if editingId}
@@ -534,16 +565,10 @@ interface Props {
           <button
             class="btn btn-ghost"
             type="button"
-            disabled={saving}
+            disabled={saving || deleting}
             onclick={async () => {
               if (!confirm('Delete this event?')) return;
-              try {
-                await deleteEvent(editingId);
-                onsave();
-                onclose();
-              } catch (e) {
-                error = e instanceof Error ? e.message : 'Failed to delete';
-              }
+              void performDelete();
             }}
           >Delete</button>
           <span class="action-hint">Ctrl+Shift+D</span>

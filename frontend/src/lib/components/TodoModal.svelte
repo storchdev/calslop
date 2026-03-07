@@ -9,7 +9,7 @@
     todoId: string | null;
     initialTodo?: Todo | null;
     onclose: () => void;
-    onsave: () => void;
+    onsave: () => void | Promise<void>;
   }
 
   let { todoId, initialTodo = null, onclose, onsave }: Props = $props();
@@ -29,6 +29,7 @@
   let dueHuman = $state('');
   let repeatHuman = $state('');
   let customRepeatOption = $state<{ value: string; label: string } | null>(null);
+  let fetchedTodoId = $state<string | null>(null);
 
   const repeatOptions = [
     { value: '', label: 'None' },
@@ -42,8 +43,11 @@
 
   $effect(() => {
     const tz = app.timezone || undefined;
+    if (saving || deleting) return;
+
     if (todoId) {
       if (initialTodo && initialTodo.id === todoId) {
+        fetchedTodoId = todoId;
         summary = initialTodo.summary;
         completed = initialTodo.completed;
         due = initialTodo.due ? toLocalDatetimeInput(initialTodo.due, tz) : '';
@@ -51,14 +55,22 @@
         recurrence = initialTodo.recurrence ?? '';
         return;
       }
-      getTodo(todoId).then((t) => {
+      if (fetchedTodoId === todoId) return;
+      fetchedTodoId = todoId;
+      const currentId = todoId;
+      getTodo(currentId).then((t) => {
+        if (todoId !== currentId) return;
         summary = t.summary;
         completed = t.completed;
         due = t.due ? toLocalDatetimeInput(t.due, tz) : '';
         description = t.description ?? '';
         recurrence = t.recurrence ?? '';
+      }).catch((e) => {
+        if (todoId !== currentId || deleting) return;
+        error = e instanceof Error ? e.message : 'Failed to load todo';
       });
     } else {
+      fetchedTodoId = null;
       recurrence = '';
     }
   });
@@ -71,28 +83,54 @@
   });
 
   async function submit() {
+    if (saving || deleting) return;
     error = '';
     if (!summary.trim()) {
       error = 'Summary is required';
       return;
     }
+    if (!todoId && !sourceId) {
+      error = 'Select a todo source';
+      return;
+    }
+
+    const currentTodoId = todoId;
+    const payload = {
+      summary: summary.trim(),
+      completed,
+      due: due ? new Date(due).toISOString() : null,
+      description: description || null,
+      recurrence: recurrence || null,
+    };
+
     saving = true;
     try {
-      if (todoId) {
-        await updateTodo(todoId, { summary: summary.trim(), completed, due: due ? new Date(due).toISOString() : null, description: description || null, recurrence: recurrence || null });
+      if (currentTodoId) {
+        await updateTodo(currentTodoId, payload);
       } else {
-        if (!sourceId) {
-          error = 'Select a todo source';
-          return;
-        }
-        await createTodo({ source_id: sourceId, summary: summary.trim(), completed, due: due ? new Date(due).toISOString() : null, description: description || null, recurrence: recurrence || null });
+        await createTodo({ source_id: sourceId, ...payload });
       }
-      onsave();
+      await onsave();
       onclose();
     } catch (e) {
       error = e instanceof Error ? e.message : 'Failed to save';
     } finally {
       saving = false;
+    }
+  }
+
+  async function performDelete() {
+    if (!todoId || deleting || saving) return;
+    deleting = true;
+    error = '';
+    try {
+      await deleteTodo(todoId);
+      await onsave();
+      onclose();
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to delete';
+    } finally {
+      deleting = false;
     }
   }
 
@@ -225,13 +263,7 @@
     if (todoId && e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
       e.preventDefault();
       if (confirm('Delete this todo?')) {
-        deleting = true;
-        deleteTodo(todoId).then(() => {
-          onsave();
-          onclose();
-        }).catch((err) => {
-          error = err instanceof Error ? err.message : 'Failed to delete';
-        }).finally(() => { deleting = false; });
+        void performDelete();
       }
       return;
     }
@@ -284,6 +316,12 @@
       <p class="modal-loading flex items-center gap-2 text-[var(--text-muted)]" aria-busy="true" aria-live="polite">
         <span class="todo-loading-spinner" aria-hidden="true"></span>
         Deleting…
+      </p>
+    {/if}
+    {#if saving}
+      <p class="modal-loading flex items-center gap-2 text-[var(--text-muted)]" aria-busy="true" aria-live="polite">
+        <span class="todo-loading-spinner" aria-hidden="true"></span>
+        {todoId ? 'Saving…' : 'Creating…'}
       </p>
     {/if}
     {#if error}
@@ -396,7 +434,7 @@
     </div>
     <div class="form-actions">
       <div class="form-action-with-hint">
-        <button class="btn btn-primary" onclick={submit} disabled={saving || deleting}>{saving ? 'Saving…' : 'Save'}</button>
+        <button class="btn btn-primary" onclick={submit} disabled={saving || deleting}>Save</button>
         <span class="action-hint">Ctrl+Enter</span>
       </div>
       {#if todoId}
@@ -407,14 +445,7 @@
             disabled={saving || deleting}
             onclick={() => {
               if (!confirm('Delete this todo?')) return;
-              if (!todoId) return;
-              deleting = true;
-              deleteTodo(todoId).then(() => {
-                onsave();
-                onclose();
-              }).catch((e) => {
-                error = e instanceof Error ? e.message : 'Failed to delete';
-              }).finally(() => { deleting = false; });
+              void performDelete();
             }}
           >Delete</button>
           <span class="action-hint">Ctrl+Shift+D</span>

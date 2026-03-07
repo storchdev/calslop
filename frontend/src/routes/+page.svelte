@@ -139,6 +139,11 @@
     app.setEditingId(todo.id);
     app.setModalOpen('todo');
   }
+
+  async function handleTodoSave() {
+    await refresh();
+    selectedTodo = null;
+  }
 </script>
 
 <div class="main-content flex flex-1 flex-col min-h-0">
@@ -339,7 +344,7 @@
     todoId={app.editingId}
     initialTodo={selectedTodo}
     onclose={() => { app.setModalOpen(null); app.setEditingId(null); selectedTodo = null; }}
-    onsave={() => { refresh().then(() => { selectedTodo = null; }); }}
+    onsave={handleTodoSave}
   />
 {:else if app.modalOpen === 'shortcuts'}
   <ShortcutsModal onclose={() => app.setModalOpen(null)} />
