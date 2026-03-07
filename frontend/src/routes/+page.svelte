@@ -36,10 +36,6 @@
   };
   let armedAlerts = $state<ArmedAlert[]>([]);
 
-  function notifDebug(...args: unknown[]) {
-    console.debug('[calslop:notifications]', ...args);
-  }
-
   function rebuildArmedAlerts() {
     const now = Date.now();
     const next: ArmedAlert[] = [];
@@ -204,14 +200,9 @@
 
   async function toggleDesktopNotifications() {
     notificationError = '';
-    notifDebug('toggle requested', {
-      currentlyEnabled: app.desktopNotificationsEnabled,
-      permission: typeof Notification !== 'undefined' ? Notification.permission : 'missing',
-    });
     if (app.desktopNotificationsEnabled) {
       app.setDesktopNotificationsEnabled(false);
       lastNotificationCheckMs = Date.now();
-      notifDebug('disabled');
       return;
     }
     if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -220,7 +211,6 @@
     }
     if (Notification.permission === 'default') {
       const permission = await Notification.requestPermission();
-      notifDebug('permission prompt result', permission);
       if (permission !== 'granted') {
         notificationError = 'Notification permission was not granted.';
         return;
@@ -232,12 +222,9 @@
     }
     app.setDesktopNotificationsEnabled(true);
     lastNotificationCheckMs = Date.now();
-    notifDebug('enabled', { permission: Notification.permission, lastNotificationCheckMs });
     try {
       new Notification('Notifications enabled', { body: 'Calslop reminders are active.' });
-      notifDebug('sent test notification');
-    } catch (e) {
-      notifDebug('failed test notification', e);
+    } catch {
     }
     checkDueNotifications();
   }
