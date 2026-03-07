@@ -1,24 +1,30 @@
 import type { Event, Todo, Source, EventCreate, EventUpdate, TodoCreate, TodoUpdate } from '$lib/types';
+import { app } from '$lib/stores/app.svelte';
 
 const API = '/api';
 
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(API + path, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error((err as { detail?: string }).detail || res.statusText);
+  app.startApiRequest();
+  try {
+    const res = await fetch(API + path, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error((err as { detail?: string }).detail || res.statusText);
+    }
+    // 204 No Content has no body
+    if (res.status === 204) {
+      return undefined as T;
+    }
+    return res.json();
+  } finally {
+    app.endApiRequest();
   }
-  // 204 No Content has no body
-  if (res.status === 204) {
-    return undefined as T;
-  }
-  return res.json();
 }
 
 export async function getEvents(start?: string, end?: string): Promise<Event[]> {

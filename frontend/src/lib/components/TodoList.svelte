@@ -32,7 +32,9 @@
     return parseUtcIfNeeded(todo.due).getTime() < Date.now();
   }
 
-  const filtered = $derived(showCompleted ? todos : todos.filter((t) => !t.completed));
+  const filtered = $derived(
+    showCompleted ? todos : todos.filter((t) => !t.completed || t.id === loadingTodoId)
+  );
   const searchFiltered = $derived(
     searchQuery.trim() ? filtered.filter((t) => matchesSearch(t, searchQuery)) : filtered
   );

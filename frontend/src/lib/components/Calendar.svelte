@@ -7,6 +7,7 @@
   interface Props {
     events: Event[];
     todos?: Todo[];
+    loadingTodoId?: string | null;
     selectedDate: Date;
     searchQuery?: string;
     onSelectDay?: (d: Date) => void;
@@ -14,7 +15,7 @@
     onSelectTodo?: (todo: Todo) => void;
   }
 
-  let { events, todos = [], selectedDate, searchQuery = '', onSelectDay, onSelectEvent, onSelectTodo }: Props = $props();
+  let { events, todos = [], loadingTodoId = null, selectedDate, searchQuery = '', onSelectDay, onSelectEvent, onSelectTodo }: Props = $props();
 
   function matchesSearchEvent(ev: Event, q: string): boolean {
     if (!q) return false;
@@ -431,16 +432,24 @@
                   class:focused={app.focusedEventIndex === i}
                   class:completed={item.todo.completed}
                   class:overdue={isTodoOverdue(item.todo)}
+                  disabled={loadingTodoId === item.todo.id}
                   tabindex={app.focusedEventIndex === i ? 0 : -1}
                   data-day-item-index={i}
                   data-day-item-todo-id={item.todo.id}
                   onfocus={() => app.setFocusedEventIndex(i)}
                   onclick={() => onSelectTodo?.(item.todo)}
                 >
-                  <span class="day-todo-checkbox" aria-hidden="true">
-                    {#if item.todo.completed}✓{:else}<span class="checkbox-empty"></span>{/if}
-                  </span>
-                  <span class="day-todo-label">{item.todo.summary}</span>
+                  {#if loadingTodoId === item.todo.id}
+                    <span class="flex items-center gap-2 text-[var(--text-muted)]" aria-busy="true" aria-live="polite">
+                      <span class="todo-loading-spinner" aria-hidden="true"></span>
+                      Updating…
+                    </span>
+                  {:else}
+                    <span class="day-todo-checkbox" aria-hidden="true">
+                      {#if item.todo.completed}✓{:else}<span class="checkbox-empty"></span>{/if}
+                    </span>
+                    <span class="day-todo-label">{item.todo.summary}</span>
+                  {/if}
                 </button>
               {/if}
             {/each}
@@ -497,23 +506,31 @@
                   class:focused={app.focusedEventIndex === i}
                   class:completed={item.todo.completed}
                   class:overdue={isTodoOverdue(item.todo)}
+                  disabled={loadingTodoId === item.todo.id}
                   tabindex={app.focusedEventIndex === i ? 0 : -1}
-                data-day-item-index={i}
-                data-day-item-todo-id={item.todo.id}
-                style="top: {topPx}px; height: {heightPx}px;"
-                onfocus={() => app.setFocusedEventIndex(i)}
-                onclick={() => onSelectTodo?.(item.todo)}
-              >
-                <span class="day-todo-checkbox" aria-hidden="true">
-                  {#if item.todo.completed}✓{:else}<span class="checkbox-empty"></span>{/if}
-                </span>
-                <span class="day-todo-time">
-                  {formatInTimezone(item.todo.due ?? '', { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
-                </span>
-                <span class="day-todo-label">{item.todo.summary}</span>
-              </button>
-            {/if}
-          {/each}
+                  data-day-item-index={i}
+                  data-day-item-todo-id={item.todo.id}
+                  style="top: {topPx}px; height: {heightPx}px;"
+                  onfocus={() => app.setFocusedEventIndex(i)}
+                  onclick={() => onSelectTodo?.(item.todo)}
+                >
+                  {#if loadingTodoId === item.todo.id}
+                    <span class="flex items-center gap-2 text-[var(--text-muted)]" aria-busy="true" aria-live="polite">
+                      <span class="todo-loading-spinner" aria-hidden="true"></span>
+                      Updating…
+                    </span>
+                  {:else}
+                    <span class="day-todo-checkbox" aria-hidden="true">
+                      {#if item.todo.completed}✓{:else}<span class="checkbox-empty"></span>{/if}
+                    </span>
+                    <span class="day-todo-time">
+                      {formatInTimezone(item.todo.due ?? '', { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
+                    </span>
+                    <span class="day-todo-label">{item.todo.summary}</span>
+                  {/if}
+                </button>
+              {/if}
+            {/each}
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { createTodo, updateTodo, getTodo, getSources, deleteTodo, parseHumanDatetime, parseHumanRecurrence } from '$lib/api';
   import type { Todo, TodoCreate, TodoUpdate } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
@@ -63,7 +63,7 @@
     }
   });
 
-  $effect(() => {
+  onMount(() => {
     getSources().then((s) => {
       sources = s.filter((x) => x.type === 'local_folder' || x.type === 'caldav').map((x) => ({ id: x.id, name: x.name, type: x.type }));
       if (sources.length && !todoId) sourceId = sources[0].id;

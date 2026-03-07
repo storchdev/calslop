@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { createEvent, updateEvent, getEvent, deleteEvent, parseHumanDatetime, parseHumanRecurrence } from '$lib/api';
   import type { Event, EventCreate, EventUpdate } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
@@ -78,7 +78,7 @@
   });
 
   import { getSources } from '$lib/api';
-  $effect(() => {
+  onMount(() => {
     getSources().then((s) => {
       sources = s.filter((x) => x.type === 'local_folder' || x.type === 'caldav').map((x) => ({ id: x.id, name: x.name, type: x.type }));
       if (sources.length && !editingId) sourceId = sources[0].id;

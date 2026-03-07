@@ -24,6 +24,8 @@ class AppStore {
   modalOpen = $state<'event' | 'todo' | 'shortcuts' | null>(null);
   editingId = $state<string | null>(null);
   hasUnsyncedChanges = $state(false);
+  pendingApiRequests = $state(0);
+  apiLoading = $state(false);
   /** IANA timezone (e.g. America/New_York) or empty string for browser local */
   timezone = $state<string>('');
   /** Calendar height ratio (1 = 100%, 3 = 300%). Used for manual height control. */
@@ -36,6 +38,7 @@ class AppStore {
   searchQuery = $state<string>('');
   /** Month view search mode: cell indices of days that match the search (set by Calendar). */
   highlightedDayIndices = $state<number[]>([]);
+  private apiHideTimer: ReturnType<typeof setTimeout> | null = null;
 
   setViewMode(mode: ViewMode) {
     this.viewMode = mode;
@@ -109,6 +112,24 @@ class AppStore {
 
   setUnsyncedChanges(unsynced: boolean) {
     this.hasUnsyncedChanges = unsynced;
+  }
+
+  startApiRequest() {
+    if (this.apiHideTimer) {
+      clearTimeout(this.apiHideTimer);
+      this.apiHideTimer = null;
+    }
+    this.pendingApiRequests += 1;
+    this.apiLoading = true;
+  }
+
+  endApiRequest() {
+    this.pendingApiRequests = Math.max(0, this.pendingApiRequests - 1);
+    if (this.pendingApiRequests > 0) return;
+    this.apiHideTimer = setTimeout(() => {
+      this.apiLoading = false;
+      this.apiHideTimer = null;
+    }, 220);
   }
 
   setTimezone(tz: string) {

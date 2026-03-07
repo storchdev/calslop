@@ -117,6 +117,13 @@
   <div class="nav-loading" role="status" aria-live="polite">Loading…</div>
 {/if}
 
+{#if app.apiLoading && !$navigating}
+  <div class="api-loading-indicator" role="status" aria-live="polite">
+    <span class="todo-loading-spinner" aria-hidden="true"></span>
+    Loading…
+  </div>
+{/if}
+
 <main id="main">
   {@render children()}
 </main>

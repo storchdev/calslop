@@ -730,6 +730,22 @@ select, select option {
   font-size: 1rem;
 }
 
+.api-loading-indicator {
+  position: fixed;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 190;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
 /* Settings page */
 .settings-page {
   padding: 1.5rem 1.5rem 2rem;

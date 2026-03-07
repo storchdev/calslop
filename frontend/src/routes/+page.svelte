@@ -70,10 +70,11 @@
   let togglingTodoId = $state<string | null>(null);
 
   async function handleToggleTodo(todo: Todo) {
+    if (togglingTodoId === todo.id) return;
     const nextCompleted = !todo.completed;
+    togglingTodoId = todo.id;
     if (todo.recurrence) {
       // Recurring: replace row with loading until update + refetch complete
-      togglingTodoId = todo.id;
       try {
         await updateTodo(todo.id, { completed: nextCompleted });
         await refresh();
@@ -84,14 +85,16 @@
       }
       return;
     }
-    // Non-recurring: optimistic update
+    // Non-recurring: optimistic update + immediate server save
     const prev = todos;
     todos = todos.map((t) => (t.id === todo.id ? { ...t, completed: nextCompleted } : t));
     try {
       await updateTodo(todo.id, { completed: nextCompleted });
-      app.setUnsyncedChanges(true);
+      app.setUnsyncedChanges(false);
     } catch {
       todos = prev;
+    } finally {
+      togglingTodoId = null;
     }
   }
 
@@ -188,6 +191,7 @@
           <Calendar
       events={events}
       todos={todos}
+      loadingTodoId={togglingTodoId}
       searchQuery={app.searchQuery}
       selectedDate={app.selectedDate}
       onSelectEvent={(ev) => {
@@ -283,12 +287,6 @@
     </div>
   {/if}
 </div>
-
-{#if app.hasUnsyncedChanges}
-  <div class="unsynced-notifier" role="status">
-    Unsaved changes — Sync or refresh to update
-  </div>
-{/if}
 
 {#if app.modalOpen === 'event'}
   <EventModal
