@@ -369,13 +369,15 @@
 <div id="calendar-view" class="p-4 flex-1 min-h-0 flex flex-col" style="--calendar-height-ratio: {app.calendarHeightRatio}; --calendar-row-height: calc(60px * var(--calendar-height-ratio, 1))" role="application" aria-label="Calendar" bind:this={calendarEl}>
   {#if app.calendarView === 'month'}
     <div class="flex flex-1 min-h-0 flex-col">
-      <h2 class="text-xl font-semibold mb-3 text-[var(--text)] shrink-0">
-        {selectedDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-      </h2>
-      <div class="grid grid-cols-7 gap-1 mb-1 text-xs text-[var(--text-muted)] shrink-0">
-        {#each dayLabels as label}
-          <span>{label}</span>
-        {/each}
+      <div class="calendar-month-sticky-header shrink-0">
+        <h2 class="calendar-month-title text-xl font-semibold mb-3 text-[var(--text)]">
+          {selectedDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+        </h2>
+        <div class="calendar-weekday-header grid grid-cols-7 gap-1 mb-1 text-xs text-[var(--text-muted)]">
+          {#each dayLabels as label}
+            <span>{label}</span>
+          {/each}
+        </div>
       </div>
       <div
         bind:this={monthGridEl}
@@ -457,6 +459,8 @@
                           <span class="min-w-0 truncate">{item.todo.due ? formatInTimezone(item.todo.due, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined) : '–'} {item.todo.summary}</span>
                           {#if item.todo.completed}
                             <span class="opacity-80 shrink-0" aria-hidden="true">✓</span>
+                          {:else}
+                            <span class="opacity-80 shrink-0" aria-hidden="true">•</span>
                           {/if}
                         </div>
                       {/if}
@@ -478,22 +482,24 @@
                 {@const balancedVisibleCount = combinedAll.length > balancedMaxSlots ? balancedMaxSlots - 1 : Math.min(combinedAll.length, balancedMaxSlots)}
                 {@const visible = combinedAll.slice(0, balancedVisibleCount)}
                 {@const hasMore = combinedAll.length > balancedVisibleCount}
-                <span class="day-num-centered block font-semibold">{d.getDate()}</span>
+                <span class="day-num-centered balanced-day-num block font-semibold">{d.getDate()}</span>
                 <div class="balanced-view-content">
                   {#each visible as item}
                     {#if item.kind === 'event'}
-                      <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap text-center" class:line-through={item.event.cancelled} title={item.event.title}>{item.event.title}</span>
+                      <span class="balanced-item-text block text-[0.82rem] overflow-hidden text-ellipsis whitespace-nowrap text-center" class:line-through={item.event.cancelled} title={item.event.title}>{item.event.title}</span>
                     {:else}
-                      <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center justify-center gap-0.5 italic text-[var(--text-muted)]" class:line-through={item.todo.completed} class:todo-overdue-text={isTodoOverdue(item.todo)} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
+                      <span class="balanced-item-text block text-[0.82rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center justify-center gap-0.5 italic text-[var(--text-muted)]" class:line-through={item.todo.completed} class:todo-overdue-text={isTodoOverdue(item.todo)} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
                         {#if item.todo.completed}
                           <span class="opacity-80 shrink-0" aria-hidden="true">✓</span>
+                        {:else}
+                          <span class="opacity-80 shrink-0" aria-hidden="true">•</span>
                         {/if}
                         {item.todo.summary}
                       </span>
                     {/if}
                   {/each}
                   {#if hasMore}
-                    <span class="block text-[0.7rem] overflow-hidden text-ellipsis whitespace-nowrap text-center text-[var(--text-muted)]">
+                    <span class="balanced-item-text block text-[0.82rem] overflow-hidden text-ellipsis whitespace-nowrap text-center text-[var(--text-muted)]">
                       +{combinedAll.length - balancedVisibleCount} more
                     </span>
                   {/if}
