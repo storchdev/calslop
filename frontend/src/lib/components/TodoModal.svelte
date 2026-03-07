@@ -146,7 +146,10 @@
 
   $effect(() => {
     if (app.modalOpen === 'todo') {
-      tick().then(() => summaryEl?.focus());
+      tick().then(() => {
+        if (todoId) modalEl?.focus();
+        else summaryEl?.focus();
+      });
     }
   });
 
@@ -163,15 +166,28 @@
     return app.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
   }
 
-  async function applyHumanDue() {
+  function localNowInput(): string {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const h = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${d}T${h}:${min}`;
+  }
+
+  async function applyHumanDue(): Promise<boolean> {
     const text = dueHuman.trim();
-    if (!text) return;
+    if (!text) return false;
     error = '';
     try {
-      const parsed = await parseHumanDatetime(text, parseTimezone());
+      const contextLocal = due || localNowInput();
+      const parsed = await parseHumanDatetime(text, parseTimezone(), contextLocal);
       due = toLocalDatetimeInput(parsed.iso, app.timezone || undefined);
+      return true;
     } catch (e) {
       error = e instanceof Error ? e.message : 'Failed to parse date/time';
+      return false;
     }
   }
 
@@ -237,7 +253,12 @@
     }
     if (e.key === 'Enter' && target === dueHumanEl) {
       e.preventDefault();
-      void applyHumanDue();
+      void applyHumanDue().then((ok) => {
+        if (!ok) return;
+        activeDueField = false;
+        dueHumanEl?.blur();
+        modalEl?.focus();
+      });
       return;
     }
     if (e.key === 'Enter' && target === repeatHumanEl) {

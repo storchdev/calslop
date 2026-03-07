@@ -171,7 +171,10 @@ interface Props {
 
   $effect(() => {
     if (app.modalOpen === 'event') {
-      tick().then(() => titleEl?.focus());
+      tick().then(() => {
+        if (editingId) modalEl?.focus();
+        else titleEl?.focus();
+      });
     }
   });
 
