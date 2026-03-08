@@ -23,6 +23,7 @@
 
   const CACHE_KEY = 'calslop-home-cache-v1';
   const notifiedAlerts = new Set<string>();
+  const ALERT_LATE_GRACE_MS = 15_000;
   let lastNotificationCheckMs = Date.now();
 
   type ArmedAlert = {
@@ -254,7 +255,8 @@
         alert.ongoingUntilMs !== null &&
         now < alert.ongoingUntilMs;
 
-      const isDueNow = alert.alertAtMs <= now && alert.alertAtMs > since;
+      const isFresh = now - alert.alertAtMs <= ALERT_LATE_GRACE_MS;
+      const isDueNow = alert.alertAtMs <= now && alert.alertAtMs > since && isFresh;
       const shouldNotify = isOngoingAtTimeEvent || isDueNow;
 
       if (shouldNotify && !notifiedAlerts.has(alert.key)) {
