@@ -71,6 +71,8 @@ def bulk_push_todos():
     _, candidate_todos, _ = aggregate_events_todos(sources)
     candidate_ids: list[str] = []
     for todo in candidate_todos:
+        if todo.completed:
+            continue
         if todo.due is None:
             continue
         due_epoch = todo.due.timestamp()

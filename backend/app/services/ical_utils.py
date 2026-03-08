@@ -172,6 +172,15 @@ def _parse_vtodo_component(component) -> tuple[str, datetime | None, bool, str, 
     summary = str(component.get("summary", "Untitled"))
     completed = str(component.get("completed", "")).strip() != ""
     due = _get_dt(component, "due")
+    if due is not None and due.tzinfo is None:
+        # Floating VTODO DUE values (common from iOS Reminders) are local wall time.
+        # Normalize them to UTC for API consistency. Keep legacy Calslop-generated
+        # naive values treated as UTC to avoid shifting existing data.
+        if uid.lower().startswith("calslop-"):
+            due = due.replace(tzinfo=timezone.utc)
+        else:
+            local_tz = datetime.now().astimezone().tzinfo or timezone.utc
+            due = due.replace(tzinfo=local_tz).astimezone(timezone.utc)
     desc = component.get("description")
     description = str(desc) if desc is not None else None
     priority = component.get("priority")
