@@ -403,8 +403,16 @@ def event_to_ical(event: Event) -> bytes:
     # DTSTAMP is required by RFC 5545 and many CalDAV servers
     vevent.add("dtstamp", datetime.now(timezone.utc))
     vevent.add("summary", event.title)
-    vevent.add("dtstart", event.start)
-    vevent.add("dtend", event.end)
+    if event.all_day:
+        start_date = event.start.date()
+        end_date = event.end.date() if event.end else start_date
+        # DATE DTEND is exclusive for all-day events.
+        end_exclusive = end_date if end_date > start_date else (start_date + timedelta(days=1))
+        vevent.add("dtstart", start_date)
+        vevent.add("dtend", end_exclusive)
+    else:
+        vevent.add("dtstart", event.start)
+        vevent.add("dtend", event.end)
     if event.description:
         vevent.add("description", event.description)
     if event.location:

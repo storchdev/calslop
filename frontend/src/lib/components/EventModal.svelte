@@ -556,6 +556,8 @@ interface Props {
         type="datetime-local"
         bind:value={start}
         disabled={allDay}
+        class:opacity-60={allDay}
+        class:bg-[var(--bg-subtle)]={allDay}
         bind:this={startEl}
         onfocus={() => { activeDateField = 'start'; }}
         onblur={() => clearActiveDateFieldIfNeeded('start')}
@@ -586,6 +588,8 @@ interface Props {
         type="datetime-local"
         bind:value={end}
         disabled={allDay}
+        class:opacity-60={allDay}
+        class:bg-[var(--bg-subtle)]={allDay}
         bind:this={endEl}
         onfocus={() => { activeDateField = 'end'; }}
         onblur={() => clearActiveDateFieldIfNeeded('end')}
