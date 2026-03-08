@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { getSources, createSource, deleteSource } from '$lib/api';
+  import { app } from '$lib/stores/app.svelte';
   import type { Source } from '$lib/types';
 
   let sources = $state<Source[]>([]);
@@ -148,4 +149,19 @@
       <button class="btn btn-primary add-source-btn" onclick={() => (adding = true)} type="button">Add source</button>
     {/if}
   {/if}
+
+  <h2>Sync</h2>
+  <div class="form-row" style="max-width: 18rem;">
+    <label for="auto-sync-interval">Auto-sync</label>
+    <select
+      id="auto-sync-interval"
+      value={app.autoSyncInterval}
+      onchange={(e) => app.setAutoSyncInterval((e.currentTarget as HTMLSelectElement).value as 'off' | '30s' | '1m' | '5m')}
+    >
+      <option value="off">Off</option>
+      <option value="30s">Every 30 seconds</option>
+      <option value="1m">Every 1 minute</option>
+      <option value="5m">Every 5 minutes</option>
+    </select>
+  </div>
 </div>

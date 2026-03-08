@@ -86,8 +86,8 @@
     const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     const dayEnd = dayStart + 24 * 60 * 60 * 1000;
     return events.filter((e) => {
-      const start = new Date(e.start).getTime();
-      const end = new Date(e.end).getTime();
+      const start = parseUtcIfNeeded(e.start).getTime();
+      const end = parseUtcIfNeeded(e.end).getTime();
       return start < dayEnd && end > dayStart;
     });
   }
@@ -531,8 +531,8 @@
                 {@const evs = eventsForDay(d)}
                 {@const tds = showTodos ? todosForDay(d) : []}
                 {@const combinedAll = [...evs.map((e) => ({ kind: 'event' as const, event: e })), ...tds.map((todo) => ({ kind: 'todo' as const, todo }))].sort((a, b) => {
-                  const at = a.kind === 'event' ? new Date(a.event.start).getTime() : new Date(a.todo.due ?? 0).getTime();
-                  const bt = b.kind === 'event' ? new Date(b.event.start).getTime() : new Date(b.todo.due ?? 0).getTime();
+                  const at = a.kind === 'event' ? parseUtcIfNeeded(a.event.start).getTime() : parseUtcIfNeeded(a.todo.due ?? '').getTime();
+                  const bt = b.kind === 'event' ? parseUtcIfNeeded(b.event.start).getTime() : parseUtcIfNeeded(b.todo.due ?? '').getTime();
                   return at - bt;
                 })}
                 {@const denseHasMore = combinedAll.length > denseMaxSlots}
@@ -571,8 +571,8 @@
                 {@const evs = eventsForDay(d)}
                 {@const tds = showTodos ? todosForDay(d) : []}
                 {@const combinedAll = [...evs.map((e) => ({ kind: 'event' as const, event: e })), ...tds.map((t) => ({ kind: 'todo' as const, todo: t }))].sort((a, b) => {
-                  const at = a.kind === 'event' ? new Date(a.event.start).getTime() : new Date(a.todo.due ?? 0).getTime();
-                  const bt = b.kind === 'event' ? new Date(b.event.start).getTime() : new Date(b.todo.due ?? 0).getTime();
+                  const at = a.kind === 'event' ? parseUtcIfNeeded(a.event.start).getTime() : parseUtcIfNeeded(a.todo.due ?? '').getTime();
+                  const bt = b.kind === 'event' ? parseUtcIfNeeded(b.event.start).getTime() : parseUtcIfNeeded(b.todo.due ?? '').getTime();
                   return at - bt;
                 })}
                 {@const balancedVisibleCount = combinedAll.length > balancedMaxSlots ? balancedMaxSlots - 1 : Math.min(combinedAll.length, balancedMaxSlots)}

@@ -172,6 +172,15 @@
     }
   }
 
+  function autoSyncMs(interval: string): number {
+    switch (interval) {
+      case '30s': return 30_000;
+      case '1m': return 60_000;
+      case '5m': return 300_000;
+      default: return 0;
+    }
+  }
+
   onMount(() => {
     const cached = readCachedData();
     if (cached) {
@@ -288,6 +297,17 @@
     checkDueNotifications();
     const interval = window.setInterval(checkDueNotifications, 1_000);
     return () => window.clearInterval(interval);
+  });
+
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+    const ms = autoSyncMs(app.autoSyncInterval);
+    if (ms <= 0) return;
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      void sync();
+    }, ms);
+    return () => window.clearInterval(id);
   });
 
   let togglingTodoId = $state<string | null>(null);

@@ -5,6 +5,7 @@ export type ViewMode = 'calendar' | 'todo';
 export type CalendarView = 'day' | 'month' | 'upcoming';
 export type CalendarDensity = 'minimal' | 'balanced' | 'dense';
 export type TodoOrder = 'oldest' | 'newest';
+export type AutoSyncInterval = 'off' | '30s' | '1m' | '5m';
 
 class AppStore {
   viewMode = $state<ViewMode>('calendar');
@@ -16,6 +17,7 @@ class AppStore {
   showCompletedTodos = $state<boolean>(false);
   /** Todo list order: oldest first (by due) or newest first */
   todoOrder = $state<TodoOrder>('oldest');
+  autoSyncInterval = $state<AutoSyncInterval>('off');
   selectedDate = $state<Date>(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   focusedEventIndex = $state<number>(-1);
   focusedTodoIndex = $state<number>(-1);
@@ -93,6 +95,13 @@ class AppStore {
 
   setTodoOrder(order: TodoOrder) {
     this.todoOrder = order;
+  }
+
+  setAutoSyncInterval(interval: AutoSyncInterval) {
+    this.autoSyncInterval = interval;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('calslop-auto-sync-interval', interval);
+    }
   }
 
   setSelectedDate(d: Date) {
