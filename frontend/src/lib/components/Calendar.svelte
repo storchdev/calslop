@@ -83,12 +83,26 @@
   }
 
   function eventsForDay(d: Date): Event[] {
+    const dayKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+
+    const getIsoDatePart = (iso: string): string | null => {
+      const m = iso.match(/^(\d{4}-\d{2}-\d{2})/);
+      return m ? m[1] : null;
+    };
+
     return events.filter((e) => {
-      const start = new Date(e.start).getTime();
-      const end = new Date(e.end).getTime();
-      return start < dayEnd && end > dayStart;
+      if (e.all_day) {
+        const startDate = getIsoDatePart(e.start);
+        const endDate = getIsoDatePart(e.end);
+        if (!startDate || !endDate) return false;
+        return dayKey >= startDate && dayKey < endDate;
+      }
+
+      const start = parseUtcIfNeeded(e.start).getTime();
+      const end = parseUtcIfNeeded(e.end).getTime();
+      return Number.isFinite(start) && Number.isFinite(end) && start < dayEnd && end > dayStart;
     });
   }
 
@@ -206,8 +220,8 @@
     dayEventsAll
       .filter((e) => !e.all_day)
       .map((e) => {
-        const startMs = new Date(e.start).getTime();
-        const endMs = new Date(e.end).getTime();
+        const startMs = parseUtcIfNeeded(e.start).getTime();
+        const endMs = parseUtcIfNeeded(e.end).getTime();
         const startMin = Math.max(0, (startMs - dayStartMs) / 60000);
         const endMin = Math.min(24 * 60, (endMs - dayStartMs) / 60000);
         return { type: 'event' as const, event: e, startMin, endMin };
@@ -305,7 +319,11 @@
   > {
     const dayStart = startOfLocalDay(d).getTime();
     const dayEvents = eventsForDay(d)
-      .map((event) => ({ kind: 'event' as const, startMs: parseUtcIfNeeded(event.start).getTime(), event }));
+      .map((event) => ({
+        kind: 'event' as const,
+        startMs: event.all_day ? dayStart : parseUtcIfNeeded(event.start).getTime(),
+        event,
+      }));
     const dayTodos = showTodos
       ? todosForDay(d)
           .map((todo) => ({ kind: 'todo' as const, startMs: todo.due ? parseUtcIfNeeded(todo.due).getTime() : dayStart, todo }))
@@ -340,13 +358,13 @@
     const byId = dayItemsEls.find((el) => el.getAttribute('data-day-item-event-id') === req.id);
     if (byId) return byId;
 
-    const targetStartMs = new Date(req.start).getTime();
+    const targetStartMs = parseUtcIfNeeded(req.start).getTime();
     const targetTitle = req.title.trim().toLowerCase();
     const candidates = dayItemsEls
       .map((el) => {
         const title = (el.getAttribute('data-day-item-event-title') || '').trim().toLowerCase();
         const startRaw = el.getAttribute('data-day-item-event-start') || '';
-        const startMs = startRaw ? new Date(startRaw).getTime() : Number.NaN;
+        const startMs = startRaw ? parseUtcIfNeeded(startRaw).getTime() : Number.NaN;
         return { el, title, startMs, startRaw };
       })
       .filter((x) => x.title && x.title === targetTitle && Number.isFinite(x.startMs));
@@ -525,8 +543,12 @@
                 {@const evs = eventsForDay(d)}
                 {@const tds = showTodos ? todosForDay(d) : []}
                 {@const combinedAll = [...evs.map((e) => ({ kind: 'event' as const, event: e })), ...tds.map((todo) => ({ kind: 'todo' as const, todo }))].sort((a, b) => {
-                  const at = a.kind === 'event' ? new Date(a.event.start).getTime() : new Date(a.todo.due ?? 0).getTime();
-                  const bt = b.kind === 'event' ? new Date(b.event.start).getTime() : new Date(b.todo.due ?? 0).getTime();
+                  const at = a.kind === 'event'
+                    ? (a.event.all_day ? Number.NEGATIVE_INFINITY : parseUtcIfNeeded(a.event.start).getTime())
+                    : (a.todo.due ? parseUtcIfNeeded(a.todo.due).getTime() : Number.POSITIVE_INFINITY);
+                  const bt = b.kind === 'event'
+                    ? (b.event.all_day ? Number.NEGATIVE_INFINITY : parseUtcIfNeeded(b.event.start).getTime())
+                    : (b.todo.due ? parseUtcIfNeeded(b.todo.due).getTime() : Number.POSITIVE_INFINITY);
                   return at - bt;
                 })}
                 {@const denseHasMore = combinedAll.length > denseMaxSlots}
@@ -565,8 +587,12 @@
                 {@const evs = eventsForDay(d)}
                 {@const tds = showTodos ? todosForDay(d) : []}
                 {@const combinedAll = [...evs.map((e) => ({ kind: 'event' as const, event: e })), ...tds.map((t) => ({ kind: 'todo' as const, todo: t }))].sort((a, b) => {
-                  const at = a.kind === 'event' ? new Date(a.event.start).getTime() : new Date(a.todo.due ?? 0).getTime();
-                  const bt = b.kind === 'event' ? new Date(b.event.start).getTime() : new Date(b.todo.due ?? 0).getTime();
+                  const at = a.kind === 'event'
+                    ? (a.event.all_day ? Number.NEGATIVE_INFINITY : parseUtcIfNeeded(a.event.start).getTime())
+                    : (a.todo.due ? parseUtcIfNeeded(a.todo.due).getTime() : Number.POSITIVE_INFINITY);
+                  const bt = b.kind === 'event'
+                    ? (b.event.all_day ? Number.NEGATIVE_INFINITY : parseUtcIfNeeded(b.event.start).getTime())
+                    : (b.todo.due ? parseUtcIfNeeded(b.todo.due).getTime() : Number.POSITIVE_INFINITY);
                   return at - bt;
                 })}
                 {@const balancedVisibleCount = combinedAll.length > balancedMaxSlots ? balancedMaxSlots - 1 : Math.min(combinedAll.length, balancedMaxSlots)}

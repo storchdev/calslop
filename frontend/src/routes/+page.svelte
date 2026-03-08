@@ -332,7 +332,7 @@
       !!saved;
 
     if (shouldFocusCreated && saved) {
-      const d = new Date(saved.start);
+      const d = parseUtcIfNeeded(saved.start);
       const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
       if (!isSameLocalDay(target, app.selectedDate)) {
         app.setSelectedDate(target);
