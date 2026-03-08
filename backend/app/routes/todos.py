@@ -1,6 +1,11 @@
+from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from flask import Blueprint, request, jsonify, abort
 
-from app.models.dtos import Todo, TodoCreate, TodoUpdate
+from pydantic import BaseModel
+
+from app.models.dtos import Source, Todo, TodoCreate, TodoUpdate
 from app.db.sources_store import SourcesStore
 from app.services.aggregator import aggregate_events_todos, get_driver, resolve_todo_source
 from app.services.ical_utils import next_recurrence_occurrence, todo_id_to_master_id
@@ -24,6 +29,126 @@ def todos_handler():
     if request.method == "DELETE":
         return delete_todo()
     abort(405, description="Method not allowed")
+
+
+class BulkPushBody(BaseModel):
+    start: datetime | None = None
+    end: datetime | None = None
+    days: int
+    overdue_only: bool = False
+
+
+@todos_bp.route("/bulk/push", methods=["POST"])
+def bulk_push_todos():
+    data = request.get_json()
+    if not data:
+        abort(400, description="JSON body required")
+    body = BulkPushBody.model_validate(data)
+
+    start_ts = body.start
+    end_ts = body.end
+    if not body.overdue_only:
+        if start_ts is None or end_ts is None:
+            abort(400, description="start and end are required unless overdue_only is true")
+        if end_ts < start_ts:
+            abort(400, description="end must be on or after start")
+
+    store = get_sources_store()
+    sources = store.list_sources()
+    updated = 0
+    failed: list[dict[str, str]] = []
+    now_epoch = datetime.now().timestamp()
+    start_epoch = start_ts.timestamp() if start_ts else None
+    end_epoch = end_ts.timestamp() if end_ts else None
+
+    source_by_id = {s.id: s for s in sources if s.enabled}
+    writable_driver_by_source_id = {}
+    for source_id, source in source_by_id.items():
+        driver = get_driver(source.type)
+        if driver and driver.can_write():
+            writable_driver_by_source_id[source_id] = driver
+
+    _, candidate_todos, _ = aggregate_events_todos(sources)
+    candidate_ids: list[str] = []
+    for todo in candidate_todos:
+        if todo.due is None:
+            continue
+        due_epoch = todo.due.timestamp()
+        if body.overdue_only:
+            if due_epoch >= now_epoch:
+                continue
+        else:
+            if start_epoch is None or end_epoch is None:
+                continue
+            if due_epoch < start_epoch or due_epoch > end_epoch:
+                continue
+        candidate_ids.append(todo.id)
+
+    todo_ids_by_source_id: dict[str, list[str]] = {}
+    for todo_id in candidate_ids:
+        source_id = todo_id.split("::", 1)[0]
+        if source_id not in writable_driver_by_source_id:
+            failed.append({"id": todo_id, "error": "Todo not found or read-only"})
+            continue
+        if source_id not in todo_ids_by_source_id:
+            todo_ids_by_source_id[source_id] = []
+        todo_ids_by_source_id[source_id].append(todo_id)
+
+    def _update_one(source: Source, todo: Todo, days: int):
+        # Intentionally create a fresh driver per task to avoid shared mutable state.
+        driver = get_driver(source.type)
+        if not driver or not driver.can_write():
+            return False, "Todo not found or read-only"
+        shifted_due = todo.due + timedelta(days=days) if todo.due else None
+        payload = Todo(
+            **{
+                **todo.model_dump(),
+                "due": shifted_due,
+            }
+        )
+        try:
+            ok = driver.update_todo(source, payload)
+            return (True, None) if ok else (False, "Update failed")
+        except Exception as e:
+            return False, str(e)
+
+    for source_id, ids in todo_ids_by_source_id.items():
+        source = source_by_id.get(source_id)
+        driver = writable_driver_by_source_id.get(source_id)
+        if not source or not driver:
+            for todo_id in ids:
+                failed.append({"id": todo_id, "error": "Todo not found or read-only"})
+            continue
+
+        _, source_todos, _ = aggregate_events_todos([source])
+        source_todo_map = {t.id: t for t in source_todos}
+
+        tasks: list[tuple[str, Todo]] = []
+        for todo_id in ids:
+            current = source_todo_map.get(todo_id)
+            if not current:
+                failed.append({"id": todo_id, "error": "Todo not found or read-only"})
+                continue
+            tasks.append((todo_id, current))
+
+        if not tasks:
+            continue
+
+        max_workers = max(1, min(12, len(tasks)))
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_todo_id = {
+                executor.submit(_update_one, source, current, body.days): todo_id
+                for todo_id, current in tasks
+            }
+            for future in as_completed(future_to_todo_id):
+                todo_id = future_to_todo_id[future]
+                ok, err = future.result()
+                if ok:
+                    updated += 1
+                else:
+                    failed.append({"id": todo_id, "error": err or "Update failed"})
+
+    return jsonify({"updated": updated, "failed": failed})
 
 
 def create_todo():

@@ -83,6 +83,18 @@ export async function deleteTodo(id: string): Promise<void> {
   await fetchApi<unknown>(`/todos?${new URLSearchParams({ id })}`, { method: 'DELETE' });
 }
 
+export async function pushTodosByDateRange(
+  start: string | null,
+  end: string | null,
+  days: number,
+  overdueOnly = false,
+): Promise<{ updated: number; failed: Array<{ id: string; error: string }> }> {
+  return fetchApi<{ updated: number; failed: Array<{ id: string; error: string }> }>('/todos/bulk/push', {
+    method: 'POST',
+    body: JSON.stringify({ start, end, days, overdue_only: overdueOnly }),
+  });
+}
+
 export async function getSources(): Promise<Source[]> {
   return fetchApi<Source[]>('/sources');
 }

@@ -6,8 +6,9 @@
   import TodoList from '$lib/components/TodoList.svelte';
   import EventModal from '$lib/components/EventModal.svelte';
   import TodoModal from '$lib/components/TodoModal.svelte';
+  import PushOffModal from '$lib/components/PushOffModal.svelte';
   import ShortcutsModal from '$lib/components/ShortcutsModal.svelte';
-  import { getEvents, getTodos, updateTodo } from '$lib/api';
+  import { getEvents, getTodos, pushTodosByDateRange, updateTodo } from '$lib/api';
   import type { Event, Todo } from '$lib/types';
   import { parseUtcIfNeeded } from '$lib/date';
 
@@ -366,6 +367,14 @@
     await refresh();
     selectedTodo = null;
   }
+
+  async function handlePushOffApply(startIso: string | null, endIso: string | null, days: number, overdueOnly: boolean) {
+    const result = await pushTodosByDateRange(startIso, endIso, days, overdueOnly);
+    if (result.failed.length > 0) {
+      throw new Error(`Updated ${result.updated} todos, but ${result.failed.length} failed.`);
+    }
+    await refresh();
+  }
 </script>
 
 <div class="main-content flex flex-1 flex-col min-h-0">
@@ -539,7 +548,16 @@
           <span class="search-input-key-hint">/</span>
         </span>
         <button
-          class="btn btn-ghost ml-auto"
+          class="btn btn-ghost inline-flex items-baseline gap-1.5"
+          type="button"
+          onclick={() => app.setModalOpen('pushOff')}
+          title="Push todos by due range (P)"
+        >
+          Push off
+          <span class="key-hint">P</span>
+        </button>
+        <button
+          class="btn btn-ghost"
           type="button"
           disabled={syncing}
           onclick={() => sync()}
@@ -580,4 +598,9 @@
   />
 {:else if app.modalOpen === 'shortcuts'}
   <ShortcutsModal onclose={() => app.setModalOpen(null)} />
+{:else if app.modalOpen === 'pushOff'}
+  <PushOffModal
+    onclose={() => app.setModalOpen(null)}
+    onapply={handlePushOffApply}
+  />
 {/if}

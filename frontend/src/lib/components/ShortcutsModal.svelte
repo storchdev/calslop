@@ -58,6 +58,8 @@
       <dd class="m-0">Todos / Day view: toggle focused todo completed</dd>
       <dt class="font-mono font-semibold">S</dt>
       <dd class="m-0">Todo view: toggle show/hide completed todos</dd>
+      <dt class="font-mono font-semibold">P</dt>
+      <dd class="m-0">Todo view: open Push off modal</dd>
       <dt class="font-mono font-semibold">Shift+H/J/K/L</dt>
       <dd class="m-0">Month view: change month. Day view: change week</dd>
       <dt class="font-mono font-semibold">V</dt>

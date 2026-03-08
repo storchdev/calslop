@@ -407,6 +407,10 @@
         }
         e.preventDefault();
         break;
+      case 'p':
+        if (!e.repeat && app.viewMode === 'todo') app.setModalOpen('pushOff');
+        e.preventDefault();
+        break;
       case 'g':
         if (e.key === 'g' && !e.shiftKey) {
           // gg = go to today (second g within 500ms)
