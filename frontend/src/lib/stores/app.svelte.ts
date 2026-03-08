@@ -47,6 +47,11 @@ class AppStore {
 
   setCalendarView(cv: CalendarView) {
     this.calendarView = cv;
+    if (cv === 'upcoming') {
+      this.focusedDayIndex = 0;
+      this.focusedEventIndex = -1;
+      this.focusedDayDate = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+    }
   }
 
   setCalendarDensity(density: CalendarDensity) {

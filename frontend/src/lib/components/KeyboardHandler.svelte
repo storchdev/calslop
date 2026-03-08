@@ -124,8 +124,15 @@
         }
 
         if (key === 'x') {
+          let todoId: string | null = null;
           const active = document.activeElement as HTMLElement | null;
-          const todoId = active?.getAttribute?.('data-upcoming-item-todo-id');
+          todoId = active?.getAttribute?.('data-upcoming-item-todo-id') ?? null;
+          if (!todoId && app.focusedEventIndex >= 0) {
+            const focusedEl = document.querySelector(
+              `[data-upcoming-day-index="${currDay}"] [data-upcoming-item-index="${app.focusedEventIndex}"]`
+            ) as HTMLElement | null;
+            todoId = focusedEl?.getAttribute?.('data-upcoming-item-todo-id') ?? null;
+          }
           if (todoId) {
             e.preventDefault();
             window.dispatchEvent(new CustomEvent('calslop-toggle-day-todo', { detail: { todoId } }));
@@ -185,8 +192,13 @@
         return;
       }
       if (e.key === 'x') {
+        let todoId: string | null = null;
         const active = document.activeElement as HTMLElement | null;
-        const todoId = active?.getAttribute?.('data-day-item-todo-id');
+        todoId = active?.getAttribute?.('data-day-item-todo-id') ?? null;
+        if (!todoId && app.focusedEventIndex >= 0 && app.focusedEventIndex < dayItems.length) {
+          const focusedEl = dayItems[app.focusedEventIndex] as HTMLElement | undefined;
+          todoId = focusedEl?.getAttribute?.('data-day-item-todo-id') ?? null;
+        }
         if (todoId) {
           e.preventDefault();
           window.dispatchEvent(new CustomEvent('calslop-toggle-day-todo', { detail: { todoId } }));
