@@ -115,7 +115,9 @@
 
   // Measure day cell height so we can show more/fewer events based on available space (dense + balanced)
   let dayCellHeightPx = $state(0);
-  let monthGridEl: HTMLDivElement | undefined;
+  let monthGridEl = $state<HTMLDivElement | undefined>(undefined);
+  let upcomingCols = $state(3);
+  let upcomingGridEl = $state<HTMLDivElement | undefined>(undefined);
   $effect(() => {
     const el = monthGridEl;
     const w = weeks;
@@ -124,6 +126,24 @@
       const entry = entries[0];
       if (!entry) return;
       dayCellHeightPx = entry.contentRect.height / w;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+
+  $effect(() => {
+    const el = upcomingGridEl;
+    if (!el || app.calendarView !== 'upcoming') return;
+    const updateCols = (width: number) => {
+      if (width < 760) upcomingCols = 2;
+      else if (width < 1180) upcomingCols = 3;
+      else upcomingCols = 4;
+    };
+    updateCols(el.clientWidth);
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      updateCols(entry.contentRect.width);
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -168,7 +188,8 @@
     app.setHighlightedDayIndices(indices);
   });
 
-  const MIN_BLOCK_HEIGHT = 24;
+  const MIN_EVENT_BLOCK_HEIGHT = 24;
+  const MIN_TODO_BLOCK_HEIGHT = 40;
   /** Day view: height of each hour row, scaled by user's height ratio (0.5–2). */
   const rowHeight = $derived(60 * app.calendarHeightRatio);
 
@@ -223,9 +244,10 @@
   const timedItemsSorted = $derived(
     [...timedEvents, ...timedTodos].sort((a, b) => a.startMin - b.startMin)
   );
-  function withOverlapLayout<T extends { startMin: number; endMin: number }>(
-    items: T[]
-  ): Array<T & { overlapColumn: number; overlapColumns: number }> {
+  function withOverlapLayout<T extends { startMin: number; endMin: number; type: 'event' | 'todo' }>(
+    items: T[],
+    hourRowHeightPx: number
+  ): Array<T & { overlapColumn: number; overlapColumns: number; renderStartMin: number; renderEndMin: number }> {
     const groupMaxCols: number[] = [];
     const placed: Array<T & { overlapColumn: number; _group: number }> = [];
     let active: Array<{ end: number; col: number; group: number }> = [];
@@ -250,13 +272,74 @@
       placed.push({ ...item, overlapColumn: col, _group: group });
     }
 
-    return placed.map((p) => ({
+    const visualEndByCol = new Map<number, number>();
+    const visualGapMin = (2 / hourRowHeightPx) * 60;
+
+    const withVisualPosition = placed.map((p) => {
+      const minHeightPx = p.type === 'todo' ? MIN_TODO_BLOCK_HEIGHT : MIN_EVENT_BLOCK_HEIGHT;
+      const minDurationMin = (minHeightPx / hourRowHeightPx) * 60;
+      const durationMin = Math.max(p.endMin - p.startMin, minDurationMin);
+      const prevVisualEnd = visualEndByCol.get(p.overlapColumn) ?? -Infinity;
+      const renderStartMin = Math.max(p.startMin, prevVisualEnd + visualGapMin);
+      const renderEndMin = renderStartMin + durationMin;
+      visualEndByCol.set(p.overlapColumn, renderEndMin);
+      return { ...p, renderStartMin, renderEndMin };
+    });
+
+    return withVisualPosition.map((p) => ({
       ...p,
       overlapColumns: Math.max(1, groupMaxCols[p._group] ?? 1),
     }));
   }
-  const timedItemsLaidOut = $derived(withOverlapLayout(timedItemsSorted));
+  const timedItemsLaidOut = $derived(withOverlapLayout(timedItemsSorted, rowHeight));
   const dayItems = $derived([...allDayItems, ...timedItemsSorted]);
+
+  function startOfLocalDay(d: Date): Date {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+
+  const upcomingBaseDate = $derived(startOfLocalDay(new Date()));
+  const upcomingDates = $derived(
+    Array.from({ length: upcomingCols }, (_, i) =>
+      new Date(upcomingBaseDate.getFullYear(), upcomingBaseDate.getMonth(), upcomingBaseDate.getDate() + i)
+    )
+  );
+
+  function dayItemsForUpcoming(d: Date): Array<
+    { kind: 'event'; startMs: number; event: Event }
+    | { kind: 'todo'; startMs: number; todo: Todo }
+  > {
+    const dayStart = startOfLocalDay(d).getTime();
+    const dayEvents = eventsForDay(d)
+      .map((event) => ({ kind: 'event' as const, startMs: parseUtcIfNeeded(event.start).getTime(), event }));
+    const dayTodos = showTodos
+      ? todosForDay(d)
+          .map((todo) => ({ kind: 'todo' as const, startMs: todo.due ? parseUtcIfNeeded(todo.due).getTime() : dayStart, todo }))
+      : [];
+    return [...dayEvents, ...dayTodos].sort((a, b) => a.startMs - b.startMs);
+  }
+
+  $effect(() => {
+    if (app.calendarView !== 'upcoming') return;
+    const maxDayIdx = Math.max(0, upcomingDates.length - 1);
+    const clampedDayIdx = Math.max(0, Math.min(app.focusedDayIndex, maxDayIdx));
+    if (clampedDayIdx !== app.focusedDayIndex) app.setFocusedDayIndex(clampedDayIdx);
+
+    const focusedDate = upcomingDates[clampedDayIdx];
+    if (!focusedDate) {
+      if (app.focusedEventIndex !== -1) app.setFocusedEventIndex(-1);
+      return;
+    }
+
+    app.setFocusedDayDate(focusedDate);
+    const items = dayItemsForUpcoming(focusedDate);
+    if (items.length === 0) {
+      if (app.focusedEventIndex !== -1) app.setFocusedEventIndex(-1);
+      return;
+    }
+    const clampedItemIdx = Math.max(0, Math.min(app.focusedEventIndex, items.length - 1));
+    if (clampedItemIdx !== app.focusedEventIndex) app.setFocusedEventIndex(clampedItemIdx);
+  });
 
   function findDayEventElement(req: { id: string; start: string; title: string }): HTMLElement | null {
     const dayItemsEls = Array.from(document.querySelectorAll('[data-day-item-index]')) as HTMLElement[];
@@ -525,6 +608,95 @@
         {/each}
       </div>
     </div>
+  {:else if app.calendarView === 'upcoming'}
+    <div class="upcoming-view flex flex-1 min-h-0 flex-col">
+      <div class="upcoming-view-sticky-header shrink-0">
+        <h3 class="upcoming-view-title mb-2">Upcoming</h3>
+      </div>
+      <div class="upcoming-grid flex-1 min-h-0" bind:this={upcomingGridEl} style={`--upcoming-cols: ${upcomingCols}`}>
+        {#each upcomingDates as d, dayIdx}
+          {@const items = dayItemsForUpcoming(d)}
+          <section class="upcoming-day-col min-h-0" class:focused={app.focusedDayIndex === dayIdx} data-upcoming-day-index={dayIdx}>
+            <h4 class="upcoming-day-heading">
+              {d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+            </h4>
+            <div class="upcoming-day-list">
+              {#if items.length === 0}
+                <p class="upcoming-empty">No events or todos.</p>
+              {:else}
+                {#each items as item, itemIdx}
+                  {#if item.kind === 'event'}
+                    <button
+                      type="button"
+                      class="day-event day-event-block upcoming-item"
+                      class:line-through={item.event.cancelled}
+                      class:focused={app.focusedDayIndex === dayIdx && app.focusedEventIndex === itemIdx}
+                      tabindex={app.focusedDayIndex === dayIdx && app.focusedEventIndex === itemIdx ? 0 : -1}
+                      data-upcoming-item-index={itemIdx}
+                      data-upcoming-item-kind="event"
+                      onfocus={() => {
+                        app.setFocusedDayIndex(dayIdx);
+                        app.setFocusedDayDate(d);
+                        app.setFocusedEventIndex(itemIdx);
+                      }}
+                      onclick={() => onSelectEvent?.(item.event)}
+                    >
+                      <span class="upcoming-item-time">
+                        {#if item.event.all_day}
+                          All day
+                        {:else}
+                          {formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
+                          {#if item.event.end}
+                            – {formatInTimezone(item.event.end, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
+                          {/if}
+                        {/if}
+                      </span>
+                      <span class="upcoming-item-title">{item.event.title}</span>
+                    </button>
+                  {:else}
+                    <button
+                      type="button"
+                      class="day-todo day-todo-block upcoming-item"
+                      class:focused={app.focusedDayIndex === dayIdx && app.focusedEventIndex === itemIdx}
+                      class:completed={item.todo.completed}
+                      class:overdue={isTodoOverdue(item.todo)}
+                      disabled={loadingTodoId === item.todo.id}
+                      tabindex={app.focusedDayIndex === dayIdx && app.focusedEventIndex === itemIdx ? 0 : -1}
+                      data-upcoming-item-index={itemIdx}
+                      data-upcoming-item-kind="todo"
+                      data-upcoming-item-todo-id={item.todo.id}
+                      onfocus={() => {
+                        app.setFocusedDayIndex(dayIdx);
+                        app.setFocusedDayDate(d);
+                        app.setFocusedEventIndex(itemIdx);
+                      }}
+                      onclick={() => onSelectTodo?.(item.todo)}
+                    >
+                      {#if loadingTodoId === item.todo.id}
+                        <span class="flex items-center gap-2 text-[var(--text-muted)]" aria-busy="true" aria-live="polite">
+                          <span class="todo-loading-spinner" aria-hidden="true"></span>
+                          Updating…
+                        </span>
+                      {:else}
+                        <span class="day-todo-checkbox" aria-hidden="true">
+                          {#if item.todo.completed}✓{:else}<span class="checkbox-empty"></span>{/if}
+                        </span>
+                        <span class="upcoming-item-main">
+                          <span class="upcoming-item-time">
+                            {item.todo.due ? formatInTimezone(item.todo.due, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined) : 'No due time'}
+                          </span>
+                          <span class="upcoming-item-title">{item.todo.summary}</span>
+                        </span>
+                      {/if}
+                    </button>
+                  {/if}
+                {/each}
+              {/if}
+            </div>
+          </section>
+        {/each}
+      </div>
+    </div>
   {:else}
     <!-- Day view: 24h timeline -->
     <div class="day-view flex flex-col flex-1 min-h-0">
@@ -607,10 +779,10 @@
           {/each}
 
           <div class="day-view-items-layer">
-          {#each timedItemsLaidOut as item, idx}
+            {#each timedItemsLaidOut as item, idx}
             {@const i = allDayItems.length + idx}
-            {@const topPx = item.startMin / 60 * rowHeight}
-            {@const heightPx = Math.max(MIN_BLOCK_HEIGHT, (item.endMin - item.startMin) / 60 * rowHeight)}
+            {@const topPx = item.renderStartMin / 60 * rowHeight}
+            {@const heightPx = Math.max(1, (item.renderEndMin - item.renderStartMin) / 60 * rowHeight)}
             {@const isCompactTimedEvent = item.type === 'event' && heightPx < 56}
             {@const leftPct = item.overlapColumn / item.overlapColumns * 100}
             {@const widthPct = 100 / item.overlapColumns}
@@ -667,10 +839,12 @@
                     <span class="day-todo-checkbox" aria-hidden="true">
                       {#if item.todo.completed}✓{:else}<span class="checkbox-empty"></span>{/if}
                     </span>
-                    <span class="day-todo-time">
-                      {formatInTimezone(item.todo.due ?? '', { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
+                    <span class="day-todo-main">
+                      <span class="day-todo-time">
+                        {formatInTimezone(item.todo.due ?? '', { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
+                      </span>
+                      <span class="day-todo-label">{item.todo.summary}</span>
                     </span>
-                    <span class="day-todo-label">{item.todo.summary}</span>
                   {/if}
                 </button>
               {/if}

@@ -36,6 +36,8 @@
       <dd class="m-0">Day view (calendar)</dd>
       <dt class="font-mono font-semibold">M</dt>
       <dd class="m-0">Month view (calendar)</dd>
+      <dt class="font-mono font-semibold">U</dt>
+      <dd class="m-0">Upcoming view (calendar)</dd>
       <dt class="font-mono font-semibold">G or Home</dt>
       <dd class="m-0">Go to today</dd>
       <dt class="font-mono font-semibold">N</dt>
@@ -43,13 +45,13 @@
       <dt class="font-mono font-semibold">Enter</dt>
       <dd class="m-0">Open selected event/todo; in month view open day view for focused day</dd>
       <dt class="font-mono font-semibold">H / Left</dt>
-      <dd class="m-0">Previous day (calendar)</dd>
+      <dd class="m-0">Previous day (calendar); Upcoming: previous day column</dd>
       <dt class="font-mono font-semibold">L / Right</dt>
-      <dd class="m-0">Next day (calendar)</dd>
+      <dd class="m-0">Next day (calendar); Upcoming: next day column</dd>
       <dt class="font-mono font-semibold">J / Down</dt>
-      <dd class="m-0">Month: next week. Day view: next event/todo (jump). Todos: focus next</dd>
+      <dd class="m-0">Month: next week. Day/Upcoming: next event/todo (jump). Todos: focus next</dd>
       <dt class="font-mono font-semibold">K / Up</dt>
-      <dd class="m-0">Month: previous week. Day view: previous event/todo (jump). Todos: focus prev</dd>
+      <dd class="m-0">Month: previous week. Day/Upcoming: previous event/todo (jump). Todos: focus prev</dd>
       <dt class="font-mono font-semibold">j / k</dt>
       <dd class="m-0">Day view: scroll timeline down / up</dd>
       <dt class="font-mono font-semibold">X or Space</dt>

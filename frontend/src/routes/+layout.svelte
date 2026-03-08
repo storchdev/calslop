@@ -88,6 +88,16 @@
             Day
             <span class="key-hint">D</span>
           </button>
+          <button
+            class="btn btn-ghost inline-flex items-baseline gap-1.5"
+            class:bg-[var(--bg-elevated)]={app.calendarView === 'upcoming'}
+            class:font-semibold={app.calendarView === 'upcoming'}
+            onclick={() => app.setCalendarView('upcoming')}
+            type="button"
+          >
+            Upcoming
+            <span class="key-hint">U</span>
+          </button>
         {/if}
       </div>
       <div class="toolbar-right">

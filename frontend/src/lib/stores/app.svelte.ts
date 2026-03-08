@@ -2,7 +2,7 @@
  * Global app state for view mode, calendar sub-view, selected day, and focus.
  */
 export type ViewMode = 'calendar' | 'todo';
-export type CalendarView = 'day' | 'month';
+export type CalendarView = 'day' | 'month' | 'upcoming';
 export type CalendarDensity = 'minimal' | 'balanced' | 'dense';
 export type TodoOrder = 'oldest' | 'newest';
 

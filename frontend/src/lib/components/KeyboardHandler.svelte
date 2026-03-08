@@ -58,6 +58,90 @@
       return;
     }
 
+    function focusUpcomingItem(dayIdx: number, itemIdx: number) {
+      const el = document.querySelector(
+        `[data-upcoming-day-index="${dayIdx}"] [data-upcoming-item-index="${itemIdx}"]`
+      ) as HTMLElement | null;
+      el?.focus();
+      el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    // Upcoming view: h/l switch days, j/k switch items in day, Enter edit, x toggle todo
+    if (app.viewMode === 'calendar' && app.calendarView === 'upcoming') {
+      const dayCols = Array.from(document.querySelectorAll('[data-upcoming-day-index]'));
+      const dayCount = dayCols.length;
+      if (dayCount > 0) {
+        const currDay = Math.max(0, Math.min(app.focusedDayIndex, dayCount - 1));
+        const currItems = Array.from(
+          document.querySelectorAll(`[data-upcoming-day-index="${currDay}"] [data-upcoming-item-index]`)
+        );
+
+        if (key === 'h' || key === 'arrowleft') {
+          e.preventDefault();
+          const nextDay = Math.max(0, currDay - 1);
+          app.setFocusedDayIndex(nextDay);
+          const nextItems = Array.from(
+            document.querySelectorAll(`[data-upcoming-day-index="${nextDay}"] [data-upcoming-item-index]`)
+          );
+          if (nextItems.length > 0) {
+            const idx = Math.max(0, Math.min(app.focusedEventIndex, nextItems.length - 1));
+            app.setFocusedEventIndex(idx);
+            focusUpcomingItem(nextDay, idx);
+          } else {
+            app.setFocusedEventIndex(-1);
+            (document.activeElement as HTMLElement | null)?.blur();
+          }
+          return;
+        }
+
+        if (key === 'l' || key === 'arrowright') {
+          e.preventDefault();
+          const nextDay = Math.min(dayCount - 1, currDay + 1);
+          app.setFocusedDayIndex(nextDay);
+          const nextItems = Array.from(
+            document.querySelectorAll(`[data-upcoming-day-index="${nextDay}"] [data-upcoming-item-index]`)
+          );
+          if (nextItems.length > 0) {
+            const idx = Math.max(0, Math.min(app.focusedEventIndex, nextItems.length - 1));
+            app.setFocusedEventIndex(idx);
+            focusUpcomingItem(nextDay, idx);
+          } else {
+            app.setFocusedEventIndex(-1);
+            (document.activeElement as HTMLElement | null)?.blur();
+          }
+          return;
+        }
+
+        if ((key === 'j' || key === 'k') && currItems.length > 0) {
+          e.preventDefault();
+          const curr = app.focusedEventIndex < 0 ? 0 : app.focusedEventIndex;
+          const next = key === 'j'
+            ? Math.min(curr + 1, currItems.length - 1)
+            : Math.max(curr - 1, 0);
+          app.setFocusedEventIndex(next);
+          focusUpcomingItem(currDay, next);
+          return;
+        }
+
+        if (key === 'x') {
+          const active = document.activeElement as HTMLElement | null;
+          const todoId = active?.getAttribute?.('data-upcoming-item-todo-id');
+          if (todoId) {
+            e.preventDefault();
+            window.dispatchEvent(new CustomEvent('calslop-toggle-day-todo', { detail: { todoId } }));
+          }
+          return;
+        }
+
+        if (key === 'enter' && app.focusedEventIndex >= 0) {
+          e.preventDefault();
+          focusUpcomingItem(currDay, app.focusedEventIndex);
+          (document.activeElement as HTMLElement | null)?.click();
+          return;
+        }
+      }
+    }
+
     // Day view: J/K jump between events/todos, j/k scroll timeline, Enter open edit, x toggle todo
     if (app.viewMode === 'calendar' && app.calendarView === 'day') {
       const dayItems = Array.from(document.querySelectorAll('[data-day-item-index]'));
@@ -291,6 +375,10 @@
         break;
       case 'm':
         if (!e.repeat && app.viewMode === 'calendar') app.setCalendarView('month');
+        e.preventDefault();
+        break;
+      case 'u':
+        if (!e.repeat && app.viewMode === 'calendar') app.setCalendarView('upcoming');
         e.preventDefault();
         break;
       case 'v':
