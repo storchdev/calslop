@@ -26,6 +26,7 @@
   const notifiedAlerts = new Set<string>();
   const ALERT_LATE_GRACE_MS = 15_000;
   let lastNotificationCheckMs = Date.now();
+  let notificationsPrimed = $state(false);
 
   type ArmedAlert = {
     key: string;
@@ -156,6 +157,8 @@
       const [e, t] = await Promise.all([getEvents(start, end), getTodos()]);
       events = e;
       todos = t;
+      notificationsPrimed = true;
+      lastNotificationCheckMs = Date.now();
       app.setUnsyncedChanges(false);
     } finally {
       loading = false;
@@ -252,6 +255,7 @@
   function checkDueNotifications() {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
     if (!app.desktopNotificationsEnabled || Notification.permission !== 'granted') return;
+    if (!notificationsPrimed) return;
     const now = Date.now();
     const since = lastNotificationCheckMs;
     lastNotificationCheckMs = now;
