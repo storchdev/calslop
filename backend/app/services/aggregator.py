@@ -1,6 +1,11 @@
+from collections.abc import Callable
+from typing import TypeVar
+
 from app.models.dtos import Event, Source, Todo
-from app.services.sources import IcsUrlDriver, LocalFolderDriver, CalDAVDriver
-from app.services.sources.base import FetchResult, SourceDriver
+from app.services.sources import CalDAVDriver, IcsUrlDriver, LocalFolderDriver
+from app.services.sources.base import SourceDriver
+
+ItemT = TypeVar("ItemT", Event, Todo)
 
 
 def get_driver(source_type: str) -> SourceDriver | None:
@@ -19,40 +24,40 @@ def _source_id_from_aggregate_id(aggregate_id: str) -> str | None:
     return parts[0] if len(parts) >= 1 else None
 
 
-def resolve_event_source(
-    sources: list[Source], event_id: str
-) -> tuple[Source, SourceDriver, Event] | None:
-    """Find source, driver, and current event for event_id. Returns None if not found or read-only."""
-    source_id = _source_id_from_aggregate_id(event_id)
+def _resolve_source_item(
+    sources: list[Source],
+    item_id: str,
+    picker: Callable[[list[Event], list[Todo]], list[ItemT]],
+) -> tuple[Source, SourceDriver, ItemT] | None:
+    source_id = _source_id_from_aggregate_id(item_id)
     if not source_id:
         return None
+
     source = next((s for s in sources if s.id == source_id), None)
     if not source:
         return None
+
     driver = get_driver(source.type)
     if not driver or not driver.can_write():
         return None
-    events, _, _ = aggregate_events_todos([source])
-    event = next((e for e in events if e.id == event_id), None)
-    return (source, driver, event) if event else None
+
+    events, todos, _ = aggregate_events_todos([source])
+    item = next((candidate for candidate in picker(events, todos) if candidate.id == item_id), None)
+    return (source, driver, item) if item else None
+
+
+def resolve_event_source(
+    sources: list[Source], event_id: str
+) -> tuple[Source, SourceDriver, Event] | None:
+    """Find source, driver, and current event for event_id."""
+    return _resolve_source_item(sources, event_id, lambda events, _: events)
 
 
 def resolve_todo_source(
     sources: list[Source], todo_id: str
 ) -> tuple[Source, SourceDriver, Todo] | None:
     """Find source, driver, and current todo for todo_id."""
-    source_id = _source_id_from_aggregate_id(todo_id)
-    if not source_id:
-        return None
-    source = next((s for s in sources if s.id == source_id), None)
-    if not source:
-        return None
-    driver = get_driver(source.type)
-    if not driver or not driver.can_write():
-        return None
-    _, todos, _ = aggregate_events_todos([source])
-    todo = next((t for t in todos if t.id == todo_id), None)
-    return (source, driver, todo) if todo else None
+    return _resolve_source_item(sources, todo_id, lambda _, todos: todos)
 
 
 def aggregate_events_todos(

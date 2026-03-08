@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from flask import Blueprint, abort, jsonify, request
+from flask import Blueprint, abort, jsonify
 from pydantic import BaseModel
 
+from app.routes.utils import parse_json_body
 from app.services.human_recurrence import parse_human_recurrence
-
 
 recurrence_bp = Blueprint("recurrence", __name__)
 
@@ -15,10 +15,7 @@ class HumanRecurrenceParseBody(BaseModel):
 
 @recurrence_bp.route("/parse", methods=["POST"])
 def parse_human_recurrence_route():
-    data = request.get_json()
-    if not data:
-        abort(400, description="JSON body required")
-    body = HumanRecurrenceParseBody.model_validate(data)
+    body = parse_json_body(HumanRecurrenceParseBody)
 
     try:
         rrule, label = parse_human_recurrence(body.text)

@@ -99,6 +99,13 @@ export async function getSources(): Promise<Source[]> {
   return fetchApi<Source[]>('/sources');
 }
 
+export async function getWritableSources(): Promise<Array<{ id: string; name: string; type: Source['type'] }>> {
+  const sources = await getSources();
+  return sources
+    .filter((source) => source.type === 'local_folder' || source.type === 'caldav')
+    .map((source) => ({ id: source.id, name: source.name, type: source.type }));
+}
+
 export async function getSource(id: string): Promise<Source> {
   return fetchApi<Source>(`/sources/${encodeURIComponent(id)}`);
 }

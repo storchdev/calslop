@@ -1,9 +1,21 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { createTodo, updateTodo, getTodo, getSources, deleteTodo, parseHumanDatetime, parseHumanRecurrence, parseHumanAlerts } from '$lib/api';
-  import type { Todo, TodoCreate, TodoUpdate } from '$lib/types';
+  import { createTodo, updateTodo, getTodo, getWritableSources, deleteTodo, parseHumanDatetime, parseHumanRecurrence, parseHumanAlerts } from '$lib/api';
+  import type { Todo } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
   import { toLocalDatetimeInput } from '$lib/date';
+  import {
+    alertOptions,
+    buildAlertSelectState,
+    cycleSelectOption,
+    getPreferredTimezone,
+    localNowInput,
+    repeatOptions,
+    resolveAlertMinutesFromSelection,
+    resolveAlertMinutesForSubmit,
+  } from '$lib/modal-utils';
+  import { handleCommonModalKeydown, isTextInputTarget } from '$lib/modal-keyboard';
+  import { activateAndFocus, blurInputAndFocusModal, clearIfFocusOutside } from '$lib/modal-focus';
 
   interface Props {
     todoId: string | null;
@@ -36,50 +48,11 @@
   let customAlertOption = $state<{ value: string; label: string } | null>(null);
   let fetchedTodoId = $state<string | null>(null);
 
-  const repeatOptions = [
-    { value: '', label: 'None' },
-    { value: 'FREQ=DAILY', label: 'Daily' },
-    { value: 'FREQ=WEEKLY', label: 'Weekly' },
-    { value: 'FREQ=MONTHLY', label: 'Monthly' },
-    { value: 'FREQ=YEARLY', label: 'Yearly' },
-  ];
-  const alertOptions = [
-    { value: '', label: 'None' },
-    { value: '0', label: 'At time' },
-    { value: '5', label: '5 minutes before' },
-    { value: '10', label: '10 minutes before' },
-    { value: '15', label: '15 minutes before' },
-    { value: '30', label: '30 minutes before' },
-    { value: '60', label: '1 hour before' },
-    { value: '120', label: '2 hours before' },
-    { value: '1440', label: '1 day before' },
-  ];
-
-  function formatAlertLabel(minutes: number[]): string {
-    return minutes.map((m) => {
-      if (m === 0) return 'at time';
-      if (m % 1440 === 0) return `${m / 1440}d before`;
-      if (m % 60 === 0) return `${m / 60}h before`;
-      return `${m}m before`;
-    }).join(', ');
-  }
-
   function setAlertMinutes(minutes: number[] | null | undefined) {
-    const normalized = Array.from(new Set((minutes ?? []).map((m) => Math.max(0, Number(m))))).sort((a, b) => a - b);
-    alertMinutesBefore = normalized;
-    if (!normalized.length) {
-      customAlertOption = null;
-      alertSelectValue = '';
-      return;
-    }
-    if (normalized.length === 1 && alertOptions.some((opt) => opt.value === String(normalized[0]))) {
-      customAlertOption = null;
-      alertSelectValue = String(normalized[0]);
-      return;
-    }
-    const value = `custom:${normalized.join(',')}`;
-    customAlertOption = { value, label: `Custom (${formatAlertLabel(normalized)})` };
-    alertSelectValue = value;
+    const state = buildAlertSelectState(minutes, alertOptions);
+    alertMinutesBefore = state.minutes;
+    alertSelectValue = state.selectValue;
+    customAlertOption = state.customOption;
   }
 
   const isInstance = $derived(todoId ? todoId.split('::').length >= 4 : false);
@@ -122,8 +95,8 @@
   });
 
   onMount(() => {
-    getSources().then((s) => {
-      sources = s.filter((x) => x.type === 'local_folder' || x.type === 'caldav').map((x) => ({ id: x.id, name: x.name, type: x.type }));
+    getWritableSources().then((s: Array<{ id: string; name: string; type: string }>) => {
+      sources = s;
       if (sources.length && !todoId) sourceId = sources[0].id;
     });
   });
@@ -141,7 +114,7 @@
     }
 
     const currentTodoId = todoId;
-    const resolvedAlertMinutes = resolveAlertMinutesForSubmit();
+    const resolvedAlertMinutes = resolveAlertMinutesForSave();
     const payload = {
       summary: summary.trim(),
       completed,
@@ -192,7 +165,7 @@
   let alertEl: HTMLSelectElement | undefined;
   let alertHumanEl = $state<HTMLInputElement | undefined>(undefined);
   let repeatHumanEl = $state<HTMLInputElement | undefined>(undefined);
-  let sourceIdEl: HTMLSelectElement | undefined;
+  let sourceIdEl = $state<HTMLSelectElement | undefined>(undefined);
 
   $effect(() => {
     if (app.modalOpen === 'todo') {
@@ -204,26 +177,11 @@
   });
 
   function cycleSelect(sel: HTMLSelectElement, dir: 1 | -1) {
-    const opts = Array.from(sel.options);
-    const i = opts.findIndex((o) => o.value === sel.value);
-    const next = Math.max(0, Math.min(opts.length - 1, i + dir));
-    sel.selectedIndex = next;
-    sel.value = opts[next].value;
-    sel.dispatchEvent(new Event('input', { bubbles: true }));
+    cycleSelectOption(sel, dir);
   }
 
   function parseTimezone(): string | undefined {
-    return app.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
-  }
-
-  function localNowInput(): string {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    const h = String(now.getHours()).padStart(2, '0');
-    const min = String(now.getMinutes()).padStart(2, '0');
-    return `${y}-${m}-${d}T${h}:${min}`;
+    return getPreferredTimezone(app.timezone);
   }
 
   async function applyHumanDue(): Promise<boolean> {
@@ -242,39 +200,48 @@
   }
 
   function clearDueFieldIfNeeded() {
-    tick().then(() => {
-      const active = document.activeElement;
-      if (active !== dueEl && active !== dueHumanEl) activeDueField = false;
+    clearIfFocusOutside([dueEl, dueHumanEl], () => {
+      activeDueField = false;
     });
   }
 
   function focusDueHumanField() {
-    activeDueField = true;
-    tick().then(() => dueHumanEl?.focus());
+    activateAndFocus(
+      () => {
+        activeDueField = true;
+      },
+      () => dueHumanEl,
+    );
   }
 
   function clearRepeatFieldIfNeeded() {
-    tick().then(() => {
-      const active = document.activeElement;
-      if (active !== recurrenceEl && active !== repeatHumanEl) activeRepeatField = false;
+    clearIfFocusOutside([recurrenceEl, repeatHumanEl], () => {
+      activeRepeatField = false;
     });
   }
 
   function focusRepeatHumanField() {
-    activeRepeatField = true;
-    tick().then(() => repeatHumanEl?.focus());
+    activateAndFocus(
+      () => {
+        activeRepeatField = true;
+      },
+      () => repeatHumanEl,
+    );
   }
 
   function clearAlertFieldIfNeeded() {
-    tick().then(() => {
-      const active = document.activeElement;
-      if (active !== alertEl && active !== alertHumanEl) activeAlertField = false;
+    clearIfFocusOutside([alertEl, alertHumanEl], () => {
+      activeAlertField = false;
     });
   }
 
   function focusAlertHumanField() {
-    activeAlertField = true;
-    tick().then(() => alertHumanEl?.focus());
+    activateAndFocus(
+      () => {
+        activeAlertField = true;
+      },
+      () => alertHumanEl,
+    );
   }
 
   async function applyHumanRepeat(): Promise<boolean> {
@@ -286,8 +253,7 @@
       customRepeatOption = { value: parsed.rrule, label: parsed.label };
       recurrence = parsed.rrule;
       activeRepeatField = false;
-      repeatHumanEl?.blur();
-      modalEl?.focus();
+      blurInputAndFocusModal(repeatHumanEl, modalEl);
       return true;
     } catch (e) {
       error = e instanceof Error ? e.message : 'Failed to parse recurrence';
@@ -310,49 +276,24 @@
   }
 
   function applyAlertSelect() {
-    if (!alertSelectValue) {
-      setAlertMinutes([]);
-      return;
-    }
-    if (alertSelectValue.startsWith('custom:')) return;
-    const v = Number(alertSelectValue);
-    if (Number.isFinite(v)) setAlertMinutes([v]);
+    const resolved = resolveAlertMinutesFromSelection(alertSelectValue);
+    if (resolved !== null) setAlertMinutes(resolved);
   }
 
-  function resolveAlertMinutesForSubmit(): number[] {
-    if (alertSelectValue && !alertSelectValue.startsWith('custom:')) {
-      const v = Number(alertSelectValue);
-      if (Number.isFinite(v)) return [Math.max(0, Math.trunc(v))];
-    }
-    return alertMinutesBefore;
+  function resolveAlertMinutesForSave(): number[] {
+    return resolveAlertMinutesForSubmit(alertSelectValue, alertMinutesBefore);
   }
 
   function handleKeydown(e: KeyboardEvent) {
     const target = e.target as HTMLElement;
-    const inHumanInput = target === dueHumanEl || target === repeatHumanEl || target === alertHumanEl;
-    const inTextInput = target instanceof HTMLInputElement && target.type !== 'checkbox' && target.type !== 'radio'
-      || target instanceof HTMLTextAreaElement;
+    const inTextInput = isTextInputTarget(target);
 
-    if (e.key === 'Escape') {
-      if (inTextInput) {
-        e.preventDefault();
-        if (target === dueHumanEl) activeDueField = false;
-        if (target === repeatHumanEl) activeRepeatField = false;
-        if (target === alertHumanEl) activeAlertField = false;
-        target.blur();
-        modalEl?.focus();
-      } else {
-        onclose();
-      }
-      return;
-    }
     if (e.key === 'Enter' && target === dueHumanEl) {
       e.preventDefault();
       void applyHumanDue().then((ok) => {
         if (!ok) return;
         activeDueField = false;
-        dueHumanEl?.blur();
-        modalEl?.focus();
+        blurInputAndFocusModal(dueHumanEl, modalEl);
       });
       return;
     }
@@ -366,8 +307,7 @@
       void applyHumanAlerts().then((ok) => {
         if (!ok) return;
         activeAlertField = false;
-        alertHumanEl?.blur();
-        modalEl?.focus();
+        blurInputAndFocusModal(alertHumanEl, modalEl);
       });
       return;
     }
@@ -386,35 +326,25 @@
       focusAlertHumanField();
       return;
     }
-    if (e.ctrlKey && e.key === 'Enter') {
-      e.preventDefault();
-      submit();
+    if (handleCommonModalKeydown({
+      event: e,
+      target,
+      isTextInput: inTextInput,
+      modalEl,
+      onClose: onclose,
+      onSubmit: submit,
+      cycleSelect,
+      onTextInputEscape: (activeTarget) => {
+        if (activeTarget === dueHumanEl) activeDueField = false;
+        if (activeTarget === repeatHumanEl) activeRepeatField = false;
+        if (activeTarget === alertHumanEl) activeAlertField = false;
+      },
+      deleteConfirmMessage: todoId ? 'Delete this todo?' : undefined,
+      onDelete: todoId ? () => { void performDelete(); } : undefined,
+    })) {
       return;
     }
-    if (todoId && e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') {
-      e.preventDefault();
-      if (confirm('Delete this todo?')) {
-        void performDelete();
-      }
-      return;
-    }
-    if (target instanceof HTMLSelectElement) {
-      if (e.shiftKey && e.key.toLowerCase() === 'j') {
-        e.preventDefault();
-        cycleSelect(target, 1);
-        return;
-      }
-      if (e.shiftKey && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        cycleSelect(target, -1);
-        return;
-      }
-    }
-    if (!inTextInput && !e.shiftKey && (e.key === 'j' || e.key === 'k')) {
-      e.preventDefault();
-      if (modalEl) modalEl.scrollTop += e.key === 'j' ? 60 : -60;
-      return;
-    }
+
     if (inTextInput) return;
 
     const key = e.key.toLowerCase();

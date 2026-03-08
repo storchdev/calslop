@@ -40,8 +40,8 @@
   );
   const visibleTodos = $derived(
     [...searchFiltered].sort((a, b) => {
-      const aDue = a.due ? new Date(a.due).getTime() : null;
-      const bDue = b.due ? new Date(b.due).getTime() : null;
+      const aDue = a.due ? parseUtcIfNeeded(a.due).getTime() : null;
+      const bDue = b.due ? parseUtcIfNeeded(b.due).getTime() : null;
       if (aDue === null && bDue === null) return 0;
       if (aDue === null) return todoOrder === 'oldest' ? 1 : -1;
       if (bDue === null) return todoOrder === 'oldest' ? -1 : 1;

@@ -1,21 +1,30 @@
-from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, request, jsonify, abort
-
+from flask import Blueprint, abort, jsonify, request
 from pydantic import BaseModel
 
 from app.models.dtos import Source, Todo, TodoCreate, TodoUpdate
-from app.db.sources_store import SourcesStore
+from app.routes.utils import (
+    get_sources_store,
+    merge_with_partial_update,
+    parse_json_body,
+    require_query_param,
+)
 from app.services.aggregator import aggregate_events_todos, get_driver, resolve_todo_source
 from app.services.ical_utils import next_recurrence_occurrence, todo_id_to_master_id
 
-
-def get_sources_store() -> SourcesStore:
-    return SourcesStore()
-
-
 todos_bp = Blueprint("todos", __name__)
+
+
+def _todo_to_json(todo: Todo) -> dict:
+    payload = todo.model_dump(mode="json")
+    if todo.due is None:
+        return payload
+    due = todo.due
+    due_utc = due.replace(tzinfo=timezone.utc) if due.tzinfo is None else due.astimezone(timezone.utc)
+    payload["due"] = due_utc.isoformat().replace("+00:00", "Z")
+    return payload
 
 
 @todos_bp.route("", methods=["GET", "POST", "PATCH", "DELETE"])
@@ -40,10 +49,7 @@ class BulkPushBody(BaseModel):
 
 @todos_bp.route("/bulk/push", methods=["POST"])
 def bulk_push_todos():
-    data = request.get_json()
-    if not data:
-        abort(400, description="JSON body required")
-    body = BulkPushBody.model_validate(data)
+    body = parse_json_body(BulkPushBody)
 
     start_ts = body.start
     end_ts = body.end
@@ -154,10 +160,7 @@ def bulk_push_todos():
 
 
 def create_todo():
-    data = request.get_json()
-    if not data:
-        abort(400, description="JSON body required")
-    body = TodoCreate.model_validate(data)
+    body = parse_json_body(TodoCreate)
     store = get_sources_store()
     source = store.get_source(body.source_id)
     if not source:
@@ -165,24 +168,14 @@ def create_todo():
     driver = get_driver(source.type)
     if not driver or not driver.can_write():
         abort(405, description="Source does not support creating todos")
-    todo = Todo(
-        id="",
-        source_id=body.source_id,
-        summary=body.summary,
-        completed=body.completed,
-        due=body.due,
-        description=body.description,
-        priority=body.priority,
-        recurrence=body.recurrence,
-        alert_minutes_before=body.alert_minutes_before,
-    )
+    todo = Todo(id="", **body.model_dump())
     try:
         created = driver.create_todo(source, todo)
     except Exception as e:
         abort(400, description=str(e))
     if not created:
         abort(400, description="Failed to create todo (check source config and permissions)")
-    return jsonify(created.model_dump(mode="json")), 201
+    return jsonify(_todo_to_json(created)), 201
 
 
 def list_todos():
@@ -194,20 +187,14 @@ def list_todos():
         todo_id = id_param.strip()
         for t in todos:
             if t.id == todo_id:
-                return jsonify(t.model_dump(mode="json"))
+                return jsonify(_todo_to_json(t))
         abort(404, description="Todo not found")
-    return jsonify([t.model_dump(mode="json") for t in todos])
+    return jsonify([_todo_to_json(t) for t in todos])
 
 
 def update_todo():
-    id_param = request.args.get("id")
-    if not id_param:
-        abort(400, description="id query parameter required")
-    todo_id = id_param.strip()
-    data = request.get_json()
-    if not data:
-        abort(400, description="JSON body required")
-    body = TodoUpdate.model_validate(data)
+    todo_id = require_query_param("id")
+    body = parse_json_body(TodoUpdate)
     store = get_sources_store()
     sources = store.list_sources()
     resolved = resolve_todo_source(sources, todo_id)
@@ -253,8 +240,10 @@ def update_todo():
                     ),
                 )
                 if master_updated and completed_created:
-                    updated = Todo(**{**current.model_dump(), "completed": True, "recurrence": None})
-                    return jsonify(updated.model_dump(mode="json"))
+                    updated = Todo(
+                        **{**current.model_dump(), "completed": True, "recurrence": None}
+                    )
+                    return jsonify(_todo_to_json(updated))
             except Exception:
                 pass
 
@@ -271,37 +260,20 @@ def update_todo():
             current.alert_minutes_before,
         ):
             updated = Todo(**{**current.model_dump(), "completed": True, "recurrence": None})
-            return jsonify(updated.model_dump(mode="json"))
+            return jsonify(_todo_to_json(updated))
 
-    d = current.model_dump()
-    if body.summary is not None:
-        d["summary"] = body.summary
-    if body.completed is not None:
-        d["completed"] = body.completed
-    if body.due is not None:
-        d["due"] = body.due
-    if body.description is not None:
-        d["description"] = body.description
-    if body.priority is not None:
-        d["priority"] = body.priority
-    if body.recurrence is not None:
-        d["recurrence"] = body.recurrence
-    if "alert_minutes_before" in body.model_fields_set:
-        d["alert_minutes_before"] = body.alert_minutes_before
+    payload = merge_with_partial_update(current, body)
     try:
-        updated = driver.update_todo(source, Todo(**d))
+        updated = driver.update_todo(source, Todo(**payload))
     except Exception as e:
         abort(400, description=str(e))
     if not updated:
         abort(400, description="Failed to update todo (check source and permissions)")
-    return jsonify(updated.model_dump(mode="json"))
+    return jsonify(_todo_to_json(updated))
 
 
 def delete_todo():
-    id_param = request.args.get("id")
-    if not id_param:
-        abort(400, description="id query parameter required")
-    todo_id = id_param.strip()
+    todo_id = require_query_param("id")
     store = get_sources_store()
     sources = store.list_sources()
     resolved = resolve_todo_source(sources, todo_id)

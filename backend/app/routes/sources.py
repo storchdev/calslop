@@ -1,12 +1,7 @@
-from flask import Blueprint, request, jsonify, abort
+from flask import Blueprint, abort, jsonify
 
-from app.models.dtos import Source, SourceCreate, SourceUpdate
-from app.db.sources_store import SourcesStore
-
-
-def get_sources_store() -> SourcesStore:
-    return SourcesStore()
-
+from app.models.dtos import SourceCreate, SourceUpdate
+from app.routes.utils import get_sources_store, parse_json_body
 
 sources_bp = Blueprint("sources", __name__)
 
@@ -28,10 +23,7 @@ def get_source(source_id: str):
 
 @sources_bp.route("", methods=["POST"])
 def create_source():
-    data = request.get_json()
-    if not data:
-        abort(400, description="JSON body required")
-    body = SourceCreate.model_validate(data)
+    body = parse_json_body(SourceCreate)
     store = get_sources_store()
     source = store.add_source(body)
     return jsonify(source.model_dump(mode="json")), 201
@@ -39,10 +31,7 @@ def create_source():
 
 @sources_bp.route("/<path:source_id>", methods=["PUT"])
 def update_source(source_id: str):
-    data = request.get_json()
-    if not data:
-        abort(400, description="JSON body required")
-    body = SourceUpdate.model_validate(data)
+    body = parse_json_body(SourceUpdate)
     store = get_sources_store()
     s = store.update_source(source_id, body)
     if not s:

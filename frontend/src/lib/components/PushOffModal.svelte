@@ -3,6 +3,9 @@
   import { app } from '$lib/stores/app.svelte';
   import { parseHumanDatetime } from '$lib/api';
   import { toLocalDatetimeInput } from '$lib/date';
+  import { getPreferredTimezone, localNowInput } from '$lib/modal-utils';
+  import { isTextInputTarget } from '$lib/modal-keyboard';
+  import { clearIfFocusOutside } from '$lib/modal-focus';
 
   interface Props {
     onclose: () => void;
@@ -31,22 +34,12 @@
   let error = $state('');
   let overdueOnly = $state(false);
 
-  function localNowInput(): string {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    const h = String(now.getHours()).padStart(2, '0');
-    const min = String(now.getMinutes()).padStart(2, '0');
-    return `${y}-${m}-${d}T${h}:${min}`;
-  }
-
   onMount(() => {
     tick().then(() => modalEl?.focus());
   });
 
   function parseTimezone(): string | undefined {
-    return app.timezone || undefined;
+    return getPreferredTimezone(app.timezone, false);
   }
 
   async function applyHumanStart(): Promise<boolean> {
@@ -79,16 +72,14 @@
   }
 
   function clearStartHumanIfNeeded() {
-    tick().then(() => {
-      const active = document.activeElement;
-      if (active !== startEl && active !== startHumanEl) activeStartHuman = false;
+    clearIfFocusOutside([startEl, startHumanEl], () => {
+      activeStartHuman = false;
     });
   }
 
   function clearEndHumanIfNeeded() {
-    tick().then(() => {
-      const active = document.activeElement;
-      if (active !== endEl && active !== endHumanEl) activeEndHuman = false;
+    clearIfFocusOutside([endEl, endHumanEl], () => {
+      activeEndHuman = false;
     });
   }
 
@@ -133,8 +124,7 @@
   function handleKeydown(e: KeyboardEvent) {
     const target = e.target as HTMLElement | null;
     if (!target) return;
-    const inTextInput = target instanceof HTMLInputElement && target.type !== 'checkbox' && target.type !== 'radio'
-      || target instanceof HTMLTextAreaElement;
+    const inTextInput = isTextInputTarget(target);
 
     if (e.key === 'Escape') {
       if (inTextInput) {
