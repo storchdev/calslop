@@ -26,19 +26,6 @@ app.register_blueprint(datetime_bp, url_prefix="/api/datetime")
 app.register_blueprint(recurrence_bp, url_prefix="/api/recurrence")
 app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
 
-# Optional: serve built frontend (single-process install)
-STATIC_DIR = os.environ.get("CALSLOP_STATIC_DIR")
-if STATIC_DIR and os.path.isdir(STATIC_DIR):
-    static_path = os.path.abspath(STATIC_DIR)
-
-    @app.route("/", defaults={"path": ""})
-    @app.route("/<path:path>")
-    def serve_frontend(path):
-        if path.startswith("api/"):
-            return abort(404)
-        if path and os.path.isfile(os.path.join(static_path, path)):
-            return send_from_directory(static_path, path)
-        return send_from_directory(static_path, "index.html")
 
 # Optional: serve built frontend (single-process install)
 STATIC_DIR = os.environ.get("CALSLOP_STATIC_DIR")
