@@ -62,7 +62,7 @@
   });
 </script>
 
-<div id="todo-view" class="p-4" role="list">
+<div id="todo-view" class="p-4 pb-14" role="list">
   {#if showToolbar}
     <div class="flex flex-wrap items-center gap-4 mb-3">
       <button
@@ -84,9 +84,6 @@
           <option value="newest">Newest first</option>
         </select>
       </div>
-      <span class="text-xs text-[var(--text-muted)]" title="Total and completed count in current data">
-        ({todos.length} total, {completedCount} completed)
-      </span>
     </div>
   {/if}
   {#each visibleTodos as todo, i (todo.id)}
@@ -148,4 +145,9 @@
   {#if visibleTodos.length === 0}
     <p class="text-[var(--text-muted)]">No todos.</p>
   {/if}
+  <div class="fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--border)] bg-[var(--bg)] px-4 py-2">
+    <p class="text-xs text-[var(--text-muted)]" title="Total and completed count in current data">
+      ({todos.length} total, {completedCount} completed)
+    </p>
+  </div>
 </div>

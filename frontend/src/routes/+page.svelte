@@ -519,9 +519,6 @@
             <option value="newest">Newest first</option>
           </select>
         </div>
-        <span class="text-xs text-[var(--text-muted)]" title="Total and completed count in current data">
-          ({todos.length} total, {todos.filter((t) => t.completed).length} completed)
-        </span>
         <span class="search-input-wrap">
           <input
             id="calslop-search-input"
