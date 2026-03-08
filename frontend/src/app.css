@@ -338,10 +338,20 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   min-width: 0;
 }
 
+.day-event-timed.day-event-compact {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .day-event-time {
   font-size: 0.7rem;
   color: var(--text-muted);
   white-space: nowrap;
+}
+
+.day-event-timed.day-event-compact .day-event-time {
+  flex-shrink: 0;
 }
 
 .day-event-title {
@@ -350,6 +360,10 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.day-event-timed.day-event-compact .day-event-title {
+  min-width: 0;
 }
 
 .day-todo {

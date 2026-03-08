@@ -611,6 +611,7 @@
             {@const i = allDayItems.length + idx}
             {@const topPx = item.startMin / 60 * rowHeight}
             {@const heightPx = Math.max(MIN_BLOCK_HEIGHT, (item.endMin - item.startMin) / 60 * rowHeight)}
+            {@const isCompactTimedEvent = item.type === 'event' && heightPx < 56}
             {@const leftPct = item.overlapColumn / item.overlapColumns * 100}
             {@const widthPct = 100 / item.overlapColumns}
             {@const laneGapPx = 4}
@@ -618,6 +619,7 @@
               <button
                 type="button"
                 class="day-event day-event-timed"
+                class:day-event-compact={isCompactTimedEvent}
                 class:focused={app.focusedEventIndex === i}
                 class:line-through={item.event.cancelled}
                 tabindex={app.focusedEventIndex === i ? 0 : -1}
@@ -633,7 +635,7 @@
               >
                 <span class="day-event-time">
                   {formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
-                  {#if item.event.end}
+                  {#if item.event.end && !isCompactTimedEvent}
                     – {formatInTimezone(item.event.end, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
                   {/if}
                 </span>
