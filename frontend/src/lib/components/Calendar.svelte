@@ -7,6 +7,7 @@
   interface Props {
     events: Event[];
     todos?: Todo[];
+    sourceColors?: Record<string, string>;
     loadingTodoId?: string | null;
     focusEventRequest?: { id: string; start: string; title: string } | null;
     onFocusEventRequestHandled?: () => void;
@@ -20,6 +21,7 @@
   let {
     events,
     todos = [],
+    sourceColors = {},
     loadingTodoId = null,
     focusEventRequest = null,
     onFocusEventRequestHandled,
@@ -29,6 +31,12 @@
     onSelectEvent,
     onSelectTodo,
   }: Props = $props();
+
+  function sourceColorStyle(sourceId: string): string {
+    const baseSourceId = sourceId.split('::')[0] || sourceId;
+    const color = sourceColors[sourceId] || sourceColors[baseSourceId];
+    return color ? `--source-color: ${color};` : '';
+  }
 
   function matchesSearchEvent(ev: Event, q: string): boolean {
     if (!q) return false;
@@ -649,6 +657,7 @@
                     <button
                       type="button"
                       class="day-event day-event-block upcoming-item"
+                      style={sourceColorStyle(item.event.source_id)}
                       class:line-through={item.event.cancelled}
                       class:focused={app.focusedDayIndex === dayIdx && app.focusedEventIndex === itemIdx}
                       tabindex={app.focusedDayIndex === dayIdx && app.focusedEventIndex === itemIdx ? 0 : -1}
@@ -677,6 +686,7 @@
                     <button
                       type="button"
                       class="day-todo day-todo-block upcoming-item"
+                      style={sourceColorStyle(item.todo.source_id)}
                       class:focused={app.focusedDayIndex === dayIdx && app.focusedEventIndex === itemIdx}
                       class:completed={item.todo.completed}
                       class:overdue={isTodoOverdue(item.todo)}
@@ -736,6 +746,7 @@
                 <button
                   type="button"
                   class="day-event day-event-block"
+                  style={sourceColorStyle(item.event.source_id)}
                   class:focused={app.focusedEventIndex === i}
                   class:line-through={item.event.cancelled}
                   tabindex={app.focusedEventIndex === i ? 0 : -1}
@@ -752,6 +763,7 @@
                 <button
                   type="button"
                   class="day-todo day-todo-block"
+                  style={sourceColorStyle(item.todo.source_id)}
                   class:focused={app.focusedEventIndex === i}
                   class:completed={item.todo.completed}
                   class:overdue={isTodoOverdue(item.todo)}
@@ -811,6 +823,7 @@
               <button
                 type="button"
                 class="day-event day-event-timed"
+                style={`${sourceColorStyle(item.event.source_id)} top: ${topPx}px; height: ${heightPx}px; left: calc(${leftPct}% + ${laneGapPx / 2}px); width: calc(${widthPct}% - ${laneGapPx}px);`}
                 class:day-event-compact={isCompactTimedEvent}
                 class:focused={app.focusedEventIndex === i}
                 class:line-through={item.event.cancelled}
@@ -819,9 +832,6 @@
                 data-day-item-event-id={item.event.id}
                 data-day-item-event-title={item.event.title}
                 data-day-item-event-start={item.event.start}
-                style={
-                  `top: ${topPx}px; height: ${heightPx}px; left: calc(${leftPct}% + ${laneGapPx / 2}px); width: calc(${widthPct}% - ${laneGapPx}px);`
-                }
                 onfocus={() => app.setFocusedEventIndex(i)}
                 onclick={() => onSelectEvent?.(item.event)}
               >
@@ -837,6 +847,7 @@
                 <button
                   type="button"
                   class="day-todo day-todo-timed"
+                  style={`${sourceColorStyle(item.todo.source_id)} top: ${topPx}px; height: ${heightPx}px; left: calc(${leftPct}% + ${laneGapPx / 2}px); width: calc(${widthPct}% - ${laneGapPx}px);`}
                   class:focused={app.focusedEventIndex === i}
                   class:completed={item.todo.completed}
                   class:overdue={isTodoOverdue(item.todo)}
@@ -844,9 +855,6 @@
                   tabindex={app.focusedEventIndex === i ? 0 : -1}
                   data-day-item-index={i}
                   data-day-item-todo-id={item.todo.id}
-                  style={
-                    `top: ${topPx}px; height: ${heightPx}px; left: calc(${leftPct}% + ${laneGapPx / 2}px); width: calc(${widthPct}% - ${laneGapPx}px);`
-                  }
                   onfocus={() => app.setFocusedEventIndex(i)}
                   onclick={() => onSelectTodo?.(item.todo)}
                 >

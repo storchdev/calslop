@@ -1,4 +1,5 @@
 """In-memory + JSON file persistence for calendar sources. Can be replaced with SQLite later."""
+
 from pathlib import Path
 import json
 import uuid
@@ -6,8 +7,21 @@ import uuid
 from app.models.dtos import Source, SourceCreate, SourceUpdate
 
 
+DEFAULT_SOURCE_COLORS = [
+    "#2563eb",
+    "#059669",
+    "#ea580c",
+    "#dc2626",
+    "#7c3aed",
+    "#0d9488",
+    "#b45309",
+    "#db2777",
+]
+
+
 def _default_path() -> Path:
     import os
+
     if os.environ.get("CALSLOP_DATA_DIR"):
         return Path(os.environ["CALSLOP_DATA_DIR"]) / "sources.json"
     return Path.home() / ".config" / "calslop" / "sources.json"
@@ -50,11 +64,13 @@ class SourcesStore:
 
     def add_source(self, data: SourceCreate) -> Source:
         sid = str(uuid.uuid4())
+        default_color = DEFAULT_SOURCE_COLORS[len(self._sources) % len(DEFAULT_SOURCE_COLORS)]
         source = Source(
             id=sid,
             type=data.type,
             name=data.name,
             enabled=data.enabled,
+            color=data.color or default_color,
             config=data.config,
         )
         self._sources[sid] = source
@@ -70,6 +86,8 @@ class SourcesStore:
             d["name"] = data.name
         if data.enabled is not None:
             d["enabled"] = data.enabled
+        if data.color is not None:
+            d["color"] = data.color
         if data.config is not None:
             d["config"] = data.config
         s = Source(**d)

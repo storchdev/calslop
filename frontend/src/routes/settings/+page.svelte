@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getSources, createSource, deleteSource } from '$lib/api';
+  import { getSources, createSource, deleteSource, updateSource } from '$lib/api';
   import { app } from '$lib/stores/app.svelte';
   import type { Source } from '$lib/types';
+  import { sourceColorForIndex } from '$lib/source-colors';
 
   let sources = $state<Source[]>([]);
   let loading = $state(true);
@@ -69,6 +70,21 @@
     }
   }
 
+  function sourceColor(s: Source, index: number): string {
+    return sourceColorForIndex(s, index);
+  }
+
+  async function changeSourceColor(sourceId: string, color: string) {
+    error = '';
+    try {
+      await updateSource(sourceId, { color });
+      sources = sources.map((s) => (s.id === sourceId ? { ...s, color } : s));
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to update source color';
+      load();
+    }
+  }
+
   function configFields(): { key: string; label: string; placeholder: string }[] {
     if (newType === 'ics_url') return [{ key: 'url', label: 'ICS URL', placeholder: 'https://...' }];
     if (newType === 'local_folder') return [{ key: 'path', label: 'Folder path', placeholder: '/path/to/folder' }];
@@ -105,12 +121,22 @@
       <li class="settings-sources-header">
         <span class="source-name">Name</span>
         <span class="source-type">Type</span>
+        <span class="source-color">Color</span>
         <span class="source-remove"></span>
       </li>
-      {#each sources as s}
+      {#each sources as s, i}
         <li>
           <span class="source-name">{s.name}</span>
           <span class="source-type">{sourceTypeLabel(s.type)}</span>
+          <label class="source-color">
+            <input
+              class="source-color-input"
+              type="color"
+              value={sourceColor(s, i)}
+              aria-label={`Color for ${s.name}`}
+              onchange={(e) => changeSourceColor(s.id, (e.currentTarget as HTMLInputElement).value)}
+            />
+          </label>
           <button class="btn btn-ghost source-remove" onclick={() => remove(s.id)} type="button">Remove</button>
         </li>
       {/each}

@@ -110,14 +110,14 @@ export async function getSource(id: string): Promise<Source> {
   return fetchApi<Source>(`/sources/${encodeURIComponent(id)}`);
 }
 
-export async function createSource(data: { type: Source['type']; name: string; enabled?: boolean; config: Record<string, unknown> }): Promise<Source> {
+export async function createSource(data: { type: Source['type']; name: string; enabled?: boolean; color?: string; config: Record<string, unknown> }): Promise<Source> {
   return fetchApi<Source>('/sources', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-export async function updateSource(id: string, data: { name?: string; enabled?: boolean; config?: Record<string, unknown> }): Promise<Source> {
+export async function updateSource(id: string, data: { name?: string; enabled?: boolean; color?: string; config?: Record<string, unknown> }): Promise<Source> {
   return fetchApi<Source>(`/sources/${encodeURIComponent(id)}`, {
     method: 'PUT',
     body: JSON.stringify(data),

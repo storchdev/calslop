@@ -39,6 +39,7 @@ class Source(BaseModel):
     type: SourceType
     name: str
     enabled: bool = True
+    color: str | None = None
     config: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -46,12 +47,14 @@ class SourceCreate(BaseModel):
     type: SourceType
     name: str
     enabled: bool = True
+    color: str | None = None
     config: dict[str, Any] = Field(default_factory=dict)
 
 
 class SourceUpdate(BaseModel):
     name: str | None = None
     enabled: bool | None = None
+    color: str | None = None
     config: dict[str, Any] | None = None
 
 

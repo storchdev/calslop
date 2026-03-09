@@ -8,9 +8,10 @@
   import TodoModal from '$lib/components/TodoModal.svelte';
   import PushOffModal from '$lib/components/PushOffModal.svelte';
   import ShortcutsModal from '$lib/components/ShortcutsModal.svelte';
-  import { getEvents, getTodos, pushTodosByDateRange, updateTodo } from '$lib/api';
+  import { getEvents, getTodos, getSources, pushTodosByDateRange, updateTodo } from '$lib/api';
   import type { Event, Todo } from '$lib/types';
   import { parseUtcIfNeeded } from '$lib/date';
+  import { sourceColorMap } from '$lib/source-colors';
 
   let { data }: PageProps = $props();
   let events = $state<Event[]>([]);
@@ -20,6 +21,7 @@
   let notificationError = $state('');
   let selectedTodo = $state<Todo | null>(null);
   let selectedEvent = $state<Event | null>(null);
+  let sourceColors = $state<Record<string, string>>({});
   let cacheReady = $state(false);
 
   const CACHE_KEY = 'calslop-home-cache-v1';
@@ -154,9 +156,10 @@
       const d = app.selectedDate;
       const start = new Date(d.getFullYear(), d.getMonth() - 2, 1).toISOString();
       const end = new Date(d.getFullYear(), d.getMonth() + 4, 0).toISOString();
-      const [e, t] = await Promise.all([getEvents(start, end), getTodos()]);
+      const [e, t, s] = await Promise.all([getEvents(start, end), getTodos(), getSources()]);
       events = e;
       todos = t;
+      sourceColors = sourceColorMap(s);
       notificationsPrimed = true;
       lastNotificationCheckMs = Date.now();
       app.setUnsyncedChanges(false);
@@ -497,6 +500,7 @@
           <Calendar
             events={events}
             todos={todos}
+            sourceColors={sourceColors}
             loadingTodoId={togglingTodoId}
             focusEventRequest={pendingCreatedEventFocus}
             onFocusEventRequestHandled={() => {

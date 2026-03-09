@@ -32,6 +32,7 @@ export interface Source {
   type: SourceType;
   name: string;
   enabled: boolean;
+  color?: string | null;
   config: Record<string, unknown>;
 }
 

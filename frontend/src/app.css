@@ -408,17 +408,17 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   text-align: left;
   padding: 0.375rem 0.5rem;
   border-radius: 4px;
-  border-left: 3px solid var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elevated));
+  border-left: 3px solid var(--source-color, var(--accent));
+  background: color-mix(in srgb, var(--source-color, var(--accent)) 12%, var(--bg-elevated));
   color: var(--text);
 }
 
 .day-event.focused {
-  background: color-mix(in srgb, var(--accent) 20%, var(--bg-elevated));
+  background: color-mix(in srgb, var(--source-color, var(--accent)) 20%, var(--bg-elevated));
 }
 
 .day-event.focused {
-  box-shadow: var(--focus-ring);
+  box-shadow: 0 0 0 2px var(--source-color, var(--accent));
 }
 
 .day-event-block {
@@ -464,11 +464,11 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .day-todo {
   cursor: pointer;
-  border: 1px dashed var(--border);
+  border: 1px dashed color-mix(in srgb, var(--source-color, var(--accent)) 60%, var(--border));
   text-align: left;
   padding: 0.375rem 0.5rem;
   border-radius: 4px;
-  background: var(--bg-elevated);
+  background: color-mix(in srgb, var(--source-color, var(--accent)) 9%, var(--bg-elevated));
   color: var(--text);
   display: inline-flex;
   align-items: center;
@@ -476,11 +476,11 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 }
 
 .day-todo.focused {
-  background: color-mix(in srgb, var(--accent) 8%, var(--bg-elevated));
+  background: color-mix(in srgb, var(--source-color, var(--accent)) 14%, var(--bg-elevated));
 }
 
 .day-todo.focused {
-  box-shadow: var(--focus-ring);
+  box-shadow: 0 0 0 2px var(--source-color, var(--accent));
 }
 
 .day-todo.completed .day-todo-label {
@@ -497,7 +497,7 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   flex-shrink: 0;
   width: 1rem;
   height: 1rem;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--source-color, var(--accent)) 65%, var(--border));
   border-radius: 3px;
   display: inline-flex;
   align-items: center;
@@ -506,9 +506,9 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 }
 
 .day-todo.completed .day-todo-checkbox {
-  background: var(--accent);
+  background: var(--source-color, var(--accent));
   color: white;
-  border-color: var(--accent);
+  border-color: var(--source-color, var(--accent));
 }
 
 .day-todo-block .day-todo-label {
@@ -988,7 +988,7 @@ select, select option {
 
 .settings-sources-list li {
   display: grid;
-  grid-template-columns: 1fr minmax(8rem, auto) auto;
+  grid-template-columns: minmax(0, 1fr) 12rem 7rem 5.5rem;
   gap: 1rem;
   align-items: center;
   padding: 0.75rem 1rem;
@@ -1009,23 +1009,40 @@ select, select option {
   padding: 0.5rem 1rem;
 }
 
-.settings-sources-list li.settings-sources-header .source-remove {
-  width: 4.5rem;
-}
-
 .settings-sources-list .source-name {
   font-weight: 600;
   color: var(--text);
   min-width: 0;
 }
 
-.settings-sources-list .source-type {
+.settings-sources-list li:not(.settings-sources-header) .source-type {
   font-size: 0.8125rem;
   color: var(--text-muted);
 }
 
 .settings-sources-list .source-remove {
   justify-self: end;
+}
+
+.settings-sources-list .source-color {
+  min-width: 7rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  justify-self: start;
+}
+
+.settings-sources-list .source-color-input {
+  display: block;
+  margin: 0;
+  vertical-align: middle;
+  width: 2.4rem;
+  height: 1.7rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  padding: 0.12rem;
+  cursor: pointer;
 }
 
 .settings-page .add-source-btn {
