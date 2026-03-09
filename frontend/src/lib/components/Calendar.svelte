@@ -133,6 +133,11 @@
     return `${normalized.slice(0, maxChars - 1).trimEnd()}…`;
   }
 
+  function normalizeLocationText(location: string | null | undefined): string | null {
+    const normalized = location?.trim() ?? '';
+    return normalized.length > 0 ? normalized : null;
+  }
+
   const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   // Measure day cell height so we can show more/fewer events based on available space (dense + balanced)
@@ -212,6 +217,8 @@
 
   const MIN_EVENT_BLOCK_HEIGHT = 24;
   const MIN_TODO_BLOCK_HEIGHT = 40;
+  const TIMED_EVENT_EXPANDED_HEIGHT_PX = 72;
+  const TIMED_EVENT_SINGLE_LINE_HEIGHT_PX = 48;
   /** Day view: height of each hour row, scaled by user's height ratio (0.5–2). */
   const rowHeight = $derived(60 * app.calendarHeightRatio);
 
@@ -652,6 +659,7 @@
               {:else}
                 {#each items as item, itemIdx}
                   {#if item.kind === 'event'}
+                    {@const location = normalizeLocationText(item.event.location)}
                     <button
                       type="button"
                       class="day-event day-event-block upcoming-item"
@@ -678,7 +686,7 @@
                           {/if}
                         {/if}
                       </span>
-                      <span class="upcoming-item-title">{item.event.title}</span>
+                      <span class="upcoming-item-title">{location ? `${item.event.title} @ ${location}` : item.event.title}</span>
                     </button>
                   {:else}
                     <button
@@ -741,6 +749,7 @@
           <div class="day-view-allday-items">
             {#each allDayItems as item, i}
               {#if item.type === 'event'}
+                {@const location = normalizeLocationText(item.event.location)}
                 <button
                   type="button"
                   class="day-event day-event-block"
@@ -755,7 +764,10 @@
                   onfocus={() => app.setFocusedEventIndex(i)}
                   onclick={() => onSelectEvent?.(item.event)}
                 >
-                  {item.event.title}
+                  <span class="day-event-title">{item.event.title}</span>
+                  {#if location}
+                    <span class="day-event-location">{location}</span>
+                  {/if}
                 </button>
               {:else}
                 <button
@@ -813,11 +825,13 @@
             {@const i = allDayItems.length + idx}
             {@const topPx = item.renderStartMin / 60 * rowHeight}
             {@const heightPx = Math.max(1, (item.renderEndMin - item.renderStartMin) / 60 * rowHeight)}
-            {@const isCompactTimedEvent = item.type === 'event' && heightPx < 56}
+            {@const isCompactTimedEvent = item.type === 'event' && heightPx < TIMED_EVENT_SINGLE_LINE_HEIGHT_PX}
+            {@const isInlineLocationTimedEvent = item.type === 'event' && !isCompactTimedEvent && heightPx < TIMED_EVENT_EXPANDED_HEIGHT_PX}
             {@const leftPct = item.overlapColumn / item.overlapColumns * 100}
             {@const widthPct = 100 / item.overlapColumns}
             {@const laneGapPx = 4}
             {#if item.type === 'event'}
+              {@const location = normalizeLocationText(item.event.location)}
               <button
                 type="button"
                 class="day-event day-event-timed"
@@ -839,7 +853,14 @@
                     – {formatInTimezone(item.event.end, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
                   {/if}
                 </span>
-                <span class="day-event-title">{item.event.title}</span>
+                <span class="day-event-title">
+                  {(isCompactTimedEvent || isInlineLocationTimedEvent) && location
+                    ? `${item.event.title} @ ${location}`
+                    : item.event.title}
+                </span>
+                {#if !isCompactTimedEvent && !isInlineLocationTimedEvent && location}
+                  <span class="day-event-location">{location}</span>
+                {/if}
               </button>
             {:else}
                 <button

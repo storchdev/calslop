@@ -470,6 +470,10 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 
 .day-event-block {
   font-size: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
 }
 
 .day-event-timed {
@@ -505,8 +509,20 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   white-space: nowrap;
 }
 
+.day-event-location {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .day-event-timed.day-event-compact .day-event-title {
   min-width: 0;
+}
+
+.day-event-timed.day-event-compact .day-event-location {
+  display: none;
 }
 
 .day-todo {
