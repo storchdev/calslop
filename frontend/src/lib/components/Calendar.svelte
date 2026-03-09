@@ -569,12 +569,12 @@
                       {#if item.kind === 'event'}
                         <div class="dense-item text-[0.65rem] leading-tight" class:line-through={item.event.cancelled} title={item.event.title}>
                           <span class="dense-item-time">{item.event.all_day ? 'All day' : formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}</span>
-                          <span class="dense-item-text">{truncateDenseText(item.event.title)}</span>
+                          <span class="dense-item-text dense-item-text-source" style={sourceColorStyle(item.event.source_id)}>{truncateDenseText(item.event.title)}</span>
                         </div>
                       {:else}
                         <div class="dense-item dense-item-todo text-[0.65rem] leading-tight italic text-[var(--text-muted)]" class:line-through={item.todo.completed} class:todo-overdue-text={isTodoOverdue(item.todo)} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
                           <span class="dense-item-time">{item.todo.due ? formatInTimezone(item.todo.due, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined) : '–'}</span>
-                          <span class="dense-item-text">
+                          <span class="dense-item-text" class:dense-item-text-source={!item.todo.completed} style={!item.todo.completed ? sourceColorStyle(item.todo.source_id) : ''}>
                             {#if item.todo.completed}
                               ✓
                             {:else}
@@ -610,15 +610,13 @@
                 <div class="balanced-view-content">
                   {#each visible as item}
                     {#if item.kind === 'event'}
-                      <span class="balanced-item-text block text-[0.82rem] overflow-hidden text-ellipsis whitespace-nowrap text-center" class:line-through={item.event.cancelled} title={item.event.title}>{item.event.title}</span>
+                      <span class="balanced-item-marker balanced-item-marker-event" style={sourceColorStyle(item.event.source_id)} title={item.event.title}>
+                        <span class="balanced-event-bar" aria-hidden="true"></span>
+                      </span>
                     {:else}
-                      <span class="balanced-item-text block text-[0.82rem] overflow-hidden text-ellipsis whitespace-nowrap flex items-center justify-center gap-0.5 italic text-[var(--text-muted)]" class:line-through={item.todo.completed} class:todo-overdue-text={isTodoOverdue(item.todo)} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
-                        {#if item.todo.completed}
-                          <span class="opacity-80 shrink-0" aria-hidden="true">✓</span>
-                        {:else}
-                          <span class="opacity-80 shrink-0" aria-hidden="true">•</span>
-                        {/if}
-                        {item.todo.summary}
+                      <span class="balanced-item-marker balanced-item-marker-todo" class:is-completed={item.todo.completed} style={!item.todo.completed ? sourceColorStyle(item.todo.source_id) : ''} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
+                        <span class="balanced-todo-dot" aria-hidden="true"></span>
+                        <span class="balanced-todo-bar" aria-hidden="true"></span>
                       </span>
                     {/if}
                   {/each}

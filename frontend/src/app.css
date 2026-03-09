@@ -116,6 +116,7 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 0.18rem;
   overflow: hidden;
   min-width: 0;
   width: 100%;
@@ -137,12 +138,57 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   line-height: 1.15;
 }
 
+.day-cell .balanced-item-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
+  width: min(92%, 5.6rem);
+  max-width: 100%;
+  min-width: 0;
+  color: var(--source-color, var(--text));
+}
+
+.day-cell .balanced-event-bar,
+.day-cell .balanced-todo-bar {
+  display: block;
+  height: 0.28rem;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.day-cell .balanced-event-bar {
+  width: 100%;
+}
+
+.day-cell .balanced-todo-dot {
+  width: 0.32rem;
+  height: 0.32rem;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: currentColor;
+}
+
+.day-cell .balanced-todo-bar {
+  width: calc(100% - 0.6rem);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.day-cell .balanced-item-marker.is-completed {
+  color: color-mix(in srgb, var(--text-muted) 88%, var(--border));
+}
+
 .day-cell .dense-item-text {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
   overflow: hidden;
   word-break: break-word;
+}
+
+.day-cell .dense-item-text.dense-item-text-source {
+  color: var(--source-color, inherit);
 }
 
 .day-cell .dense-item {
@@ -164,17 +210,18 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
 }
 
 .day-cell:focus-visible {
-  background: var(--bg-elevated);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  box-shadow: none;
 }
 
 .day-cell.today {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  background: color-mix(in srgb, var(--accent) 28%, var(--bg));
 }
 
 .day-cell.selected {
-  background: var(--accent);
-  color: white;
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .day-cell.search-match {
