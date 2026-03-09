@@ -9,7 +9,7 @@
   import PushOffModal from '$lib/components/PushOffModal.svelte';
   import ShortcutsModal from '$lib/components/ShortcutsModal.svelte';
   import { getEvents, getTodos, getSources, pushTodosByDateRange, updateTodo } from '$lib/api';
-  import type { Event, Todo } from '$lib/types';
+  import type { Event, Todo, Source } from '$lib/types';
   import { parseUtcIfNeeded } from '$lib/date';
   import { sourceColorMap } from '$lib/source-colors';
 
@@ -22,6 +22,8 @@
   let selectedTodo = $state<Todo | null>(null);
   let selectedEvent = $state<Event | null>(null);
   let sourceColors = $state<Record<string, string>>({});
+  let sources = $state<Source[]>([]);
+  let selectedTodoSource = $state('all');
   let cacheReady = $state(false);
 
   const CACHE_KEY = 'calslop-home-cache-v1';
@@ -159,6 +161,7 @@
       const [e, t, s] = await Promise.all([getEvents(start, end), getTodos(), getSources()]);
       events = e;
       todos = t;
+      sources = s;
       sourceColors = sourceColorMap(s);
       notificationsPrimed = true;
       lastNotificationCheckMs = Date.now();
@@ -186,6 +189,16 @@
       default: return 0;
     }
   }
+
+  function baseSourceId(sourceId: string): string {
+    return sourceId.split('::')[0] || sourceId;
+  }
+
+  const sourceFilteredTodos = $derived(
+    selectedTodoSource === 'all'
+      ? todos
+      : todos.filter((todo) => baseSourceId(todo.source_id) === selectedTodoSource)
+  );
 
   onMount(() => {
     const cached = readCachedData();
@@ -547,6 +560,15 @@
             <option value="newest">Newest first</option>
           </select>
         </div>
+        <div class="dropdown-box">
+          <span class="dropdown-box-label">Source</span>
+          <select bind:value={selectedTodoSource}>
+            <option value="all">All sources</option>
+            {#each sources as source}
+              <option value={source.id}>{source.name}</option>
+            {/each}
+          </select>
+        </div>
         <span class="search-input-wrap">
           <input
             id="calslop-search-input"
@@ -594,7 +616,7 @@
       </div>
       <div class="content-scroll flex-1 min-h-0 overflow-auto">
         <TodoList
-          todos={todos}
+          todos={sourceFilteredTodos}
           showCompleted={app.showCompletedTodos}
           todoOrder={app.todoOrder}
           searchQuery={app.searchQuery}
