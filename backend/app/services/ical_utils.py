@@ -27,6 +27,10 @@ def _to_naive_utc(dt: datetime | date | None) -> datetime | None:
 
 
 def _get_dt(component: Any, key: str) -> datetime | None:
+    return _get_dt_for_output(component, key)
+
+
+def _get_dt_for_output(component: Any, key: str) -> datetime | None:
     val = component.get(key)
     if val is None:
         return None
@@ -38,6 +42,27 @@ def _get_dt(component: Any, key: str) -> datetime | None:
         return None
     if hasattr(val, "dt"):
         return _to_naive_utc(val.dt)
+    return None
+
+
+def _get_dt_for_recurrence(component: Any, key: str) -> datetime | None:
+    val = component.get(key)
+    if val is None:
+        return None
+    if hasattr(val, "dts"):
+        dts = val.dts if hasattr(val.dts, "__iter__") else [val.dts]
+        for d in dts:
+            dt_value = getattr(d, "dt", None) if d else None
+            if isinstance(dt_value, datetime):
+                return dt_value
+            if isinstance(dt_value, date):
+                return datetime.combine(dt_value, datetime.min.time())
+        return None
+    dt_value = getattr(val, "dt", None)
+    if isinstance(dt_value, datetime):
+        return dt_value
+    if isinstance(dt_value, date):
+        return datetime.combine(dt_value, datetime.min.time())
     return None
 
 
@@ -226,8 +251,8 @@ def parse_events_from_ical(
             )
 
         for master in masters:
-            start = _get_dt(master, "dtstart")
-            end = _get_dt(master, "dtend")
+            start = _get_dt_for_output(master, "dtstart")
+            end = _get_dt_for_output(master, "dtend")
             if not start:
                 continue
             if not end:
@@ -261,7 +286,14 @@ def parse_events_from_ical(
                     )
                 continue
 
-            rule = parse_rrule(recurrence, start)
+            recurrence_start = _get_dt_for_recurrence(master, "dtstart")
+            recurrence_end = _get_dt_for_recurrence(master, "dtend")
+            if not recurrence_start:
+                recurrence_start = start
+            if not recurrence_end:
+                recurrence_end = recurrence_start
+
+            rule = parse_rrule(recurrence, recurrence_start)
             if rule is None or window_start is None or window_end is None:
                 if _event_intersects_window(start, end, window_start, window_end):
                     events.append(
@@ -283,7 +315,7 @@ def parse_events_from_ical(
                     )
                 continue
 
-            duration = end - start
+            duration = recurrence_end - recurrence_start
             exdate_keys = _collect_exdate_keys(master)
             for occurrence in iter_occurrences_in_window(rule, window_start, window_end):
                 occ_start = to_naive_utc(occurrence)

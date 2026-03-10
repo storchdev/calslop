@@ -1,5 +1,6 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from app.main import app
 from app.models.dtos import Source
@@ -95,6 +96,80 @@ def test_parse_non_recurring_event_unchanged():
     assert len(events) == 1
     assert events[0].id == "src-4::single-1@example.com"
     assert events[0].recurrence is None
+
+
+def test_parse_tzid_recurring_events_keep_local_time_across_dst():
+    ics_text = "\n".join(
+        [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//Test//EN",
+            "BEGIN:VEVENT",
+            "UID:dst-series@example.com",
+            "DTSTART;TZID=America/New_York:20260307T090000",
+            "DTEND;TZID=America/New_York:20260307T100000",
+            "SUMMARY:DST Series",
+            "RRULE:FREQ=DAILY;COUNT=4",
+            "END:VEVENT",
+            "END:VCALENDAR",
+        ]
+    )
+
+    events = parse_events_from_ical(
+        ics_text,
+        "src-dst-1",
+        window_start=datetime(2026, 3, 7, 0, 0),
+        window_end=datetime(2026, 3, 10, 23, 59),
+    )
+
+    assert len(events) == 4
+    ny_tz = ZoneInfo("America/New_York")
+    local_hours = [e.start.replace(tzinfo=timezone.utc).astimezone(ny_tz).hour for e in events]
+    utc_hours = [e.start.hour for e in events]
+    assert local_hours == [9, 9, 9, 9]
+    assert utc_hours == [14, 13, 13, 13]
+
+
+def test_parse_tzid_dst_exception_overrides_correct_instance():
+    ics_text = "\n".join(
+        [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//Test//EN",
+            "BEGIN:VEVENT",
+            "UID:dst-exception@example.com",
+            "DTSTART;TZID=America/New_York:20260307T090000",
+            "DTEND;TZID=America/New_York:20260307T100000",
+            "SUMMARY:Daily Standup",
+            "RRULE:FREQ=DAILY;COUNT=3",
+            "END:VEVENT",
+            "BEGIN:VEVENT",
+            "UID:dst-exception@example.com",
+            "RECURRENCE-ID;TZID=America/New_York:20260308T090000",
+            "DTSTART;TZID=America/New_York:20260308T113000",
+            "DTEND;TZID=America/New_York:20260308T123000",
+            "SUMMARY:DST Override",
+            "END:VEVENT",
+            "END:VCALENDAR",
+        ]
+    )
+
+    events = parse_events_from_ical(
+        ics_text,
+        "src-dst-2",
+        window_start=datetime(2026, 3, 8, 0, 0),
+        window_end=datetime(2026, 3, 8, 23, 59),
+    )
+
+    assert len(events) == 1
+    event = events[0]
+    assert event.title == "DST Override"
+    assert event.id == "src-dst-2::dst-exception@example.com::20260308T130000Z"
+
+    ny_tz = ZoneInfo("America/New_York")
+    local_start = event.start.replace(tzinfo=timezone.utc).astimezone(ny_tz)
+    assert local_start.hour == 11
+    assert local_start.minute == 30
 
 
 def test_ics_url_driver_fetches_recurrences_in_window(monkeypatch):
