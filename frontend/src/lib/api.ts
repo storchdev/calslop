@@ -156,3 +156,10 @@ export async function parseHumanAlerts(text: string): Promise<{ minutes: number[
     body: JSON.stringify({ text }),
   });
 }
+
+export async function parseHumanDelta(text: string): Promise<{ seconds: number; label: string }> {
+  return fetchApi<{ seconds: number; label: string }>('/delta/parse', {
+    method: 'POST',
+    body: JSON.stringify({ text }),
+  });
+}

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { createEvent, updateEvent, getEvent, deleteEvent, getWritableSources, parseHumanDatetime, parseHumanRecurrence, parseHumanAlerts } from '$lib/api';
+  import { createEvent, updateEvent, getEvent, deleteEvent, getWritableSources, parseHumanDatetime, parseHumanRecurrence, parseHumanAlerts, parseHumanDelta } from '$lib/api';
   import type { Event } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
   import { toLocalDatetimeInput } from '$lib/date';
@@ -45,6 +45,12 @@ interface Props {
   let endHuman = $state('');
   let repeatHuman = $state('');
   let alertHuman = $state('');
+  let shiftHuman = $state('');
+  let shiftDeltaSeconds = $state(0);
+  let shiftDeltaLabel = $state('');
+  let shiftLocked = $state(false);
+  let shiftBaseStart = $state<string | null>(null);
+  let shiftBaseEnd = $state<string | null>(null);
   let endDateAdjustedHint = $state('');
   let customRepeatOption = $state<{ value: string; label: string } | null>(null);
   let customAlertOption = $state<{ value: string; label: string } | null>(null);
@@ -75,6 +81,12 @@ interface Props {
         location = prefill.location ?? '';
         recurrence = prefill.recurrence ?? '';
         setAlertMinutes(prefill.alert_minutes_before);
+        shiftHuman = '';
+        shiftDeltaSeconds = 0;
+        shiftDeltaLabel = '';
+        shiftLocked = false;
+        shiftBaseStart = null;
+        shiftBaseEnd = null;
       } else {
         if (fetchedEventId === editingId) return;
         fetchedEventId = editingId;
@@ -89,6 +101,12 @@ interface Props {
           location = e.location ?? '';
           recurrence = e.recurrence ?? '';
           setAlertMinutes(e.alert_minutes_before);
+          shiftHuman = '';
+          shiftDeltaSeconds = 0;
+          shiftDeltaLabel = '';
+          shiftLocked = false;
+          shiftBaseStart = null;
+          shiftBaseEnd = null;
         }).catch((err) => {
           if (editingId !== currentId || deleting) return;
           error = err instanceof Error ? err.message : 'Failed to load event';
@@ -105,6 +123,12 @@ interface Props {
       location = '';
       recurrence = '';
       setAlertMinutes(null);
+      shiftHuman = '';
+      shiftDeltaSeconds = 0;
+      shiftDeltaLabel = '';
+      shiftLocked = false;
+      shiftBaseStart = null;
+      shiftBaseEnd = null;
     }
   });
 
@@ -187,6 +211,7 @@ interface Props {
   let alertEl: HTMLSelectElement | undefined;
   let alertHumanEl = $state<HTMLInputElement | undefined>(undefined);
   let repeatHumanEl = $state<HTMLInputElement | undefined>(undefined);
+  let shiftHumanEl = $state<HTMLInputElement | undefined>(undefined);
   let descriptionEl: HTMLTextAreaElement | undefined;
   let sourceIdEl = $state<HTMLSelectElement | undefined>(undefined);
 
@@ -219,6 +244,16 @@ interface Props {
     const h = String(d.getHours()).padStart(2, '0');
     const min = String(d.getMinutes()).padStart(2, '0');
     return `${y}-${m}-${dd}T${h}:${min}`;
+  }
+
+  function shiftLocalDatetime(localDatetime: string, seconds: number): string {
+    const shifted = new Date(new Date(localDatetime).getTime() + seconds * 1000);
+    const y = shifted.getFullYear();
+    const m = String(shifted.getMonth() + 1).padStart(2, '0');
+    const d = String(shifted.getDate()).padStart(2, '0');
+    const h = String(shifted.getHours()).padStart(2, '0');
+    const min = String(shifted.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${d}T${h}:${min}`;
   }
 
   async function applyHumanDate(field: 'start' | 'end'): Promise<boolean> {
@@ -324,6 +359,56 @@ interface Props {
     }
   }
 
+  async function applyHumanShift(): Promise<boolean> {
+    const text = shiftHuman.trim();
+    if (!text) return false;
+    error = '';
+    try {
+      const parsed = await parseHumanDelta(text);
+      const baseStart = shiftBaseStart ?? start;
+      const baseEnd = shiftBaseEnd ?? end;
+      shiftBaseStart = baseStart;
+      shiftBaseEnd = baseEnd;
+      shiftDeltaSeconds = parsed.seconds;
+      shiftDeltaLabel = parsed.label;
+      shiftHuman = parsed.label;
+      start = shiftLocalDatetime(baseStart, parsed.seconds);
+      end = shiftLocalDatetime(baseEnd, parsed.seconds);
+      shiftLocked = true;
+      activeDateField = null;
+      blurInputAndFocusModal(shiftHumanEl, modalEl);
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to parse shift';
+      return false;
+    }
+  }
+
+  function handleShiftInput() {
+    if (!shiftLocked) return;
+    shiftLocked = false;
+    shiftDeltaSeconds = 0;
+    shiftDeltaLabel = '';
+    if (shiftBaseStart && shiftBaseEnd) {
+      start = shiftBaseStart;
+      end = shiftBaseEnd;
+    }
+  }
+
+  function onStartInput() {
+    if (!shiftLocked) {
+      shiftBaseStart = null;
+      shiftBaseEnd = null;
+    }
+  }
+
+  function onEndInput() {
+    if (!shiftLocked) {
+      shiftBaseStart = null;
+      shiftBaseEnd = null;
+    }
+  }
+
   function applyAlertSelect() {
     const resolved = resolveAlertMinutesFromSelection(alertSelectValue);
     if (resolved !== null) setAlertMinutes(resolved);
@@ -369,7 +454,13 @@ interface Props {
       });
       return;
     }
+    if (e.key === 'Enter' && target === shiftHumanEl) {
+      e.preventDefault();
+      void applyHumanShift();
+      return;
+    }
     if (inDateInput && e.key.toLowerCase() === 'h') {
+      if (shiftLocked) return;
       e.preventDefault();
       if (target === startEl) {
         focusHumanDateField('start');
@@ -414,11 +505,16 @@ interface Props {
       e.preventDefault();
       titleEl?.focus();
     } else if (key === 's') {
+      if (shiftLocked) return;
       e.preventDefault();
       focusHumanDateField('start');
     } else if (key === 'e') {
+      if (shiftLocked) return;
       e.preventDefault();
       focusHumanDateField('end');
+    } else if (key === 'f') {
+      e.preventDefault();
+      shiftHumanEl?.focus();
     } else if (key === 'a') {
       e.preventDefault();
       allDayEl?.focus();
@@ -487,10 +583,11 @@ interface Props {
       <input
         type="datetime-local"
         bind:value={start}
-        disabled={allDay}
-        class:opacity-60={allDay}
-        class:bg-[var(--bg-subtle)]={allDay}
+        disabled={allDay || shiftLocked}
+        class:opacity-60={allDay || shiftLocked}
+        class:bg-[var(--bg-subtle)]={allDay || shiftLocked}
         bind:this={startEl}
+        oninput={onStartInput}
         onfocus={() => { activeDateField = 'start'; }}
         onblur={() => clearActiveDateFieldIfNeeded('start')}
       />
@@ -506,6 +603,9 @@ interface Props {
           bind:value={startHuman}
           bind:this={startHumanEl}
           placeholder="e.g. tomorrow 9am"
+          disabled={shiftLocked}
+          class:opacity-60={shiftLocked}
+          class:bg-[var(--bg-subtle)]={shiftLocked}
           onfocus={() => { activeDateField = 'start'; }}
           onblur={() => clearActiveDateFieldIfNeeded('start')}
         />
@@ -519,10 +619,11 @@ interface Props {
       <input
         type="datetime-local"
         bind:value={end}
-        disabled={allDay}
-        class:opacity-60={allDay}
-        class:bg-[var(--bg-subtle)]={allDay}
+        disabled={allDay || shiftLocked}
+        class:opacity-60={allDay || shiftLocked}
+        class:bg-[var(--bg-subtle)]={allDay || shiftLocked}
         bind:this={endEl}
+        oninput={onEndInput}
         onfocus={() => { activeDateField = 'end'; }}
         onblur={() => clearActiveDateFieldIfNeeded('end')}
       />
@@ -538,6 +639,9 @@ interface Props {
           bind:value={endHuman}
           bind:this={endHumanEl}
           placeholder="e.g. tomorrow 10am"
+          disabled={shiftLocked}
+          class:opacity-60={shiftLocked}
+          class:bg-[var(--bg-subtle)]={shiftLocked}
           onfocus={() => { activeDateField = 'end'; }}
           onblur={() => clearActiveDateFieldIfNeeded('end')}
         />
@@ -546,6 +650,20 @@ interface Props {
         {/if}
       </div>
     {/if}
+    <div class="form-row">
+      <div class="form-row-header">
+        <span class="field-label">Shift by</span>
+        <span class="field-shortcut">F</span>
+      </div>
+      <input
+        type="text"
+        bind:value={shiftHuman}
+        bind:this={shiftHumanEl}
+        placeholder="e.g. +2h 30m or -1 day"
+        title={shiftLocked ? `Locked: ${shiftDeltaLabel}` : undefined}
+        oninput={handleShiftInput}
+      />
+    </div>
     <div class="form-row form-row-checkbox">
       <div class="form-row-header">
         <span class="field-label">All day</span>

@@ -4,7 +4,15 @@ from flask import Flask, abort, jsonify, send_from_directory
 from flask_cors import CORS
 from pydantic import ValidationError
 
-from app.routes import alerts_bp, datetime_bp, events_bp, recurrence_bp, todos_bp, sources_bp
+from app.routes import (
+    alerts_bp,
+    datetime_bp,
+    delta_bp,
+    events_bp,
+    recurrence_bp,
+    sources_bp,
+    todos_bp,
+)
 
 app = Flask(__name__)
 CORS(
@@ -25,6 +33,7 @@ app.register_blueprint(sources_bp, url_prefix="/api/sources")
 app.register_blueprint(datetime_bp, url_prefix="/api/datetime")
 app.register_blueprint(recurrence_bp, url_prefix="/api/recurrence")
 app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
+app.register_blueprint(delta_bp, url_prefix="/api/delta")
 
 
 # Optional: serve built frontend (single-process install)

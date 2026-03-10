@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { createTodo, updateTodo, getTodo, getWritableSources, deleteTodo, parseHumanDatetime, parseHumanRecurrence, parseHumanAlerts } from '$lib/api';
+  import { createTodo, updateTodo, getTodo, getWritableSources, deleteTodo, parseHumanDatetime, parseHumanRecurrence, parseHumanAlerts, parseHumanDelta } from '$lib/api';
   import type { Todo } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
   import { toLocalDatetimeInput } from '$lib/date';
@@ -44,6 +44,11 @@
   let dueHuman = $state('');
   let repeatHuman = $state('');
   let alertHuman = $state('');
+  let shiftHuman = $state('');
+  let shiftDeltaSeconds = $state(0);
+  let shiftDeltaLabel = $state('');
+  let shiftLocked = $state(false);
+  let shiftBaseDue = $state<string | null>(null);
   let customRepeatOption = $state<{ value: string; label: string } | null>(null);
   let customAlertOption = $state<{ value: string; label: string } | null>(null);
   let fetchedTodoId = $state<string | null>(null);
@@ -70,6 +75,11 @@
         description = initialTodo.description ?? '';
         recurrence = initialTodo.recurrence ?? '';
         setAlertMinutes(initialTodo.alert_minutes_before);
+        shiftHuman = '';
+        shiftDeltaSeconds = 0;
+        shiftDeltaLabel = '';
+        shiftLocked = false;
+        shiftBaseDue = null;
         return;
       }
       if (fetchedTodoId === todoId) return;
@@ -83,6 +93,11 @@
         description = t.description ?? '';
         recurrence = t.recurrence ?? '';
         setAlertMinutes(t.alert_minutes_before);
+        shiftHuman = '';
+        shiftDeltaSeconds = 0;
+        shiftDeltaLabel = '';
+        shiftLocked = false;
+        shiftBaseDue = null;
       }).catch((e) => {
         if (todoId !== currentId || deleting) return;
         error = e instanceof Error ? e.message : 'Failed to load todo';
@@ -91,6 +106,11 @@
       fetchedTodoId = null;
       recurrence = '';
       setAlertMinutes(null);
+      shiftHuman = '';
+      shiftDeltaSeconds = 0;
+      shiftDeltaLabel = '';
+      shiftLocked = false;
+      shiftBaseDue = null;
     }
   });
 
@@ -110,6 +130,10 @@
     }
     if (!todoId && !sourceId) {
       error = 'Select a todo source';
+      return;
+    }
+    if (shiftLocked && !due) {
+      error = 'Due date is required when using Shift by';
       return;
     }
 
@@ -165,6 +189,7 @@
   let alertEl: HTMLSelectElement | undefined;
   let alertHumanEl = $state<HTMLInputElement | undefined>(undefined);
   let repeatHumanEl = $state<HTMLInputElement | undefined>(undefined);
+  let shiftHumanEl = $state<HTMLInputElement | undefined>(undefined);
   let sourceIdEl = $state<HTMLSelectElement | undefined>(undefined);
 
   $effect(() => {
@@ -197,6 +222,16 @@
       error = e instanceof Error ? e.message : 'Failed to parse date/time';
       return false;
     }
+  }
+
+  function shiftLocalDatetime(localDatetime: string, seconds: number): string {
+    const shifted = new Date(new Date(localDatetime).getTime() + seconds * 1000);
+    const y = shifted.getFullYear();
+    const m = String(shifted.getMonth() + 1).padStart(2, '0');
+    const d = String(shifted.getDate()).padStart(2, '0');
+    const h = String(shifted.getHours()).padStart(2, '0');
+    const min = String(shifted.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${d}T${h}:${min}`;
   }
 
   function clearDueFieldIfNeeded() {
@@ -275,6 +310,40 @@
     }
   }
 
+  async function applyHumanShift(): Promise<boolean> {
+    const text = shiftHuman.trim();
+    if (!text) return false;
+    error = '';
+    try {
+      const parsed = await parseHumanDelta(text);
+      const baseDue = shiftBaseDue ?? due;
+      shiftBaseDue = baseDue;
+      shiftDeltaSeconds = parsed.seconds;
+      shiftDeltaLabel = parsed.label;
+      shiftHuman = parsed.label;
+      if (baseDue) due = shiftLocalDatetime(baseDue, parsed.seconds);
+      shiftLocked = true;
+      activeDueField = false;
+      blurInputAndFocusModal(shiftHumanEl, modalEl);
+      return true;
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Failed to parse shift';
+      return false;
+    }
+  }
+
+  function handleShiftInput() {
+    if (!shiftLocked) return;
+    shiftLocked = false;
+    shiftDeltaSeconds = 0;
+    shiftDeltaLabel = '';
+    if (shiftBaseDue) due = shiftBaseDue;
+  }
+
+  function onDueInput() {
+    if (!shiftLocked) shiftBaseDue = null;
+  }
+
   function applyAlertSelect() {
     const resolved = resolveAlertMinutesFromSelection(alertSelectValue);
     if (resolved !== null) setAlertMinutes(resolved);
@@ -311,7 +380,13 @@
       });
       return;
     }
+    if (e.key === 'Enter' && target === shiftHumanEl) {
+      e.preventDefault();
+      void applyHumanShift();
+      return;
+    }
     if (target === dueEl && e.key.toLowerCase() === 'h') {
+      if (shiftLocked) return;
       e.preventDefault();
       focusDueHumanField();
       return;
@@ -355,8 +430,12 @@
       e.preventDefault();
       completedEl?.focus();
     } else if (key === 'u') {
+      if (shiftLocked) return;
       e.preventDefault();
       focusDueHumanField();
+    } else if (key === 'f') {
+      e.preventDefault();
+      shiftHumanEl?.focus();
     } else if (key === 'd') {
       e.preventDefault();
       descriptionEl?.focus();
@@ -428,7 +507,11 @@
       <input
         type="datetime-local"
         bind:value={due}
+        disabled={shiftLocked}
+        class:opacity-60={shiftLocked}
+        class:bg-[var(--bg-subtle)]={shiftLocked}
         bind:this={dueEl}
+        oninput={onDueInput}
         onfocus={() => { activeDueField = true; }}
         onblur={clearDueFieldIfNeeded}
       />
@@ -444,11 +527,28 @@
           bind:value={dueHuman}
           bind:this={dueHumanEl}
           placeholder="e.g. next friday 5pm"
+          disabled={shiftLocked}
+          class:opacity-60={shiftLocked}
+          class:bg-[var(--bg-subtle)]={shiftLocked}
           onfocus={() => { activeDueField = true; }}
           onblur={clearDueFieldIfNeeded}
         />
       </div>
     {/if}
+    <div class="form-row">
+      <div class="form-row-header">
+        <span class="field-label">Shift by</span>
+        <span class="field-shortcut">F</span>
+      </div>
+      <input
+        type="text"
+        bind:value={shiftHuman}
+        bind:this={shiftHumanEl}
+        placeholder="e.g. +2h 30m or -1 day"
+        title={shiftLocked ? `Locked: ${shiftDeltaLabel}` : undefined}
+        oninput={handleShiftInput}
+      />
+    </div>
     <div class="form-row">
       <div class="form-row-header">
         <span class="field-label">Repeat</span>
