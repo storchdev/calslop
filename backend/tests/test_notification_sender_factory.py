@@ -41,3 +41,14 @@ def test_create_sender_email(monkeypatch):
     settings = NotificationSettings(enabled=True, target="email", email={"to": "a@b.test"})
     sender = create_sender(settings)
     assert isinstance(sender, EmailSender)
+
+
+def test_validate_notification_template_rejects_unknown_field():
+    settings = NotificationSettings(
+        enabled=True,
+        target="notify_send",
+        body_template="{time}\n{unknown_field}",
+    )
+    errors = validate_notification_settings(settings)
+    assert errors
+    assert "Unsupported notification body template field" in errors[0]

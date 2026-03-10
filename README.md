@@ -26,6 +26,10 @@ Notification targets:
 - `webhook` with URL and optional headers
 - `email` with recipient in app settings and SMTP credentials from environment variables only
 
+Notification message formatting:
+- `time_format` uses Python `strftime` directives (default: `%b %d %H:%M %Z`)
+- `body_template` supports multiline text and placeholders: `{time}`, `{delta}`, `{title}`, `{kind}`
+
 Email environment variables (required for `email` target):
 - `CALSLOP_EMAIL_SMTP_HOST`
 - `CALSLOP_EMAIL_SMTP_PORT`

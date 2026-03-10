@@ -15,6 +15,8 @@ from app.services.notifications.senders.factory import create_sender
 
 LOGGER = logging.getLogger(__name__)
 ALERT_LATE_GRACE_MS = 15_000
+DEFAULT_NOTIFICATION_TIME_FORMAT = "%b %d %H:%M %Z"
+DEFAULT_NOTIFICATION_BODY_TEMPLATE = "{time}"
 
 
 @dataclass(slots=True)
@@ -35,7 +37,58 @@ def _dt_to_ms(value: datetime) -> int:
 
 def _format_notification_time(value: datetime) -> str:
     aware = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
-    return aware.strftime("%b %d %H:%M UTC")
+    local_dt = aware.astimezone()
+    return local_dt.strftime(DEFAULT_NOTIFICATION_TIME_FORMAT)
+
+
+def _format_notification_time_with_format(value: datetime, time_format: str) -> str:
+    aware = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+    local_dt = aware.astimezone()
+    return local_dt.strftime(time_format)
+
+
+def _human_relative_delta(now_ms: int, target: datetime) -> str:
+    delta_seconds = int(round((_dt_to_ms(target) - now_ms) / 1000))
+    if abs(delta_seconds) < 30:
+        return "now"
+
+    remaining = abs(delta_seconds)
+    chunks: list[str] = []
+    for unit_seconds, unit_label in ((86_400, "d"), (3_600, "h"), (60, "m"), (1, "s")):
+        if remaining < unit_seconds:
+            continue
+        value, remaining = divmod(remaining, unit_seconds)
+        chunks.append(f"{value}{unit_label}")
+        if len(chunks) == 2:
+            break
+
+    if not chunks:
+        chunks = ["0m"]
+
+    text = " ".join(chunks)
+    if delta_seconds > 0:
+        return f"in {text}"
+    return f"{text} ago"
+
+
+def render_notification_body(
+    *,
+    title: str,
+    kind: str,
+    target_dt: datetime,
+    now_ms: int,
+    time_format: str,
+    body_template: str,
+) -> str:
+    format_value = time_format or DEFAULT_NOTIFICATION_TIME_FORMAT
+    template_value = body_template or DEFAULT_NOTIFICATION_BODY_TEMPLATE
+    values = {
+        "title": title,
+        "kind": kind,
+        "time": _format_notification_time_with_format(target_dt, format_value),
+        "delta": _human_relative_delta(now_ms, target_dt),
+    }
+    return template_value.format_map(values)
 
 
 class NotificationScheduler:
@@ -87,7 +140,7 @@ class NotificationScheduler:
         sources = self._sources_store.list_sources()
         events, todos, _ = self._aggregate_fn(sources)
         now_ms = int(time.time() * 1000)
-        self._check_due_notifications(sender, now_ms)
+        self._check_due_notifications(sender, settings, now_ms)
         self._rebuild_armed_alerts(events, todos, now_ms)
 
     def _run(self) -> None:
@@ -166,7 +219,7 @@ class NotificationScheduler:
         active_keys = {alert.key for alert in next_alerts}
         self._notified_alerts.intersection_update(active_keys)
 
-    def _check_due_notifications(self, sender, now_ms: int) -> None:
+    def _check_due_notifications(self, sender, settings: NotificationSettings, now_ms: int) -> None:
         since = self._last_notification_check_ms
         self._last_notification_check_ms = now_ms
 
@@ -186,9 +239,14 @@ class NotificationScheduler:
 
             if should_notify and alert.key not in self._notified_alerts:
                 self._notified_alerts.add(alert.key)
-                body = _format_notification_time(alert.dt)
-                if alert.minutes > 0:
-                    body = f"{body} ({alert.minutes}m before)"
+                body = render_notification_body(
+                    title=alert.title,
+                    kind=alert.kind,
+                    target_dt=alert.dt,
+                    now_ms=now_ms,
+                    time_format=settings.time_format,
+                    body_template=settings.body_template,
+                )
                 try:
                     sender.send(alert.title, body)
                 except Exception:

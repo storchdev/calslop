@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from app.db.app_config_store import AppConfigStore
 from app.db.sources_store import SourcesStore
 from app.models.dtos import Event, SourceCreate
-from app.services.notifications.scheduler import NotificationScheduler
+from app.services.notifications.scheduler import NotificationScheduler, render_notification_body
 
 
 def test_scheduler_sends_due_notification_once(monkeypatch, tmp_path):
@@ -17,6 +17,8 @@ def test_scheduler_sends_due_notification_once(monkeypatch, tmp_path):
                 "target": "notify_send",
                 "webhook": {"url": None, "headers": {}},
                 "email": {"to": None},
+                "time_format": "%Y-%m-%d %H:%M",
+                "body_template": "{title}\n{time}\n{delta}",
             },
         }
     )
@@ -59,6 +61,9 @@ def test_scheduler_sends_due_notification_once(monkeypatch, tmp_path):
     now_ms += 2_000
     scheduler.tick()  # due now
     assert len(sent) == 1
+    assert sent[0][0] == "Standup"
+    assert "Standup" in sent[0][1]
+    assert any(token in sent[0][1] for token in ("in", "now", "ago"))
 
     now_ms += 2_000
     scheduler.tick()  # dedupe prevents duplicate
@@ -89,3 +94,21 @@ def test_scheduler_clears_state_when_notifications_disabled(monkeypatch, tmp_pat
 
     assert scheduler._armed_alerts == []
     assert scheduler._notified_alerts == set()
+
+
+def test_render_notification_body_supports_multiline_and_delta():
+    now_ms = 1_700_000_000_000
+    target = datetime.fromtimestamp((now_ms + 5 * 60_000) / 1000, tz=UTC)
+
+    body = render_notification_body(
+        title="Deploy",
+        kind="event",
+        target_dt=target,
+        now_ms=now_ms,
+        time_format="%Y-%m-%d %H:%M",
+        body_template="{title}\n{time}\n{delta}",
+    )
+
+    assert body.count("\n") == 2
+    assert "Deploy" in body
+    assert "in 5m" in body

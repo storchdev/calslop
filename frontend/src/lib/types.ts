@@ -98,6 +98,8 @@ export interface NotificationSettings {
   target: NotificationTarget;
   webhook: WebhookSettings;
   email: EmailSettings;
+  time_format: string;
+  body_template: string;
   health_error?: string;
 }
 
@@ -106,4 +108,6 @@ export interface NotificationSettingsUpdate {
   target?: NotificationTarget;
   webhook?: WebhookSettings;
   email?: EmailSettings;
+  time_format?: string;
+  body_template?: string;
 }

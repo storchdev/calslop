@@ -18,6 +18,8 @@ def test_get_notification_settings_defaults(monkeypatch, tmp_path):
     data = res.get_json()
     assert data["enabled"] is False
     assert data["target"] == "notify_send"
+    assert data["time_format"] == "%b %d %H:%M %Z"
+    assert data["body_template"] == "{time}"
 
 
 def test_put_notification_settings_webhook(monkeypatch, tmp_path):
@@ -76,3 +78,18 @@ def test_post_notifications_test_uses_sender(monkeypatch, tmp_path):
     assert test_res.status_code == 200
     assert sent
     assert sent[0][0] == "Calslop test notification"
+
+
+def test_put_notification_settings_rejects_unknown_template_field(monkeypatch, tmp_path):
+    client = _test_client(monkeypatch, tmp_path)
+
+    res = client.put(
+        "/api/notifications/settings",
+        json={
+            "enabled": True,
+            "target": "notify_send",
+            "body_template": "{time}\n{not_supported}",
+        },
+    )
+    assert res.status_code == 400
+    assert "Unsupported notification body template field" in res.get_json()["detail"]

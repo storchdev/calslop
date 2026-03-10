@@ -121,6 +121,8 @@ class NotificationSettings(BaseModel):
     target: NotificationTarget = "notify_send"
     webhook: WebhookSettings = Field(default_factory=WebhookSettings)
     email: EmailSettings = Field(default_factory=EmailSettings)
+    time_format: str = "%b %d %H:%M %Z"
+    body_template: str = "{time}"
 
 
 class NotificationSettingsUpdate(BaseModel):
@@ -128,3 +130,5 @@ class NotificationSettingsUpdate(BaseModel):
     target: NotificationTarget | None = None
     webhook: WebhookSettings | None = None
     email: EmailSettings | None = None
+    time_format: str | None = None
+    body_template: str | None = None

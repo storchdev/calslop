@@ -25,6 +25,8 @@
   let webhookUrl = $state('');
   let webhookHeadersText = $state('{}');
   let emailTo = $state('');
+  let notificationTimeFormat = $state('%b %d %H:%M %Z');
+  let notificationBodyTemplate = $state('{time}');
   let notificationsLoading = $state(true);
   let notificationsSaving = $state(false);
   let testingNotification = $state(false);
@@ -49,6 +51,8 @@
         webhookUrl = settings.webhook.url ?? '';
         webhookHeadersText = JSON.stringify(settings.webhook.headers ?? {}, null, 2);
         emailTo = settings.email.to ?? '';
+        notificationTimeFormat = settings.time_format || '%b %d %H:%M %Z';
+        notificationBodyTemplate = settings.body_template || '{time}';
         notificationsMessage = settings.health_error ?? '';
       })
       .catch((e) => {
@@ -88,6 +92,8 @@
         target: notificationTarget,
         webhook: { url: webhookUrl || null, headers },
         email: { to: emailTo || null },
+        time_format: notificationTimeFormat,
+        body_template: notificationBodyTemplate,
       });
       notificationsEnabled = settings.enabled;
       notificationTarget = settings.target;
@@ -308,6 +314,25 @@
         <input id="notification-email-to" type="email" bind:value={emailTo} placeholder="you@example.com" />
       </div>
     {/if}
+    <div class="form-row" style="max-width: 30rem;">
+      <label for="notification-time-format">Time format</label>
+      <input
+        id="notification-time-format"
+        type="text"
+        bind:value={notificationTimeFormat}
+        placeholder="%b %d %H:%M %Z"
+      />
+    </div>
+    <div class="form-row" style="max-width: 40rem;">
+      <label for="notification-body-template">Body template</label>
+      <textarea
+        id="notification-body-template"
+        bind:value={notificationBodyTemplate}
+        rows="4"
+        placeholder={'{time}\n{delta}'}
+      ></textarea>
+      <small>Available fields: {'{time}'}, {'{delta}'}, {'{title}'}, {'{kind}'}. Use new lines as needed.</small>
+    </div>
     <div class="form-actions" style="margin-top: 0.5rem;">
       <button class="btn btn-primary" type="button" onclick={saveNotificationSettings} disabled={notificationsSaving}>
         {notificationsSaving ? 'Saving…' : 'Save notifications'}

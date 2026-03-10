@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify
 from app.db.app_config_store import AppConfigStore
 from app.models.dtos import NotificationSettings, NotificationSettingsUpdate
 from app.routes.utils import parse_json_body
+from app.services.notifications.scheduler import render_notification_body
 from app.services.notifications.senders.factory import create_sender, validate_notification_settings
 
 notifications_bp = Blueprint("notifications", __name__)
@@ -61,6 +62,15 @@ def send_test_notification():
         return jsonify(detail=errors[0]), 400
 
     sender = create_sender(settings)
-    now = datetime.now(UTC).strftime("%b %d %H:%M UTC")
-    sender.send("Calslop test notification", f"Notification pipeline is working ({now})")
+    now_dt = datetime.now(UTC)
+    now_ms = int(now_dt.timestamp() * 1000)
+    body = render_notification_body(
+        title="Calslop test notification",
+        kind="test",
+        target_dt=now_dt,
+        now_ms=now_ms,
+        time_format=settings.time_format,
+        body_template=settings.body_template,
+    )
+    sender.send("Calslop test notification", body)
     return jsonify(ok=True)
