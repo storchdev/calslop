@@ -857,10 +857,7 @@ select, select option {
   margin-left: auto;
 }
 
-.calendar-month-sticky-header {
-  position: sticky;
-  top: 0;
-  z-index: 3;
+.calendar-month-header {
   background: var(--bg);
   padding-top: 0.1rem;
 }

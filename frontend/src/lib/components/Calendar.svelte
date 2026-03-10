@@ -488,7 +488,7 @@
 <div id="calendar-view" class="p-4 flex-1 min-h-0 flex flex-col" style="--calendar-height-ratio: {app.calendarHeightRatio}; --calendar-row-height: calc(60px * var(--calendar-height-ratio, 1))" role="application" aria-label="Calendar" bind:this={calendarEl}>
   {#if app.calendarView === 'month'}
     <div class="flex flex-1 min-h-0 flex-col">
-      <div class="calendar-month-sticky-header shrink-0">
+      <div class="calendar-month-header shrink-0">
         <h2 class="calendar-month-title text-xl font-semibold mb-3 text-[var(--text)]">
           {selectedDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
         </h2>
@@ -498,60 +498,61 @@
           {/each}
         </div>
       </div>
-      <div
-        bind:this={monthGridEl}
-        class="grid grid-cols-7 gap-1 shrink-0 min-h-0"
-        style="--calendar-weeks: {weeks}; height: calc(var(--calendar-row-height, 60px) * var(--calendar-weeks)); grid-template-rows: repeat({weeks}, 1fr);"
-        role="grid"
-      >
-        {#each Array(weeks * 7) as _, i}
-          {@const d = dateForCell(i)}
-          {#if d}
-            <button
-              type="button"
-              class="day-cell"
-              class:today={isToday(d)}
-              class:selected={isSelected(d)}
-              class:search-match={searchQuery.trim() !== '' && dayMatchesSearch(d, searchQuery)}
-              tabindex={app.focusedDayIndex === i ? 0 : -1}
-              data-day-index={i}
-              onfocus={() => {
-                app.setFocusedDayIndex(i);
-                app.setFocusedDayDate(d);
-              }}
-              onclick={() => {
-                app.setSelectedDate(d);
-                app.setFocusedDayDate(d);
-                onSelectDay?.(d);
-              }}
-              onkeydown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
+      <div class="calendar-month-grid-scroll flex-1 min-h-0 overflow-y-auto">
+        <div
+          bind:this={monthGridEl}
+          class="grid grid-cols-7 gap-1 min-h-0"
+          style="--calendar-weeks: {weeks}; height: calc(var(--calendar-row-height, 60px) * var(--calendar-weeks)); grid-template-rows: repeat({weeks}, 1fr);"
+          role="grid"
+        >
+          {#each Array(weeks * 7) as _, i}
+            {@const d = dateForCell(i)}
+            {#if d}
+              <button
+                type="button"
+                class="day-cell"
+                class:today={isToday(d)}
+                class:selected={isSelected(d)}
+                class:search-match={searchQuery.trim() !== '' && dayMatchesSearch(d, searchQuery)}
+                tabindex={app.focusedDayIndex === i ? 0 : -1}
+                data-day-index={i}
+                onfocus={() => {
+                  app.setFocusedDayIndex(i);
+                  app.setFocusedDayDate(d);
+                }}
+                onclick={() => {
                   app.setSelectedDate(d);
-                  app.setCalendarView('day');
+                  app.setFocusedDayDate(d);
                   onSelectDay?.(d);
-                  return;
-                }
-                if (e.key === 'ArrowRight' && i + 1 < weeks * 7) {
-                  app.setFocusedDayIndex(i + 1);
-                  (e.currentTarget.nextElementSibling as HTMLElement)?.focus();
-                }
-                if (e.key === 'ArrowLeft' && i > 0) {
-                  app.setFocusedDayIndex(i - 1);
-                  (e.currentTarget.previousElementSibling as HTMLElement)?.focus();
-                }
-                if (e.key === 'ArrowDown' && i + 7 < weeks * 7) {
-                  app.setFocusedDayIndex(i + 7);
-                  const row = Math.floor(i / 7);
-                  const next = (row + 1) * 7 + (i % 7);
-                  (document.querySelector(`[data-day-index="${next}"]`) as HTMLElement | null)?.focus();
-                }
-                if (e.key === 'ArrowUp' && i >= 7) {
-                  app.setFocusedDayIndex(i - 7);
-                  (document.querySelector(`[data-day-index="${i - 7}"]`) as HTMLElement | null)?.focus();
-                }
-              }}
-            >
+                }}
+                onkeydown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    app.setSelectedDate(d);
+                    app.setCalendarView('day');
+                    onSelectDay?.(d);
+                    return;
+                  }
+                  if (e.key === 'ArrowRight' && i + 1 < weeks * 7) {
+                    app.setFocusedDayIndex(i + 1);
+                    (e.currentTarget.nextElementSibling as HTMLElement)?.focus();
+                  }
+                  if (e.key === 'ArrowLeft' && i > 0) {
+                    app.setFocusedDayIndex(i - 1);
+                    (e.currentTarget.previousElementSibling as HTMLElement)?.focus();
+                  }
+                  if (e.key === 'ArrowDown' && i + 7 < weeks * 7) {
+                    app.setFocusedDayIndex(i + 7);
+                    const row = Math.floor(i / 7);
+                    const next = (row + 1) * 7 + (i % 7);
+                    (document.querySelector(`[data-day-index="${next}"]`) as HTMLElement | null)?.focus();
+                  }
+                  if (e.key === 'ArrowUp' && i >= 7) {
+                    app.setFocusedDayIndex(i - 7);
+                    (document.querySelector(`[data-day-index="${i - 7}"]`) as HTMLElement | null)?.focus();
+                  }
+                }}
+              >
               {#if density === 'minimal'}
                 <span class="day-num-centered block text-2xl font-semibold">{d.getDate()}</span>
               {:else if density === 'dense'}
@@ -634,11 +635,12 @@
                   {/if}
                 </div>
               {/if}
-            </button>
-          {:else}
-            <div class="day-cell bg-transparent border-none cursor-default"></div>
-          {/if}
-        {/each}
+              </button>
+            {:else}
+              <div class="day-cell bg-transparent border-none cursor-default"></div>
+            {/if}
+          {/each}
+        </div>
       </div>
     </div>
   {:else if app.calendarView === 'upcoming'}
