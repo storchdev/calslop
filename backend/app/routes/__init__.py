@@ -6,6 +6,7 @@ from .notifications import notifications_bp
 from .recurrence_parse import recurrence_bp
 from .sources import sources_bp
 from .todos import todos_bp
+from .ui_settings import ui_settings_bp
 
 __all__ = [
     "alerts_bp",
@@ -16,4 +17,5 @@ __all__ = [
     "recurrence_bp",
     "sources_bp",
     "todos_bp",
+    "ui_settings_bp",
 ]

@@ -106,6 +106,8 @@ class TodoUpdate(BaseModel):
 
 NotificationTarget = Literal["notify_send", "webhook", "email"]
 NotifySendTimeout = Literal["5s", "15s", "60s", "persistent"]
+AutoSyncInterval = Literal["off", "30s", "1m", "5m"]
+TimeDisplayFormat = Literal["24h", "12h"]
 
 
 class WebhookSettings(BaseModel):
@@ -135,3 +137,13 @@ class NotificationSettingsUpdate(BaseModel):
     email: EmailSettings | None = None
     time_format: str | None = None
     body_template: str | None = None
+
+
+class UiSettings(BaseModel):
+    auto_sync_interval: AutoSyncInterval = "off"
+    time_display_format: TimeDisplayFormat = "24h"
+
+
+class UiSettingsUpdate(BaseModel):
+    auto_sync_interval: AutoSyncInterval | None = None
+    time_display_format: TimeDisplayFormat | None = None

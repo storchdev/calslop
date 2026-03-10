@@ -8,6 +8,8 @@ import type {
   TodoUpdate,
   NotificationSettings,
   NotificationSettingsUpdate,
+  UiSettings,
+  UiSettingsUpdate,
 } from '$lib/types';
 import { app } from '$lib/stores/app.svelte';
 
@@ -191,5 +193,16 @@ export async function sendTestNotification(): Promise<{ ok: boolean }> {
   return fetchApi<{ ok: boolean }>('/notifications/test', {
     method: 'POST',
     body: JSON.stringify({}),
+  });
+}
+
+export async function getUiSettings(): Promise<UiSettings> {
+  return fetchApi<UiSettings>('/ui/settings');
+}
+
+export async function updateUiSettings(data: UiSettingsUpdate): Promise<UiSettings> {
+  return fetchApi<UiSettings>('/ui/settings', {
+    method: 'PUT',
+    body: JSON.stringify(data),
   });
 }

@@ -4,10 +4,21 @@
   import { navigating } from '$app/stores';
   import { app } from '$lib/stores/app.svelte';
   import { setTheme } from '$lib/theme';
+  import { getUiSettings } from '$lib/api';
   import KeyboardHandler from '$lib/components/KeyboardHandler.svelte';
 
   let { children } = $props();
   let themeValue = $state<'light' | 'dark' | 'system'>('system');
+
+  async function loadUiSettings() {
+    try {
+      const settings = await getUiSettings();
+      app.setAutoSyncInterval(settings.auto_sync_interval);
+      app.setTimeDisplayFormat(settings.time_display_format);
+    } catch {
+      // Keep defaults when backend settings are unavailable.
+    }
+  }
 
   onMount(() => {
     const stored = localStorage.getItem('calslop-theme') as 'light' | 'dark' | 'system' | null;
@@ -22,14 +33,7 @@
     }
     const navCollapsed = localStorage.getItem('calslop-navbar-collapsed');
     if (navCollapsed === '1') app.setNavbarCollapsed(true);
-    const autoSyncInterval = localStorage.getItem('calslop-auto-sync-interval');
-    if (autoSyncInterval === 'off' || autoSyncInterval === '30s' || autoSyncInterval === '1m' || autoSyncInterval === '5m') {
-      app.setAutoSyncInterval(autoSyncInterval);
-    }
-    const timeDisplayFormat = localStorage.getItem('calslop-time-display-format');
-    if (timeDisplayFormat === '24h' || timeDisplayFormat === '12h') {
-      app.setTimeDisplayFormat(timeDisplayFormat);
-    }
+    void loadUiSettings();
   });
 
   function handleThemeChange(e: Event) {

@@ -13,6 +13,7 @@ from app.routes import (
     recurrence_bp,
     sources_bp,
     todos_bp,
+    ui_settings_bp,
 )
 from app.services.notifications.scheduler import NotificationScheduler
 
@@ -37,6 +38,7 @@ app.register_blueprint(recurrence_bp, url_prefix="/api/recurrence")
 app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
 app.register_blueprint(delta_bp, url_prefix="/api/delta")
 app.register_blueprint(notifications_bp, url_prefix="/api/notifications")
+app.register_blueprint(ui_settings_bp, url_prefix="/api/ui/settings")
 
 notification_scheduler = NotificationScheduler()
 

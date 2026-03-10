@@ -7,6 +7,7 @@
     deleteSource,
     getNotificationSettings,
     sendTestNotification,
+    updateUiSettings,
     updateNotificationSettings,
     updateSource,
   } from '$lib/api';
@@ -33,6 +34,7 @@
   let notificationsSaving = $state(false);
   let testingNotification = $state(false);
   let notificationsMessage = $state('');
+  let uiSettingsMessage = $state('');
 
   function load() {
     loading = true;
@@ -207,6 +209,36 @@
     if (type === 'local_folder') return 'Local .ics folder';
     return 'CalDAV server';
   }
+
+  async function saveAutoSyncInterval(value: 'off' | '30s' | '1m' | '5m') {
+    uiSettingsMessage = '';
+    const previous = app.autoSyncInterval;
+    app.setAutoSyncInterval(value);
+    try {
+      const settings = await updateUiSettings({ auto_sync_interval: value });
+      app.setAutoSyncInterval(settings.auto_sync_interval);
+      app.setTimeDisplayFormat(settings.time_display_format);
+      uiSettingsMessage = 'Sync settings saved.';
+    } catch (e) {
+      app.setAutoSyncInterval(previous);
+      uiSettingsMessage = e instanceof Error ? e.message : 'Failed to save sync settings';
+    }
+  }
+
+  async function saveTimeDisplayFormat(value: '24h' | '12h') {
+    uiSettingsMessage = '';
+    const previous = app.timeDisplayFormat;
+    app.setTimeDisplayFormat(value);
+    try {
+      const settings = await updateUiSettings({ time_display_format: value });
+      app.setAutoSyncInterval(settings.auto_sync_interval);
+      app.setTimeDisplayFormat(settings.time_display_format);
+      uiSettingsMessage = 'Sync settings saved.';
+    } catch (e) {
+      app.setTimeDisplayFormat(previous);
+      uiSettingsMessage = e instanceof Error ? e.message : 'Failed to save sync settings';
+    }
+  }
 </script>
 
 <svelte:head>
@@ -283,13 +315,12 @@
     {/if}
   {/if}
 
-  <h2>Sync</h2>
   <div class="form-row" style="max-width: 18rem;">
     <label for="auto-sync-interval">Auto-sync</label>
     <select
       id="auto-sync-interval"
       value={app.autoSyncInterval}
-      onchange={(e) => app.setAutoSyncInterval((e.currentTarget as HTMLSelectElement).value as 'off' | '30s' | '1m' | '5m')}
+      onchange={(e) => saveAutoSyncInterval((e.currentTarget as HTMLSelectElement).value as 'off' | '30s' | '1m' | '5m')}
     >
       <option value="off">Off</option>
       <option value="30s">Every 30 seconds</option>
@@ -302,12 +333,15 @@
     <select
       id="time-display-format"
       value={app.timeDisplayFormat}
-      onchange={(e) => app.setTimeDisplayFormat((e.currentTarget as HTMLSelectElement).value as '24h' | '12h')}
+      onchange={(e) => saveTimeDisplayFormat((e.currentTarget as HTMLSelectElement).value as '24h' | '12h')}
     >
       <option value="24h">24-hour (13:30)</option>
       <option value="12h">12-hour (1:30 PM)</option>
     </select>
   </div>
+  {#if uiSettingsMessage}
+    <p style="margin: 0.25rem 0 0.75rem;">{uiSettingsMessage}</p>
+  {/if}
 
   <h2>Notifications</h2>
   {#if notificationsLoading}

@@ -1,12 +1,12 @@
 /**
  * Global app state for view mode, calendar sub-view, selected day, and focus.
  */
+import type { AutoSyncInterval, TimeDisplayFormat } from '$lib/types';
+
 export type ViewMode = 'calendar' | 'todo';
 export type CalendarView = 'day' | 'month' | 'upcoming';
 export type CalendarDensity = 'minimal' | 'balanced' | 'dense';
 export type TodoOrder = 'oldest' | 'newest';
-export type AutoSyncInterval = 'off' | '30s' | '1m' | '5m';
-export type TimeDisplayFormat = '24h' | '12h';
 
 class AppStore {
   viewMode = $state<ViewMode>('calendar');
@@ -101,16 +101,10 @@ class AppStore {
 
   setAutoSyncInterval(interval: AutoSyncInterval) {
     this.autoSyncInterval = interval;
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('calslop-auto-sync-interval', interval);
-    }
   }
 
   setTimeDisplayFormat(format: TimeDisplayFormat) {
     this.timeDisplayFormat = format;
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('calslop-time-display-format', format);
-    }
   }
 
   setSelectedDate(d: Date) {

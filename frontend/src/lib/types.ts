@@ -114,3 +114,16 @@ export interface NotificationSettingsUpdate {
   time_format?: string;
   body_template?: string;
 }
+
+export type AutoSyncInterval = 'off' | '30s' | '1m' | '5m';
+export type TimeDisplayFormat = '24h' | '12h';
+
+export interface UiSettings {
+  auto_sync_interval: AutoSyncInterval;
+  time_display_format: TimeDisplayFormat;
+}
+
+export interface UiSettingsUpdate {
+  auto_sync_interval?: AutoSyncInterval;
+  time_display_format?: TimeDisplayFormat;
+}
