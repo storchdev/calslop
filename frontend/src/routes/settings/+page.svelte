@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import {
     getSources,
     createSource,
@@ -63,9 +64,20 @@
       });
   }
 
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      goto('/');
+    }
+  }
+
   onMount(() => {
     load();
     loadNotificationSettings();
+
+    window.addEventListener('keydown', handleKeydown);
+    return () => {
+      window.removeEventListener('keydown', handleKeydown);
+    };
   });
 
   function parseHeadersOrThrow(): Record<string, string> {
