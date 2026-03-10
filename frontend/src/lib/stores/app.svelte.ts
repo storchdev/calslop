@@ -6,6 +6,7 @@ export type CalendarView = 'day' | 'month' | 'upcoming';
 export type CalendarDensity = 'minimal' | 'balanced' | 'dense';
 export type TodoOrder = 'oldest' | 'newest';
 export type AutoSyncInterval = 'off' | '30s' | '1m' | '5m';
+export type TimeDisplayFormat = '24h' | '12h';
 
 class AppStore {
   viewMode = $state<ViewMode>('calendar');
@@ -18,6 +19,7 @@ class AppStore {
   /** Todo list order: oldest first (by due) or newest first */
   todoOrder = $state<TodoOrder>('oldest');
   autoSyncInterval = $state<AutoSyncInterval>('off');
+  timeDisplayFormat = $state<TimeDisplayFormat>('24h');
   selectedDate = $state<Date>(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
   focusedEventIndex = $state<number>(-1);
   focusedTodoIndex = $state<number>(-1);
@@ -101,6 +103,13 @@ class AppStore {
     this.autoSyncInterval = interval;
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('calslop-auto-sync-interval', interval);
+    }
+  }
+
+  setTimeDisplayFormat(format: TimeDisplayFormat) {
+    this.timeDisplayFormat = format;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('calslop-time-display-format', format);
     }
   }
 

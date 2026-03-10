@@ -294,6 +294,17 @@
       <option value="5m">Every 5 minutes</option>
     </select>
   </div>
+  <div class="form-row" style="max-width: 18rem;">
+    <label for="time-display-format">Time display</label>
+    <select
+      id="time-display-format"
+      value={app.timeDisplayFormat}
+      onchange={(e) => app.setTimeDisplayFormat((e.currentTarget as HTMLSelectElement).value as '24h' | '12h')}
+    >
+      <option value="24h">24-hour (13:30)</option>
+      <option value="12h">12-hour (1:30 PM)</option>
+    </select>
+  </div>
 
   <h2>Notifications</h2>
   {#if notificationsLoading}

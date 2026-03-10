@@ -26,6 +26,10 @@
     if (autoSyncInterval === 'off' || autoSyncInterval === '30s' || autoSyncInterval === '1m' || autoSyncInterval === '5m') {
       app.setAutoSyncInterval(autoSyncInterval);
     }
+    const timeDisplayFormat = localStorage.getItem('calslop-time-display-format');
+    if (timeDisplayFormat === '24h' || timeDisplayFormat === '12h') {
+      app.setTimeDisplayFormat(timeDisplayFormat);
+    }
   });
 
   function handleThemeChange(e: Event) {

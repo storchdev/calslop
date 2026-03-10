@@ -63,6 +63,7 @@
 
   const density = $derived(app.calendarDensity);
   const showTodos = $derived(app.showTodosOnCalendar);
+  const timeDisplayFormat = $derived(app.timeDisplayFormat);
 
   const monthStart = $derived(new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1));
   const monthEnd = $derived(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0));
@@ -576,12 +577,12 @@
                     {#each combined as item}
                       {#if item.kind === 'event'}
                         <div class="dense-item text-[0.65rem] leading-tight" class:line-through={item.event.cancelled} title={item.event.title}>
-                          <span class="dense-item-time">{item.event.all_day ? 'All day' : formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}</span>
+                          <span class="dense-item-time">{item.event.all_day ? 'All day' : formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined, timeDisplayFormat)}</span>
                           <span class="dense-item-text dense-item-text-source" style={sourceColorStyle(item.event.source_id)}>{truncateDenseText(item.event.title)}</span>
                         </div>
                       {:else}
                         <div class="dense-item dense-item-todo text-[0.65rem] leading-tight italic text-[var(--text-muted)]" class:line-through={item.todo.completed} class:todo-overdue-text={isTodoOverdue(item.todo)} title={item.todo.summary} onclick={(e) => { e.preventDefault(); e.stopPropagation(); onSelectTodo?.(item.todo); }}>
-                          <span class="dense-item-time">{item.todo.due ? formatInTimezone(item.todo.due, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined) : '–'}</span>
+                          <span class="dense-item-time">{item.todo.due ? formatInTimezone(item.todo.due, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined, timeDisplayFormat) : '–'}</span>
                           <span class="dense-item-text" class:dense-item-text-source={!item.todo.completed} style={!item.todo.completed ? sourceColorStyle(item.todo.source_id) : ''}>
                             {#if item.todo.completed}
                               ✓
@@ -682,9 +683,9 @@
                         {#if item.event.all_day}
                           All day
                         {:else}
-                          {formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
+                          {formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined, timeDisplayFormat)}
                           {#if item.event.end}
-                            – {formatInTimezone(item.event.end, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
+                            – {formatInTimezone(item.event.end, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined, timeDisplayFormat)}
                           {/if}
                         {/if}
                       </span>
@@ -721,7 +722,7 @@
                         </span>
                         <span class="upcoming-item-main">
                           <span class="upcoming-item-time">
-                            {item.todo.due ? formatInTimezone(item.todo.due, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined) : 'No due time'}
+                            {item.todo.due ? formatInTimezone(item.todo.due, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined, timeDisplayFormat) : 'No due time'}
                           </span>
                           <span class="upcoming-item-title">{item.todo.summary}</span>
                         </span>
@@ -850,9 +851,9 @@
                 onclick={() => onSelectEvent?.(item.event)}
               >
                 <span class="day-event-time">
-                  {formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
+                  {formatInTimezone(item.event.start, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined, timeDisplayFormat)}
                   {#if item.event.end && !isCompactTimedEvent}
-                    – {formatInTimezone(item.event.end, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
+                    – {formatInTimezone(item.event.end, { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined, timeDisplayFormat)}
                   {/if}
                 </span>
                 <span class="day-event-title">
@@ -890,7 +891,7 @@
                     </span>
                     <span class="day-todo-main">
                       <span class="day-todo-time">
-                        {formatInTimezone(item.todo.due ?? '', { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined)}
+                        {formatInTimezone(item.todo.due ?? '', { hour: '2-digit', minute: '2-digit' }, app.timezone || undefined, timeDisplayFormat)}
                       </span>
                       <span class="day-todo-label">{item.todo.summary}</span>
                     </span>

@@ -36,10 +36,15 @@ export function toLocalDatetimeInput(iso: string, timeZone?: string): string {
 export function formatInTimezone(
   iso: string,
   options: Intl.DateTimeFormatOptions & { timeZone?: string },
-  timeZone?: string
+  timeZone?: string,
+  timeDisplayFormat: '24h' | '12h' = '24h'
 ): string {
   const tz = timeZone && timeZone !== '' ? timeZone : undefined;
-  return parseUtcIfNeeded(iso).toLocaleString(undefined, { ...options, timeZone: tz });
+  return parseUtcIfNeeded(iso).toLocaleString(undefined, {
+    ...options,
+    hour12: timeDisplayFormat === '12h',
+    timeZone: tz,
+  });
 }
 
 /**

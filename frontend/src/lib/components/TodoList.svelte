@@ -49,6 +49,7 @@
     })
   );
   const completedCount = $derived(todos.filter((t) => t.completed).length);
+  const timeDisplayFormat = $derived(app.timeDisplayFormat);
 
   // Keep focused index in range when visible list changes
   $effect(() => {
@@ -137,7 +138,7 @@
           <span class="text-[var(--text-muted)]" title="Repeating" aria-hidden="true">↻</span>
         {/if}
         {#if todo.due}
-          <span class="text-sm text-[var(--text-muted)] todo-due">{formatInTimezone(todo.due, { dateStyle: 'short', timeStyle: 'short' }, app.timezone || undefined)}</span>
+          <span class="text-sm text-[var(--text-muted)] todo-due">{formatInTimezone(todo.due, { dateStyle: 'short', timeStyle: 'short' }, app.timezone || undefined, timeDisplayFormat)}</span>
         {/if}
       {/if}
     </div>
