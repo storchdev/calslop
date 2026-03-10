@@ -4,10 +4,9 @@ from pathlib import Path
 import icalendar
 
 from app.models.dtos import Event, Source, Todo
+from app.services.ical_cache import invalidate_source_cache, parse_events_cached, parse_todos_cached
 from app.services.ical_recurrence import parse_iso_window
 from app.services.ical_utils import (
-    parse_events_from_ical,
-    parse_todos_from_ical,
     event_to_ical,
     todo_to_ical,
     build_exception_vtodo,
@@ -44,13 +43,22 @@ class LocalFolderDriver(SourceDriver):
                 text = ics_file.read_text(encoding="utf-8", errors="replace")
                 # Use file path as part of id for local: source_id + path stem + uid from file
                 file_source_id = f"{source.id}::{ics_file.stem}"
-                events = parse_events_from_ical(
+                stat = ics_file.stat()
+                fingerprint = f"mtime_ns:{stat.st_mtime_ns}|size:{stat.st_size}"
+                events = parse_events_cached(
                     text,
                     file_source_id,
                     window_start=window_start,
                     window_end=window_end,
+                    fingerprint=fingerprint,
                 )
-                todos = parse_todos_from_ical(text, file_source_id)
+                todos = parse_todos_cached(
+                    text,
+                    file_source_id,
+                    window_start=window_start,
+                    window_end=window_end,
+                    fingerprint=fingerprint,
+                )
                 all_events.extend(events)
                 all_todos.extend(todos)
             except Exception as e:
@@ -70,6 +78,42 @@ class LocalFolderDriver(SourceDriver):
             stem = parts[1]
             return path, stem
         return None
+
+    def _parse_single_file(self, source: Source, item_id: str) -> tuple[list[Event], list[Todo]]:
+        res = self._path_and_stem(source, item_id)
+        if not res:
+            return [], []
+        path, stem = res
+        ics_path = path / f"{stem}.ics"
+        if not ics_path.exists() or not ics_path.is_file():
+            return [], []
+        text = ics_path.read_text(encoding="utf-8", errors="replace")
+        file_source_id = f"{source.id}::{stem}"
+        stat = ics_path.stat()
+        fingerprint = f"mtime_ns:{stat.st_mtime_ns}|size:{stat.st_size}"
+        events = parse_events_cached(
+            text,
+            file_source_id,
+            window_start=None,
+            window_end=None,
+            fingerprint=fingerprint,
+        )
+        todos = parse_todos_cached(
+            text,
+            file_source_id,
+            window_start=None,
+            window_end=None,
+            fingerprint=fingerprint,
+        )
+        return events, todos
+
+    def get_event(self, source: Source, event_id: str) -> Event | None:
+        events, _ = self._parse_single_file(source, event_id)
+        return next((event for event in events if event.id == event_id), None)
+
+    def get_todo(self, source: Source, todo_id: str) -> Todo | None:
+        _, todos = self._parse_single_file(source, todo_id)
+        return next((todo for todo in todos if todo.id == todo_id), None)
 
     def create_event(self, source: Source, event: Event) -> Event | None:
         path_str = source.config.get("path")
@@ -95,6 +139,7 @@ class LocalFolderDriver(SourceDriver):
         )
         ics_path = path / f"{stem}.ics"
         ics_path.write_bytes(event_to_ical(new_event))
+        invalidate_source_cache(source.id)
         return new_event
 
     def update_event(self, source: Source, event: Event) -> Event | None:
@@ -106,6 +151,7 @@ class LocalFolderDriver(SourceDriver):
         if not ics_path.exists():
             raise ValueError(f"Event file not found: {stem}.ics")
         ics_path.write_bytes(event_to_ical(event))
+        invalidate_source_cache(source.id)
         return event
 
     def delete_event(self, source: Source, event_id: str) -> bool:
@@ -116,6 +162,7 @@ class LocalFolderDriver(SourceDriver):
         ics_path = path / f"{stem}.ics"
         if ics_path.exists():
             ics_path.unlink()
+            invalidate_source_cache(source.id)
             return True
         return False
 
@@ -141,6 +188,7 @@ class LocalFolderDriver(SourceDriver):
         )
         ics_path = path / f"{stem}.ics"
         ics_path.write_bytes(todo_to_ical(new_todo))
+        invalidate_source_cache(source.id)
         return new_todo
 
     def update_todo(self, source: Source, todo: Todo) -> Todo | None:
@@ -162,6 +210,7 @@ class LocalFolderDriver(SourceDriver):
             ics_path.write_bytes(new_ical)
         else:
             ics_path.write_bytes(todo_to_ical(todo))
+        invalidate_source_cache(source.id)
         return todo
 
     def add_recurrence_exception(
@@ -201,6 +250,7 @@ class LocalFolderDriver(SourceDriver):
                     break
             _update_master_vtodo_metadata(cal, uid, summary, description, priority)
             ics_path.write_bytes(cal.to_ical())
+            invalidate_source_cache(source.id)
             return True
         except Exception:
             return False
@@ -235,6 +285,7 @@ class LocalFolderDriver(SourceDriver):
                     cal.add_component(comp)
                     break
             ics_path.write_bytes(cal.to_ical())
+            invalidate_source_cache(source.id)
             return True
         except Exception:
             return False
@@ -252,5 +303,6 @@ class LocalFolderDriver(SourceDriver):
         ics_path = Path(path_str) / f"{stem}.ics"
         if ics_path.exists():
             ics_path.unlink()
+            invalidate_source_cache(source.id)
             return True
         return False

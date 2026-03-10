@@ -1,4 +1,5 @@
 """Parse icalendar components into Event/Todo DTOs."""
+
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -12,6 +13,8 @@ from app.services.ical_recurrence import (
     iter_occurrences_in_window,
     merge_exception_component,
     normalize_rrule,
+    next_occurrence_on_or_after,
+    next_occurrence_strictly_after,
     parse_rrule,
     recurrence_id_keys,
     recurrence_id_str,
@@ -215,8 +218,12 @@ def parse_events_from_ical(
             if rec_dt is None:
                 continue
             dt_key, date_key = recurrence_id_keys(rec_dt)
-            merge_exception_component(exception_index, dt_key, component, _event_cancelled(component))
-            merge_exception_component(exception_index, date_key, component, _event_cancelled(component))
+            merge_exception_component(
+                exception_index, dt_key, component, _event_cancelled(component)
+            )
+            merge_exception_component(
+                exception_index, date_key, component, _event_cancelled(component)
+            )
 
         for master in masters:
             start = _get_dt(master, "dtstart")
@@ -308,11 +315,15 @@ def parse_events_from_ical(
                             start=exc_start,
                             end=exc_end,
                             all_day=_is_all_day(exc_component),
-                            description=exc_description if exc_description is not None else description,
+                            description=exc_description
+                            if exc_description is not None
+                            else description,
                             recurrence=recurrence,
                             location=exc_location if exc_location is not None else location,
                             url=exc_url if exc_url is not None else url,
-                            alert_minutes_before=_extract_alarm_minutes_before(exc_component, exc_start)
+                            alert_minutes_before=_extract_alarm_minutes_before(
+                                exc_component, exc_start
+                            )
                             or _extract_alarm_minutes_before(master, start),
                             cancelled=False,
                         )
@@ -372,7 +383,9 @@ def _recurrence_id_str(dt: datetime) -> str:
     return recurrence_id_str(dt)
 
 
-def _parse_vtodo_component(component) -> tuple[str, datetime | None, bool, str, str | None, int | None, str | None, list[int] | None]:
+def _parse_vtodo_component(
+    component,
+) -> tuple[str, datetime | None, bool, str, str | None, int | None, str | None, list[int] | None]:
     """Extract (uid, due, completed, summary, description, priority, recurrence, alert_minutes_before) from a VTODO."""
     uid = str(component.get("uid", ""))
     summary = str(component.get("summary", "Untitled"))
@@ -396,12 +409,122 @@ def _recurrence_id_from_component(component) -> datetime | None:
     return _get_dt(component, "recurrence-id")
 
 
-def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
+def _todo_due_in_window(
+    due: datetime | None,
+    window_start: datetime | None,
+    window_end: datetime | None,
+) -> bool:
+    if window_start is None or window_end is None:
+        return True
+    if due is None:
+        return True
+    return window_start <= due <= window_end
+
+
+def _parse_simple_rrule(recurrence: str) -> tuple[str, int, int | None, datetime | None] | None:
+    parts: dict[str, str] = {}
+    for segment in recurrence.split(";"):
+        if "=" not in segment:
+            continue
+        key, value = segment.split("=", 1)
+        parts[key.strip().upper()] = value.strip().upper()
+    freq = parts.get("FREQ")
+    if freq not in {"DAILY", "WEEKLY"}:
+        return None
+    unsupported = {
+        "BYSECOND",
+        "BYMINUTE",
+        "BYHOUR",
+        "BYDAY",
+        "BYMONTHDAY",
+        "BYYEARDAY",
+        "BYWEEKNO",
+        "BYMONTH",
+        "BYSETPOS",
+        "WKST",
+    }
+    if any(key in parts for key in unsupported):
+        return None
+    try:
+        interval = int(parts.get("INTERVAL", "1"))
+        if interval <= 0:
+            return None
+    except ValueError:
+        return None
+    count: int | None = None
+    if "COUNT" in parts:
+        try:
+            count = int(parts["COUNT"])
+        except ValueError:
+            return None
+    until: datetime | None = None
+    until_raw = parts.get("UNTIL")
+    if until_raw:
+        until = recurrence_id_str_to_dt(until_raw)
+        if until is None:
+            return None
+    return freq, interval, count, until
+
+
+def _simple_occurrence_on_or_after(
+    due_start: datetime,
+    rule_spec: tuple[str, int, int | None, datetime | None],
+    start: datetime,
+) -> datetime | None:
+    freq, interval, count, until = rule_spec
+    unit_days = interval * (7 if freq == "WEEKLY" else 1)
+    if start <= due_start:
+        candidate = due_start
+        index = 0
+    else:
+        elapsed_days = (start - due_start).total_seconds() / 86400
+        steps = int(elapsed_days // unit_days)
+        candidate = due_start + timedelta(days=steps * unit_days)
+        if candidate < start:
+            candidate += timedelta(days=unit_days)
+            steps += 1
+        index = steps
+    if count is not None and index >= count:
+        return None
+    if until is not None:
+        until_value = until if until.tzinfo else until.replace(tzinfo=timezone.utc)
+        if candidate > until_value:
+            return None
+    return candidate
+
+
+def _simple_occurrence_after(
+    current: datetime,
+    due_start: datetime | None,
+    rule_spec: tuple[str, int, int | None, datetime | None],
+) -> datetime | None:
+    freq, interval, count, until = rule_spec
+    unit_days = interval * (7 if freq == "WEEKLY" else 1)
+    candidate = current + timedelta(days=unit_days)
+    if count is not None and due_start is not None:
+        index = int(round((candidate - due_start).total_seconds() / (unit_days * 86400)))
+        if index >= count:
+            return None
+    if until is not None:
+        until_value = until if until.tzinfo else until.replace(tzinfo=timezone.utc)
+        if candidate > until_value:
+            return None
+    return candidate
+
+
+def parse_todos_from_ical(
+    ical_text: str | bytes,
+    source_id: str,
+    window_start: datetime | None = None,
+    window_end: datetime | None = None,
+) -> list[Todo]:
     """Parse VCALENDAR/VTODO from .ics content. Recurring VTODOs are expanded into
     one Todo per instance (only the next occurrence, like iPhone Reminders); completed instances use RECURRENCE-ID exceptions.
     """
     if isinstance(ical_text, str):
         ical_text = ical_text.encode("utf-8")
+    window_start = _to_naive_utc(window_start)
+    window_end = _to_naive_utc(window_end)
     cal = icalendar.Calendar.from_ical(ical_text)
     if not cal:
         return []
@@ -423,9 +546,13 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
             ]
         ],
     ] = {}
-    masters: dict[str, tuple[datetime | None, str, str | None, int | None, str, list[int] | None]] = {}
+    masters: dict[
+        str, tuple[datetime | None, str, str | None, int | None, str, list[int] | None]
+    ] = {}
     for component in components:
-        uid, due, completed, summary, description, priority, recurrence, alert_minutes_before = _parse_vtodo_component(component)
+        uid, due, completed, summary, description, priority, recurrence, alert_minutes_before = (
+            _parse_vtodo_component(component)
+        )
         if not uid:
             continue
         rec_id = _recurrence_id_from_component(component)
@@ -436,11 +563,25 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
         if rec_id is not None:
             if uid not in by_uid:
                 by_uid[uid] = []
-            by_uid[uid].append((rec_id, completed, due, summary, description, priority, recurrence or "", cancelled, alert_minutes_before))
+            by_uid[uid].append(
+                (
+                    rec_id,
+                    completed,
+                    due,
+                    summary,
+                    description,
+                    priority,
+                    recurrence or "",
+                    cancelled,
+                    alert_minutes_before,
+                )
+            )
     todos: list[Todo] = []
     seen_uid_no_rrule: set[str] = set()
     for component in components:
-        uid, due, completed, summary, description, priority, recurrence, alert_minutes_before = _parse_vtodo_component(component)
+        uid, due, completed, summary, description, priority, recurrence, alert_minutes_before = (
+            _parse_vtodo_component(component)
+        )
         if not uid:
             continue
         rec_id = _recurrence_id_from_component(component)
@@ -470,7 +611,27 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
             # Completed instances are represented as one-off todos (no recurrence),
             # matching iOS Reminders behavior.
             now = datetime.now(timezone.utc)
-            start = max(due_start, now - timedelta(days=1)) if due_start else now
+            effective_window_start = (
+                window_start if window_start is not None else _to_naive_utc(now - timedelta(days=1))
+            )
+            effective_window_end = window_end
+            effective_window_start_rrule = (
+                effective_window_start
+                if effective_window_start is None or effective_window_start.tzinfo
+                else effective_window_start.replace(tzinfo=timezone.utc)
+            )
+            effective_window_end_rrule = (
+                effective_window_end
+                if effective_window_end is None or effective_window_end.tzinfo
+                else effective_window_end.replace(tzinfo=timezone.utc)
+            )
+            if due_start is not None and effective_window_start_rrule is not None:
+                start = max(due_start, effective_window_start_rrule)
+            else:
+                start = due_start or effective_window_start_rrule
+            if start is None:
+                continue
+            simple_rule_spec = _parse_simple_rrule(recurrence)
             exceptions_by_rec: dict[
                 str,
                 tuple[
@@ -498,30 +659,60 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                 existing_d = exceptions_by_rec.get(rec_date_k)
                 if existing_d is None or r[7] or r[1]:
                     exceptions_by_rec[rec_date_k] = r
-            completed_list: list[tuple[str, str, datetime | None, str | None, int | None, list[int] | None]] = []
-            for occ in rule:
-                if occ < start:
-                    continue
+            completed_list: list[
+                tuple[str, str, datetime | None, str | None, int | None, list[int] | None]
+            ] = []
+            occ = (
+                _simple_occurrence_on_or_after(due_start, simple_rule_spec, start)
+                if simple_rule_spec is not None
+                else next_occurrence_on_or_after(rule, start)
+            )
+            while occ is not None:
+                if effective_window_end_rrule is not None and occ > effective_window_end_rrule:
+                    break
                 rec_str = _recurrence_id_str(occ)
-                exc = exceptions_by_rec.get(rec_str) or exceptions_by_rec.get(occ.strftime("%Y%m%d"))
+                exc = exceptions_by_rec.get(rec_str) or exceptions_by_rec.get(
+                    occ.strftime("%Y%m%d")
+                )
                 if exc is not None:
-                    rec_dt_exc, exc_completed, exc_due, exc_summary, exc_desc, exc_pri, _, exc_cancelled, exc_alert = exc
+                    (
+                        rec_dt_exc,
+                        exc_completed,
+                        exc_due,
+                        exc_summary,
+                        exc_desc,
+                        exc_pri,
+                        _,
+                        exc_cancelled,
+                        exc_alert,
+                    ) = exc
                     if exc_cancelled:
+                        occ = (
+                            _simple_occurrence_after(occ, due_start, simple_rule_spec)
+                            if simple_rule_spec is not None
+                            else next_occurrence_strictly_after(rule, occ)
+                        )
                         continue
                     if exc_completed:
                         rec_str_id = _recurrence_id_str(rec_dt_exc) if rec_dt_exc else rec_str
                         due_val = exc_due or occ
                         if due_val and getattr(due_val, "tzinfo", None):
                             due_val = _to_naive_utc(due_val)
-                        completed_list.append(
-                            (
-                                rec_str_id,
-                                exc_summary or summary,
-                                due_val,
-                                exc_desc if exc_desc is not None else description,
-                                exc_pri if exc_pri is not None else priority,
-                                exc_alert if exc_alert is not None else alert_minutes_before,
+                        if _todo_due_in_window(due_val, window_start, window_end):
+                            completed_list.append(
+                                (
+                                    rec_str_id,
+                                    exc_summary or summary,
+                                    due_val,
+                                    exc_desc if exc_desc is not None else description,
+                                    exc_pri if exc_pri is not None else priority,
+                                    exc_alert if exc_alert is not None else alert_minutes_before,
+                                )
                             )
+                        occ = (
+                            _simple_occurrence_after(occ, due_start, simple_rule_spec)
+                            if simple_rule_spec is not None
+                            else next_occurrence_strictly_after(rule, occ)
                         )
                         continue
                     # Incomplete exception: next instance to show
@@ -543,19 +734,22 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                                 alert_minutes_before=lc_alert,
                             )
                         )
-                    todos.append(
-                        Todo(
-                            id=f"{source_id}::{uid}::{rec_str_id}",
-                            source_id=source_id,
-                            summary=exc_summary or summary,
-                            completed=False,
-                            due=due_val,
-                            description=exc_desc if exc_desc is not None else description,
-                            priority=exc_pri if exc_pri is not None else priority,
-                            recurrence=recurrence,
-                            alert_minutes_before=exc_alert if exc_alert is not None else alert_minutes_before,
+                    if _todo_due_in_window(due_val, window_start, window_end):
+                        todos.append(
+                            Todo(
+                                id=f"{source_id}::{uid}::{rec_str_id}",
+                                source_id=source_id,
+                                summary=exc_summary or summary,
+                                completed=False,
+                                due=due_val,
+                                description=exc_desc if exc_desc is not None else description,
+                                priority=exc_pri if exc_pri is not None else priority,
+                                recurrence=recurrence,
+                                alert_minutes_before=exc_alert
+                                if exc_alert is not None
+                                else alert_minutes_before,
+                            )
                         )
-                    )
                     break
                 # No exception: next instance from rule
                 due_val = _to_naive_utc(occ) if (occ and getattr(occ, "tzinfo", None)) else occ
@@ -573,19 +767,20 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
                             alert_minutes_before=lc_alert,
                         )
                     )
-                todos.append(
-                    Todo(
-                        id=f"{source_id}::{uid}::{rec_str}",
-                        source_id=source_id,
-                        summary=summary,
-                        completed=False,
-                        due=due_val,
-                        description=description,
-                        priority=priority,
-                        recurrence=recurrence,
-                        alert_minutes_before=alert_minutes_before,
+                if _todo_due_in_window(due_val, window_start, window_end):
+                    todos.append(
+                        Todo(
+                            id=f"{source_id}::{uid}::{rec_str}",
+                            source_id=source_id,
+                            summary=summary,
+                            completed=False,
+                            due=due_val,
+                            description=description,
+                            priority=priority,
+                            recurrence=recurrence,
+                            alert_minutes_before=alert_minutes_before,
+                        )
                     )
-                )
                 break
             continue
         if rec_id is not None:
@@ -594,19 +789,20 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
             continue
         seen_uid_no_rrule.add(uid)
         # Non-recurring VTODO
-        todos.append(
-            Todo(
-                id=f"{source_id}::{uid}",
-                source_id=source_id,
-                summary=summary,
-                completed=completed,
-                due=due,
-                description=description,
-                priority=priority,
-                recurrence=None,
-                alert_minutes_before=alert_minutes_before,
+        if _todo_due_in_window(due, window_start, window_end):
+            todos.append(
+                Todo(
+                    id=f"{source_id}::{uid}",
+                    source_id=source_id,
+                    summary=summary,
+                    completed=completed,
+                    due=due,
+                    description=description,
+                    priority=priority,
+                    recurrence=None,
+                    alert_minutes_before=alert_minutes_before,
+                )
             )
-        )
     return todos
 
 
@@ -718,7 +914,11 @@ def merge_instance_todo_into_ical(ical_bytes: bytes, todo: Todo, recurrence_id_s
     if not cal:
         return ical_bytes
     parts = todo.id.split("::")
-    uid = parts[-2] if len(parts) >= 2 and is_recurrence_id_str(parts[-1]) else (parts[-1] if parts else "")
+    uid = (
+        parts[-2]
+        if len(parts) >= 2 and is_recurrence_id_str(parts[-1])
+        else (parts[-1] if parts else "")
+    )
     rec_dt = recurrence_id_str_to_dt(recurrence_id_str)
     if not rec_dt:
         return ical_bytes
@@ -736,7 +936,12 @@ def merge_instance_todo_into_ical(ical_bytes: bytes, todo: Todo, recurrence_id_s
             continue
         comp_str = _recurrence_id_str(comp_rec)
         comp_date = comp_rec.strftime("%Y%m%d")
-        if comp_str == rec_str_dt or comp_str == recurrence_id_str or comp_date == rec_str_date or comp_date == rec_str_dt[:8]:
+        if (
+            comp_str == rec_str_dt
+            or comp_str == recurrence_id_str
+            or comp_date == rec_str_date
+            or comp_date == rec_str_dt[:8]
+        ):
             found = component
             break
     if found is not None:

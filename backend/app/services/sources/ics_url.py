@@ -1,8 +1,8 @@
 import httpx
 
 from app.models.dtos import Source
+from app.services.ical_cache import parse_events_cached
 from app.services.ical_recurrence import parse_iso_window
-from app.services.ical_utils import parse_events_from_ical
 from app.services.sources.base import FetchResult, SourceDriver
 
 
@@ -26,5 +26,14 @@ class IcsUrlDriver(SourceDriver):
         except Exception as e:
             return FetchResult([], [], errors=[str(e)])
         window_start, window_end = parse_iso_window(start, end)
-        events = parse_events_from_ical(text, source.id, window_start=window_start, window_end=window_end)
+        etag = resp.headers.get("etag") if hasattr(resp, "headers") else None
+        last_modified = resp.headers.get("last-modified") if hasattr(resp, "headers") else None
+        fingerprint = f"etag:{etag}|lm:{last_modified}" if (etag or last_modified) else None
+        events = parse_events_cached(
+            text,
+            source.id,
+            window_start=window_start,
+            window_end=window_end,
+            fingerprint=fingerprint,
+        )
         return FetchResult(events=events, todos=[])

@@ -22,7 +22,9 @@ def _todo_to_json(todo: Todo) -> dict:
     if todo.due is None:
         return payload
     due = todo.due
-    due_utc = due.replace(tzinfo=timezone.utc) if due.tzinfo is None else due.astimezone(timezone.utc)
+    due_utc = (
+        due.replace(tzinfo=timezone.utc) if due.tzinfo is None else due.astimezone(timezone.utc)
+    )
     payload["due"] = due_utc.isoformat().replace("+00:00", "Z")
     return payload
 
@@ -180,9 +182,11 @@ def create_todo():
 
 def list_todos():
     id_param = request.args.get("id")
+    start = request.args.get("start")
+    end = request.args.get("end")
     store = get_sources_store()
     sources = store.list_sources()
-    _, todos, _ = aggregate_events_todos(sources)
+    _, todos, _ = aggregate_events_todos(sources, start=start, end=end)
     if id_param:
         todo_id = id_param.strip()
         for t in todos:

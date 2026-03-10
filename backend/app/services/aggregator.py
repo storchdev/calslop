@@ -1,11 +1,6 @@
-from collections.abc import Callable
-from typing import TypeVar
-
 from app.models.dtos import Event, Source, Todo
 from app.services.sources import CalDAVDriver, IcsUrlDriver, LocalFolderDriver
 from app.services.sources.base import SourceDriver
-
-ItemT = TypeVar("ItemT", Event, Todo)
 
 
 def get_driver(source_type: str) -> SourceDriver | None:
@@ -24,11 +19,10 @@ def _source_id_from_aggregate_id(aggregate_id: str) -> str | None:
     return parts[0] if len(parts) >= 1 else None
 
 
-def _resolve_source_item(
+def _resolve_source_and_driver(
     sources: list[Source],
     item_id: str,
-    picker: Callable[[list[Event], list[Todo]], list[ItemT]],
-) -> tuple[Source, SourceDriver, ItemT] | None:
+) -> tuple[Source, SourceDriver] | None:
     source_id = _source_id_from_aggregate_id(item_id)
     if not source_id:
         return None
@@ -40,24 +34,31 @@ def _resolve_source_item(
     driver = get_driver(source.type)
     if not driver or not driver.can_write():
         return None
-
-    events, todos, _ = aggregate_events_todos([source])
-    item = next((candidate for candidate in picker(events, todos) if candidate.id == item_id), None)
-    return (source, driver, item) if item else None
+    return source, driver
 
 
 def resolve_event_source(
     sources: list[Source], event_id: str
 ) -> tuple[Source, SourceDriver, Event] | None:
     """Find source, driver, and current event for event_id."""
-    return _resolve_source_item(sources, event_id, lambda events, _: events)
+    resolved = _resolve_source_and_driver(sources, event_id)
+    if not resolved:
+        return None
+    source, driver = resolved
+    event = driver.get_event(source, event_id)
+    return (source, driver, event) if event else None
 
 
 def resolve_todo_source(
     sources: list[Source], todo_id: str
 ) -> tuple[Source, SourceDriver, Todo] | None:
     """Find source, driver, and current todo for todo_id."""
-    return _resolve_source_item(sources, todo_id, lambda _, todos: todos)
+    resolved = _resolve_source_and_driver(sources, todo_id)
+    if not resolved:
+        return None
+    source, driver = resolved
+    todo = driver.get_todo(source, todo_id)
+    return (source, driver, todo) if todo else None
 
 
 def aggregate_events_todos(

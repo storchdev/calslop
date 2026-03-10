@@ -37,6 +37,10 @@ class SourceDriver(ABC):
     def create_event(self, source: Source, event: Event) -> Event | None:
         return None
 
+    def get_event(self, source: Source, event_id: str) -> Event | None:
+        result = self.fetch(source)
+        return next((event for event in result.events if event.id == event_id), None)
+
     def update_event(self, source: Source, event: Event) -> Event | None:
         return None
 
@@ -45,6 +49,10 @@ class SourceDriver(ABC):
 
     def create_todo(self, source: Source, todo: Todo) -> Todo | None:
         return None
+
+    def get_todo(self, source: Source, todo_id: str) -> Todo | None:
+        result = self.fetch(source)
+        return next((todo for todo in result.todos if todo.id == todo_id), None)
 
     def update_todo(self, source: Source, todo: Todo) -> Todo | None:
         return None

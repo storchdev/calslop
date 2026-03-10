@@ -51,7 +51,9 @@ def parse_rrule(rrule_value, dtstart: datetime | None):
         return None
 
 
-def iter_occurrences_in_window(rule, start: datetime | None, end: datetime | None) -> Iterable[datetime]:
+def iter_occurrences_in_window(
+    rule, start: datetime | None, end: datetime | None
+) -> Iterable[datetime]:
     if start is None or end is None:
         return []
     start_value = start if start.tzinfo else start.replace(tzinfo=timezone.utc)
@@ -60,6 +62,26 @@ def iter_occurrences_in_window(rule, start: datetime | None, end: datetime | Non
         return rule.between(start_value, end_value, inc=True)
     except Exception:
         return []
+
+
+def next_occurrence_on_or_after(rule, start: datetime | None) -> datetime | None:
+    if start is None:
+        return None
+    start_value = start if start.tzinfo else start.replace(tzinfo=timezone.utc)
+    try:
+        return rule.after(start_value, inc=True)
+    except Exception:
+        return None
+
+
+def next_occurrence_strictly_after(rule, current: datetime | None) -> datetime | None:
+    if current is None:
+        return None
+    current_value = current if current.tzinfo else current.replace(tzinfo=timezone.utc)
+    try:
+        return rule.after(current_value, inc=False)
+    except Exception:
+        return None
 
 
 def parse_iso_window(start: str | None, end: str | None) -> tuple[datetime | None, datetime | None]:

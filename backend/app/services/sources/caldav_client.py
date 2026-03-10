@@ -5,10 +5,9 @@ import icalendar
 from caldav.elements import dav
 
 from app.models.dtos import Event, Source, Todo
+from app.services.ical_cache import invalidate_source_cache, parse_events_cached, parse_todos_cached
 from app.services.ical_recurrence import parse_iso_window
 from app.services.ical_utils import (
-    parse_events_from_ical,
-    parse_todos_from_ical,
     build_exception_vtodo,
     build_cancelled_exception_vtodo,
     is_recurrence_id_str,
@@ -64,16 +63,24 @@ class CalDAVDriver(SourceDriver):
                         if hasattr(ev, "data") and ev.data:
                             ics_data = ev.data
                         else:
-                            ics_data = ev.icalendar_component.to_ical() if hasattr(ev, "icalendar_component") else b""
+                            ics_data = (
+                                ev.icalendar_component.to_ical()
+                                if hasattr(ev, "icalendar_component")
+                                else b""
+                            )
                         if isinstance(ics_data, bytes):
                             ics_data = ics_data.decode("utf-8", errors="replace")
                         cal_id = f"{source.id}::{cal.id}" if getattr(cal, "id", None) else source.id
+                        resource_fingerprint = (
+                            f"etag:{getattr(ev, 'etag', '')}|id:{getattr(ev, 'id', '')}"
+                        )
                         all_events.extend(
-                            parse_events_from_ical(
+                            parse_events_cached(
                                 ics_data,
                                 cal_id,
                                 window_start=window_start,
                                 window_end=window_end,
+                                fingerprint=resource_fingerprint,
                             )
                         )
                 except Exception as e:
@@ -85,7 +92,9 @@ class CalDAVDriver(SourceDriver):
                     # Some servers put todos in calendars. Request include_completed=True so completed tasks are returned.
                     for cal in principal.calendars():
                         try:
-                            todos_method = getattr(cal, "todos", None) or getattr(cal, "get_todos", None)
+                            todos_method = getattr(cal, "todos", None) or getattr(
+                                cal, "get_todos", None
+                            )
                             if callable(todos_method):
                                 todos_fetched = todos_method(include_completed=True)
                             else:
@@ -102,13 +111,26 @@ class CalDAVDriver(SourceDriver):
                                 if isinstance(ics_data, bytes):
                                     ics_data = ics_data.decode("utf-8", errors="replace")
                                 cal_id = f"{source.id}::{getattr(cal, 'id', '')}"
-                                all_todos.extend(parse_todos_from_ical(ics_data, cal_id))
+                                resource_fingerprint = (
+                                    f"etag:{getattr(t, 'etag', '')}|id:{getattr(t, 'id', '')}"
+                                )
+                                all_todos.extend(
+                                    parse_todos_cached(
+                                        ics_data,
+                                        cal_id,
+                                        window_start=window_start,
+                                        window_end=window_end,
+                                        fingerprint=resource_fingerprint,
+                                    )
+                                )
                         except Exception as e:
                             errors.append(f"Todos {getattr(cal, 'id', cal)}: {e}")
                 else:
                     for ts in todo_lists:
                         try:
-                            todos_fetched = ts.todos(include_completed=True) if hasattr(ts, "todos") else []
+                            todos_fetched = (
+                                ts.todos(include_completed=True) if hasattr(ts, "todos") else []
+                            )
                             for t in todos_fetched:
                                 if hasattr(t, "data") and t.data:
                                     ics_data = t.data
@@ -120,7 +142,18 @@ class CalDAVDriver(SourceDriver):
                                         ics_data = b""
                                 if isinstance(ics_data, bytes):
                                     ics_data = ics_data.decode("utf-8", errors="replace")
-                                all_todos.extend(parse_todos_from_ical(ics_data, source.id))
+                                resource_fingerprint = (
+                                    f"etag:{getattr(t, 'etag', '')}|id:{getattr(t, 'id', '')}"
+                                )
+                                all_todos.extend(
+                                    parse_todos_cached(
+                                        ics_data,
+                                        source.id,
+                                        window_start=window_start,
+                                        window_end=window_end,
+                                        fingerprint=resource_fingerprint,
+                                    )
+                                )
                         except Exception as e:
                             errors.append(str(e))
             except Exception as e:
@@ -143,10 +176,17 @@ class CalDAVDriver(SourceDriver):
                 raise ValueError("No calendars found on CalDAV account")
             cal = calendars[0]
             from app.services.ical_utils import event_to_ical
+
             ical_str = event_to_ical(event).decode("utf-8")
             new_ev = cal.save_event(ical_str)
             if new_ev and hasattr(new_ev, "id"):
-                event = Event(**{**event.model_dump(), "id": f"{source.id}::{getattr(new_ev, 'id', event.id)}"})
+                event = Event(
+                    **{
+                        **event.model_dump(),
+                        "id": f"{source.id}::{getattr(new_ev, 'id', event.id)}",
+                    }
+                )
+            invalidate_source_cache(source.id)
             return event
         except ValueError:
             raise
@@ -167,8 +207,10 @@ class CalDAVDriver(SourceDriver):
                     uid = event.id.split("::")[-1] if "::" in event.id else event.id
                     if ev_id and (event.id.endswith(ev_id) or uid in ev_id or ev_id.endswith(uid)):
                         from app.services.ical_utils import event_to_ical
+
                         ev.icalendar_instance = icalendar.Calendar.from_ical(event_to_ical(event))
                         ev.save()
+                        invalidate_source_cache(source.id)
                         return event
             raise ValueError("Event not found on CalDAV server")
         except ValueError:
@@ -181,8 +223,11 @@ class CalDAVDriver(SourceDriver):
             principal = self._get_client(source).principal()
             for cal in principal.calendars():
                 for ev in cal.events():
-                    if event_id in str(getattr(ev, "id", "")) or (hasattr(ev, "id") and ev.id and event_id.endswith(ev.id)):
+                    if event_id in str(getattr(ev, "id", "")) or (
+                        hasattr(ev, "id") and ev.id and event_id.endswith(ev.id)
+                    ):
                         ev.delete()
+                        invalidate_source_cache(source.id)
                         return True
         except Exception:
             pass
@@ -190,6 +235,7 @@ class CalDAVDriver(SourceDriver):
 
     def create_todo(self, source: Source, todo: Todo) -> Todo | None:
         from app.services.ical_utils import todo_to_ical
+
         client = self._get_client(source)
         if not client:
             return None
@@ -200,6 +246,7 @@ class CalDAVDriver(SourceDriver):
             if todo_sets:
                 ts = todo_sets[0]
                 ts.save_todo(ical_str)
+                invalidate_source_cache(source.id)
                 return todo
             # Many servers store todos in calendars, not todo_sets. Try each calendar.
             for cal in principal.calendars():
@@ -207,6 +254,7 @@ class CalDAVDriver(SourceDriver):
                 if callable(save_todo):
                     try:
                         save_todo(ical_str)
+                        invalidate_source_cache(source.id)
                         return todo
                     except Exception:
                         continue
@@ -235,7 +283,7 @@ class CalDAVDriver(SourceDriver):
         try:
             comp = getattr(caldav_todo, "icalendar_component", None)
             if comp:
-                for c in (comp.walk() if hasattr(comp, "walk") else [comp]):
+                for c in comp.walk() if hasattr(comp, "walk") else [comp]:
                     if getattr(c, "name", None) == "VTODO" and str(c.get("uid", "")) == uid:
                         return True
         except Exception:
@@ -275,28 +323,38 @@ class CalDAVDriver(SourceDriver):
                 return False
             for cal in principal.calendars():
                 todos_fn = getattr(cal, "todos", None) or getattr(cal, "get_todos", None)
-                for t in (todos_fn(include_completed=True) if callable(todos_fn) else []):
+                for t in todos_fn(include_completed=True) if callable(todos_fn) else []:
                     if self._todo_ids_match(master_todo_id, t):
-                        cal_inst = getattr(t, "icalendar_instance", None) or icalendar.Calendar.from_ical(
+                        cal_inst = getattr(
+                            t, "icalendar_instance", None
+                        ) or icalendar.Calendar.from_ical(
                             t.data if getattr(t, "data", None) else t.icalendar_component.to_ical()
                         )
                         if cal_inst:
                             cal_inst.add_component(exc_vtodo)
-                            _update_master_vtodo_metadata(cal_inst, uid, summary, description, priority)
+                            _update_master_vtodo_metadata(
+                                cal_inst, uid, summary, description, priority
+                            )
                             t.icalendar_instance = cal_inst
                             t.save()
+                        invalidate_source_cache(source.id)
                         return True
             for ts in getattr(principal, "todo_sets", lambda: [])():
-                for t in (ts.todos(include_completed=True) if hasattr(ts, "todos") else []):
+                for t in ts.todos(include_completed=True) if hasattr(ts, "todos") else []:
                     if self._todo_ids_match(master_todo_id, t):
-                        cal_inst = getattr(t, "icalendar_instance", None) or icalendar.Calendar.from_ical(
+                        cal_inst = getattr(
+                            t, "icalendar_instance", None
+                        ) or icalendar.Calendar.from_ical(
                             t.data if getattr(t, "data", None) else t.icalendar_component.to_ical()
                         )
                         if cal_inst:
                             cal_inst.add_component(exc_vtodo)
-                            _update_master_vtodo_metadata(cal_inst, uid, summary, description, priority)
+                            _update_master_vtodo_metadata(
+                                cal_inst, uid, summary, description, priority
+                            )
                             t.icalendar_instance = cal_inst
                             t.save()
+                        invalidate_source_cache(source.id)
                         return True
         except Exception:
             pass
@@ -328,26 +386,32 @@ class CalDAVDriver(SourceDriver):
                 return False
             for cal in principal.calendars():
                 todos_fn = getattr(cal, "todos", None) or getattr(cal, "get_todos", None)
-                for t in (todos_fn(include_completed=True) if callable(todos_fn) else []):
+                for t in todos_fn(include_completed=True) if callable(todos_fn) else []:
                     if self._todo_ids_match(master_todo_id, t):
-                        cal_inst = getattr(t, "icalendar_instance", None) or icalendar.Calendar.from_ical(
+                        cal_inst = getattr(
+                            t, "icalendar_instance", None
+                        ) or icalendar.Calendar.from_ical(
                             t.data if getattr(t, "data", None) else t.icalendar_component.to_ical()
                         )
                         if cal_inst:
                             cal_inst.add_component(cancelled_vtodo)
                             t.icalendar_instance = cal_inst
                             t.save()
+                        invalidate_source_cache(source.id)
                         return True
             for ts in getattr(principal, "todo_sets", lambda: [])():
-                for t in (ts.todos(include_completed=True) if hasattr(ts, "todos") else []):
+                for t in ts.todos(include_completed=True) if hasattr(ts, "todos") else []:
                     if self._todo_ids_match(master_todo_id, t):
-                        cal_inst = getattr(t, "icalendar_instance", None) or icalendar.Calendar.from_ical(
+                        cal_inst = getattr(
+                            t, "icalendar_instance", None
+                        ) or icalendar.Calendar.from_ical(
                             t.data if getattr(t, "data", None) else t.icalendar_component.to_ical()
                         )
                         if cal_inst:
                             cal_inst.add_component(cancelled_vtodo)
                             t.icalendar_instance = cal_inst
                             t.save()
+                        invalidate_source_cache(source.id)
                         return True
         except Exception:
             pass
@@ -364,36 +428,60 @@ class CalDAVDriver(SourceDriver):
             principal = client.principal()
             for cal in principal.calendars():
                 todos_fn = getattr(cal, "todos", None) or getattr(cal, "get_todos", None)
-                for t in (todos_fn(include_completed=True) if callable(todos_fn) else []):
+                for t in todos_fn(include_completed=True) if callable(todos_fn) else []:
                     if not self._todo_ids_match(todo.id, t):
                         continue
                     if master_id and recurrence_id_str:
-                        ical_bytes = t.data if getattr(t, "data", None) else (t.icalendar_component.to_ical() if hasattr(t, "icalendar_component") else b"")
+                        ical_bytes = (
+                            t.data
+                            if getattr(t, "data", None)
+                            else (
+                                t.icalendar_component.to_ical()
+                                if hasattr(t, "icalendar_component")
+                                else b""
+                            )
+                        )
                         if isinstance(ical_bytes, str):
                             ical_bytes = ical_bytes.encode("utf-8")
-                        new_ical = merge_instance_todo_into_ical(ical_bytes, todo, recurrence_id_str)
+                        new_ical = merge_instance_todo_into_ical(
+                            ical_bytes, todo, recurrence_id_str
+                        )
                         t.icalendar_instance = icalendar.Calendar.from_ical(new_ical)
                         t.save()
                     else:
                         from app.services.ical_utils import todo_to_ical
+
                         t.icalendar_instance = icalendar.Calendar.from_ical(todo_to_ical(todo))
                         t.save()
+                    invalidate_source_cache(source.id)
                     return todo
             for ts in getattr(principal, "todo_sets", lambda: [])():
-                for t in (ts.todos(include_completed=True) if hasattr(ts, "todos") else []):
+                for t in ts.todos(include_completed=True) if hasattr(ts, "todos") else []:
                     if not self._todo_ids_match(todo.id, t):
                         continue
                     if master_id and recurrence_id_str:
-                        ical_bytes = t.data if getattr(t, "data", None) else (t.icalendar_component.to_ical() if hasattr(t, "icalendar_component") else b"")
+                        ical_bytes = (
+                            t.data
+                            if getattr(t, "data", None)
+                            else (
+                                t.icalendar_component.to_ical()
+                                if hasattr(t, "icalendar_component")
+                                else b""
+                            )
+                        )
                         if isinstance(ical_bytes, str):
                             ical_bytes = ical_bytes.encode("utf-8")
-                        new_ical = merge_instance_todo_into_ical(ical_bytes, todo, recurrence_id_str)
+                        new_ical = merge_instance_todo_into_ical(
+                            ical_bytes, todo, recurrence_id_str
+                        )
                         t.icalendar_instance = icalendar.Calendar.from_ical(new_ical)
                         t.save()
                     else:
                         from app.services.ical_utils import todo_to_ical
+
                         t.icalendar_instance = icalendar.Calendar.from_ical(todo_to_ical(todo))
                         t.save()
+                    invalidate_source_cache(source.id)
                     return todo
             raise ValueError("Todo not found on CalDAV server")
         except ValueError:
@@ -410,15 +498,17 @@ class CalDAVDriver(SourceDriver):
             principal = self._get_client(source).principal()
             for cal in principal.calendars():
                 todos_fn = getattr(cal, "todos", None) or getattr(cal, "get_todos", None)
-                cal_todos = (todos_fn(include_completed=True) if callable(todos_fn) else [])
+                cal_todos = todos_fn(include_completed=True) if callable(todos_fn) else []
                 for t in cal_todos:
                     if self._todo_ids_match(todo_id, t):
                         t.delete()
+                        invalidate_source_cache(source.id)
                         return True
             for ts in getattr(principal, "todo_sets", lambda: [])():
-                for t in (ts.todos(include_completed=True) if hasattr(ts, "todos") else []):
+                for t in ts.todos(include_completed=True) if hasattr(ts, "todos") else []:
                     if self._todo_ids_match(todo_id, t):
                         t.delete()
+                        invalidate_source_cache(source.id)
                         return True
         except Exception:
             pass
