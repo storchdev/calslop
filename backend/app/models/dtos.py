@@ -105,6 +105,7 @@ class TodoUpdate(BaseModel):
 
 
 NotificationTarget = Literal["notify_send", "webhook", "email"]
+NotifySendTimeout = Literal["5s", "15s", "60s", "persistent"]
 
 
 class WebhookSettings(BaseModel):
@@ -119,6 +120,7 @@ class EmailSettings(BaseModel):
 class NotificationSettings(BaseModel):
     enabled: bool = False
     target: NotificationTarget = "notify_send"
+    notify_send_timeout: NotifySendTimeout = "15s"
     webhook: WebhookSettings = Field(default_factory=WebhookSettings)
     email: EmailSettings = Field(default_factory=EmailSettings)
     time_format: str = "%b %d %H:%M %Z"
@@ -128,6 +130,7 @@ class NotificationSettings(BaseModel):
 class NotificationSettingsUpdate(BaseModel):
     enabled: bool | None = None
     target: NotificationTarget | None = None
+    notify_send_timeout: NotifySendTimeout | None = None
     webhook: WebhookSettings | None = None
     email: EmailSettings | None = None
     time_format: str | None = None

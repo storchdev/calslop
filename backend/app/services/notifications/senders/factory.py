@@ -5,7 +5,7 @@ from string import Formatter
 from app.models.dtos import NotificationSettings
 from app.services.notifications.senders.base import NotificationSender
 from app.services.notifications.senders.email import EmailSender, missing_email_env_vars
-from app.services.notifications.senders.notify_send import NotifySendSender
+from app.services.notifications.senders.notify_send import NOTIFY_SEND_TIMEOUT_MS, NotifySendSender
 from app.services.notifications.senders.webhook import WebhookSender
 
 SUPPORTED_BODY_TEMPLATE_FIELDS = {"time", "delta", "title", "kind"}
@@ -16,6 +16,12 @@ def validate_notification_settings(settings: NotificationSettings) -> list[str]:
 
     if settings.target == "webhook" and not (settings.webhook.url or "").strip():
         errors.append("Webhook URL is required for webhook notifications")
+
+    if (
+        settings.target == "notify_send"
+        and settings.notify_send_timeout not in NOTIFY_SEND_TIMEOUT_MS
+    ):
+        errors.append("Invalid notify-send timeout value")
 
     if settings.target == "email":
         if not (settings.email.to or "").strip():
@@ -48,7 +54,7 @@ def create_sender(settings: NotificationSettings) -> NotificationSender:
         raise ValueError(errors[0])
 
     if settings.target == "notify_send":
-        return NotifySendSender()
+        return NotifySendSender(settings.notify_send_timeout)
     if settings.target == "webhook":
         return WebhookSender(settings.webhook)
     if settings.target == "email":

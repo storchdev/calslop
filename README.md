@@ -26,6 +26,9 @@ Notification targets:
 - `webhook` with URL and optional headers
 - `email` with recipient in app settings and SMTP credentials from environment variables only
 
+notify-send settings:
+- `notify_send_timeout`: `5s`, `15s` (default), `60s`, or `persistent` (`notify-send -t 0`)
+
 Notification message formatting:
 - `time_format` uses Python `strftime` directives (default: `%b %d %H:%M %Z`)
 - `body_template` supports multiline text and placeholders: `{time}`, `{delta}`, `{title}`, `{kind}`

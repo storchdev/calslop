@@ -18,6 +18,7 @@ def test_get_notification_settings_defaults(monkeypatch, tmp_path):
     data = res.get_json()
     assert data["enabled"] is False
     assert data["target"] == "notify_send"
+    assert data["notify_send_timeout"] == "15s"
     assert data["time_format"] == "%b %d %H:%M %Z"
     assert data["body_template"] == "{time}"
 
@@ -38,6 +39,26 @@ def test_put_notification_settings_webhook(monkeypatch, tmp_path):
     assert data["enabled"] is True
     assert data["target"] == "webhook"
     assert data["webhook"]["url"] == "https://example.com/hook"
+
+
+def test_put_notification_settings_notify_send_timeout(monkeypatch, tmp_path):
+    client = _test_client(monkeypatch, tmp_path)
+
+    res = client.put(
+        "/api/notifications/settings",
+        json={
+            "enabled": True,
+            "target": "notify_send",
+            "notify_send_timeout": "60s",
+        },
+    )
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["notify_send_timeout"] == "60s"
+
+    get_res = client.get("/api/notifications/settings")
+    assert get_res.status_code == 200
+    assert get_res.get_json()["notify_send_timeout"] == "60s"
 
 
 def test_put_notification_settings_email_requires_env(monkeypatch, tmp_path):
@@ -93,3 +114,17 @@ def test_put_notification_settings_rejects_unknown_template_field(monkeypatch, t
     )
     assert res.status_code == 400
     assert "Unsupported notification body template field" in res.get_json()["detail"]
+
+
+def test_put_notification_settings_rejects_invalid_timeout(monkeypatch, tmp_path):
+    client = _test_client(monkeypatch, tmp_path)
+
+    res = client.put(
+        "/api/notifications/settings",
+        json={
+            "enabled": True,
+            "target": "notify_send",
+            "notify_send_timeout": "never",
+        },
+    )
+    assert res.status_code == 400

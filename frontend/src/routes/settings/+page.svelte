@@ -11,7 +11,7 @@
     updateSource,
   } from '$lib/api';
   import { app } from '$lib/stores/app.svelte';
-  import type { NotificationTarget, Source } from '$lib/types';
+  import type { NotificationTarget, NotifySendTimeout, Source } from '$lib/types';
   import { sourceColorForIndex } from '$lib/source-colors';
 
   let sources = $state<Source[]>([]);
@@ -26,6 +26,7 @@
   let webhookUrl = $state('');
   let webhookHeadersText = $state('{}');
   let emailTo = $state('');
+  let notifySendTimeout = $state<NotifySendTimeout>('15s');
   let notificationTimeFormat = $state('%b %d %H:%M %Z');
   let notificationBodyTemplate = $state('{time}');
   let notificationsLoading = $state(true);
@@ -52,6 +53,7 @@
         webhookUrl = settings.webhook.url ?? '';
         webhookHeadersText = JSON.stringify(settings.webhook.headers ?? {}, null, 2);
         emailTo = settings.email.to ?? '';
+        notifySendTimeout = settings.notify_send_timeout || '15s';
         notificationTimeFormat = settings.time_format || '%b %d %H:%M %Z';
         notificationBodyTemplate = settings.body_template || '{time}';
         notificationsMessage = settings.health_error ?? '';
@@ -102,6 +104,7 @@
       const settings = await updateNotificationSettings({
         enabled: notificationsEnabled,
         target: notificationTarget,
+        notify_send_timeout: notifySendTimeout,
         webhook: { url: webhookUrl || null, headers },
         email: { to: emailTo || null },
         time_format: notificationTimeFormat,
@@ -324,7 +327,17 @@
         <option value="email">email</option>
       </select>
     </div>
-    {#if notificationTarget === 'webhook'}
+    {#if notificationTarget === 'notify_send'}
+      <div class="form-row" style="max-width: 18rem;">
+        <label for="notify-send-timeout">Notification timeout</label>
+        <select id="notify-send-timeout" bind:value={notifySendTimeout}>
+          <option value="5s">5 seconds</option>
+          <option value="15s">15 seconds</option>
+          <option value="60s">60 seconds</option>
+          <option value="persistent">Persistent</option>
+        </select>
+      </div>
+    {:else if notificationTarget === 'webhook'}
       <div class="form-row" style="max-width: 40rem;">
         <label for="notification-webhook-url">Webhook URL</label>
         <input id="notification-webhook-url" type="text" bind:value={webhookUrl} placeholder="https://..." />

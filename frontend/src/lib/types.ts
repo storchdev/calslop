@@ -83,6 +83,7 @@ export interface TodoUpdate {
 }
 
 export type NotificationTarget = 'notify_send' | 'webhook' | 'email';
+export type NotifySendTimeout = '5s' | '15s' | '60s' | 'persistent';
 
 export interface WebhookSettings {
   url?: string | null;
@@ -96,6 +97,7 @@ export interface EmailSettings {
 export interface NotificationSettings {
   enabled: boolean;
   target: NotificationTarget;
+  notify_send_timeout: NotifySendTimeout;
   webhook: WebhookSettings;
   email: EmailSettings;
   time_format: string;
@@ -106,6 +108,7 @@ export interface NotificationSettings {
 export interface NotificationSettingsUpdate {
   enabled?: boolean;
   target?: NotificationTarget;
+  notify_send_timeout?: NotifySendTimeout;
   webhook?: WebhookSettings;
   email?: EmailSettings;
   time_format?: string;
