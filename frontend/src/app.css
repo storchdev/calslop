@@ -658,6 +658,19 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   margin-bottom: 0.75rem;
 }
 
+.modal-fields {
+  border: 0;
+  margin: 0;
+  min-inline-size: 0;
+  padding: 0;
+}
+
+.modal-fields.is-read-only .form-row input,
+.modal-fields.is-read-only .form-row textarea,
+.modal-fields.is-read-only .form-row select {
+  opacity: 0.6;
+}
+
 .form-row label {
   display: block;
   margin-bottom: 0.25rem;

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { createEvent, updateEvent, getEvent, deleteEvent, getWritableSources, parseHumanDatetime, parseHumanRecurrence, parseHumanAlerts, parseHumanDelta } from '$lib/api';
-  import type { Event } from '$lib/types';
+  import { createEvent, updateEvent, getEvent, deleteEvent, getSources, parseHumanDatetime, parseHumanRecurrence, parseHumanAlerts, parseHumanDelta } from '$lib/api';
+  import type { Event, SourceType } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
   import { toLocalDatetimeInput } from '$lib/date';
   import {
@@ -35,6 +35,7 @@ interface Props {
   let alertSelectValue = $state('');
   let sourceId = $state('');
   let sources = $state<{ id: string; name: string; type: string }[]>([]);
+  let sourceTypes = $state<Record<string, SourceType>>({});
   let error = $state('');
   let saving = $state(false);
   let deleting = $state(false);
@@ -57,6 +58,7 @@ interface Props {
   let fetchedEventId = $state<string | null>(null);
 
   const editingId = $derived(app.editingId);
+  const isReadOnlyEvent = $derived(Boolean(editingId && sourceTypes[(sourceId.split('::')[0] || sourceId)] === 'ics_url'));
 
   function setAlertMinutes(minutes: number[] | null | undefined) {
     const state = buildAlertSelectState(minutes, alertOptions);
@@ -67,7 +69,7 @@ interface Props {
 
   $effect(() => {
     const tz = app.timezone || undefined;
-    if (saving || deleting) return;
+    if (saving || deleting || isReadOnlyEvent) return;
 
     if (editingId) {
       const prefill = initialEvent?.id === editingId ? initialEvent : null;
@@ -80,6 +82,7 @@ interface Props {
         description = prefill.description ?? '';
         location = prefill.location ?? '';
         recurrence = prefill.recurrence ?? '';
+        sourceId = prefill.source_id;
         setAlertMinutes(prefill.alert_minutes_before);
         shiftHuman = '';
         shiftDeltaSeconds = 0;
@@ -100,6 +103,7 @@ interface Props {
           description = e.description ?? '';
           location = e.location ?? '';
           recurrence = e.recurrence ?? '';
+          sourceId = e.source_id;
           setAlertMinutes(e.alert_minutes_before);
           shiftHuman = '';
           shiftDeltaSeconds = 0;
@@ -133,8 +137,11 @@ interface Props {
   });
 
   onMount(() => {
-    getWritableSources().then((s: Array<{ id: string; name: string; type: string }>) => {
-      sources = s;
+    getSources().then((allSources) => {
+      sourceTypes = Object.fromEntries(allSources.map((source) => [source.id, source.type]));
+      sources = allSources
+        .filter((source) => source.type === 'local_folder' || source.type === 'caldav')
+        .map((source) => ({ id: source.id, name: source.name, type: source.type }));
       if (sources.length && !editingId) sourceId = sources[0].id;
     });
   });
@@ -485,18 +492,20 @@ interface Props {
       isTextInput: inTextInput,
       modalEl,
       onClose: onclose,
-      onSubmit: submit,
+      onSubmit: isReadOnlyEvent ? () => {} : submit,
       cycleSelect,
       onTextInputEscape: (activeTarget) => {
         if (activeTarget === startHumanEl || activeTarget === endHumanEl) activeDateField = null;
         if (activeTarget === repeatHumanEl) activeRepeatField = false;
         if (activeTarget === alertHumanEl) activeAlertField = false;
       },
-      deleteConfirmMessage: editingId ? 'Delete this event?' : undefined,
-      onDelete: editingId ? () => { void performDelete(); } : undefined,
+      deleteConfirmMessage: editingId && !isReadOnlyEvent ? 'Delete this event?' : undefined,
+      onDelete: editingId && !isReadOnlyEvent ? () => { void performDelete(); } : undefined,
     })) {
       return;
     }
+
+    if (isReadOnlyEvent) return;
 
     if (inTextInput) return;
 
@@ -555,27 +564,28 @@ interface Props {
         {editingId ? 'Saving…' : 'Creating…'}
       </p>
     {/if}
-    {#if !editingId}
-      <div class="form-row">
-        <div class="form-row-header">
-          <span class="field-label">Calendar</span>
-          <span class="field-shortcut">C</span>
+    <fieldset class="modal-fields" class:is-read-only={isReadOnlyEvent} disabled={isReadOnlyEvent}>
+      {#if !editingId}
+        <div class="form-row">
+          <div class="form-row-header">
+            <span class="field-label">Calendar</span>
+            <span class="field-shortcut">C</span>
+          </div>
+          <select bind:value={sourceId} bind:this={sourceIdEl}>
+            {#each sources as s}
+              <option value={s.id}>{s.name}</option>
+            {/each}
+          </select>
         </div>
-        <select bind:value={sourceId} bind:this={sourceIdEl}>
-          {#each sources as s}
-            <option value={s.id}>{s.name}</option>
-          {/each}
-        </select>
-      </div>
-    {/if}
-    <div class="form-row">
+      {/if}
+      <div class="form-row">
       <div class="form-row-header">
         <span class="field-label">Title</span>
         <span class="field-shortcut">T</span>
       </div>
       <input type="text" bind:value={title} bind:this={titleEl} />
     </div>
-    <div class="form-row">
+      <div class="form-row">
       <div class="form-row-header">
         <span class="field-label">Start</span>
         <span class="field-shortcut">S</span>
@@ -592,8 +602,8 @@ interface Props {
         onblur={() => clearActiveDateFieldIfNeeded('start')}
       />
     </div>
-    {#if activeDateField === 'start'}
-      <div class="form-row">
+      {#if activeDateField === 'start'}
+        <div class="form-row">
         <div class="form-row-header">
           <span class="field-label">Human-friendly</span>
           <span class="field-shortcut">H</span>
@@ -609,9 +619,9 @@ interface Props {
           onfocus={() => { activeDateField = 'start'; }}
           onblur={() => clearActiveDateFieldIfNeeded('start')}
         />
-      </div>
-    {/if}
-    <div class="form-row">
+        </div>
+      {/if}
+      <div class="form-row">
       <div class="form-row-header">
         <span class="field-label">End</span>
         <span class="field-shortcut">E</span>
@@ -628,8 +638,8 @@ interface Props {
         onblur={() => clearActiveDateFieldIfNeeded('end')}
       />
     </div>
-    {#if activeDateField === 'end'}
-      <div class="form-row">
+      {#if activeDateField === 'end'}
+        <div class="form-row">
         <div class="form-row-header">
           <span class="field-label">Human-friendly</span>
           <span class="field-shortcut">H</span>
@@ -648,9 +658,9 @@ interface Props {
         {#if endDateAdjustedHint}
           <p class="text-sm text-[var(--text-muted)] mt-1">{endDateAdjustedHint}</p>
         {/if}
-      </div>
-    {/if}
-    <div class="form-row">
+        </div>
+      {/if}
+      <div class="form-row">
       <div class="form-row-header">
         <span class="field-label">Shift by</span>
         <span class="field-shortcut">F</span>
@@ -664,7 +674,7 @@ interface Props {
         oninput={handleShiftInput}
       />
     </div>
-    <div class="form-row form-row-checkbox">
+      <div class="form-row form-row-checkbox">
       <div class="form-row-header">
         <span class="field-label">All day</span>
         <span class="field-shortcut">A</span>
@@ -673,14 +683,14 @@ interface Props {
         <input type="checkbox" bind:checked={allDay} bind:this={allDayEl} />
       </label>
     </div>
-    <div class="form-row">
+      <div class="form-row">
       <div class="form-row-header">
         <span class="field-label">Location</span>
         <span class="field-shortcut">L</span>
       </div>
       <input type="text" bind:value={location} placeholder="e.g. Conference room A" bind:this={locationEl} />
     </div>
-    <div class="form-row">
+      <div class="form-row">
       <div class="form-row-header">
         <span class="field-label">Repeat</span>
         <span class="field-shortcut">R</span>
@@ -699,8 +709,8 @@ interface Props {
         {/if}
       </select>
     </div>
-    {#if activeRepeatField}
-      <div class="form-row">
+      {#if activeRepeatField}
+        <div class="form-row">
         <div class="form-row-header">
           <span class="field-label">Human-friendly</span>
           <span class="field-shortcut">H</span>
@@ -716,9 +726,9 @@ interface Props {
             onblur={clearRepeatFieldIfNeeded}
           />
         </div>
-      </div>
-    {/if}
-    <div class="form-row">
+        </div>
+      {/if}
+      <div class="form-row">
       <div class="form-row-header">
         <span class="field-label">Alert</span>
         <span class="field-shortcut">N</span>
@@ -738,8 +748,8 @@ interface Props {
         {/if}
       </select>
     </div>
-    {#if activeAlertField}
-      <div class="form-row">
+      {#if activeAlertField}
+        <div class="form-row">
         <div class="form-row-header">
           <span class="field-label">Human-friendly</span>
           <span class="field-shortcut">H</span>
@@ -752,21 +762,24 @@ interface Props {
           onfocus={() => { activeAlertField = true; }}
           onblur={clearAlertFieldIfNeeded}
         />
-      </div>
-    {/if}
-    <div class="form-row">
+        </div>
+      {/if}
+      <div class="form-row">
       <div class="form-row-header">
         <span class="field-label">Description</span>
         <span class="field-shortcut">D</span>
       </div>
       <textarea bind:value={description} rows="3" bind:this={descriptionEl}></textarea>
-    </div>
-    <div class="form-actions">
-      <div class="form-action-with-hint">
-        <button class="btn btn-primary" onclick={submit} disabled={saving || deleting}>Save</button>
-        <span class="action-hint">Ctrl+Enter</span>
       </div>
-      {#if editingId}
+    </fieldset>
+    <div class="form-actions">
+      {#if !isReadOnlyEvent}
+        <div class="form-action-with-hint">
+          <button class="btn btn-primary" onclick={submit} disabled={saving || deleting}>Save</button>
+          <span class="action-hint">Ctrl+Enter</span>
+        </div>
+      {/if}
+      {#if editingId && !isReadOnlyEvent}
         <div class="form-action-with-hint">
           <button
             class="btn btn-ghost"
