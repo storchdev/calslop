@@ -45,8 +45,11 @@ def _should_start_scheduler() -> bool:
     if os.environ.get("CALSLOP_DISABLE_NOTIFICATION_SCHEDULER") == "1":
         return False
 
+    # When Flask debug reloader is enabled, skip the parent process and start
+    # the scheduler only in the reloader child.
     is_flask_cli = os.environ.get("FLASK_RUN_FROM_CLI") == "true"
-    if is_flask_cli and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+    is_debug_reloader = os.environ.get("FLASK_DEBUG") == "1"
+    if is_flask_cli and is_debug_reloader and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
         return False
 
     return True
