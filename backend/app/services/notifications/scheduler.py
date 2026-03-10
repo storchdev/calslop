@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+import hashlib
 import logging
+import os
 import threading
 import time
+import heapq
+import json
 from typing import Callable
 
 from app.db.app_config_store import AppConfigStore
@@ -98,18 +102,48 @@ class NotificationScheduler:
         sources_store: SourcesStore | None = None,
         config_store: AppConfigStore | None = None,
         poll_interval_seconds: float = 1.0,
+        refresh_interval_seconds: float | None = None,
         aggregate_fn: Callable = aggregate_events_todos,
     ):
         self._sources_store = sources_store or SourcesStore()
         self._config_store = config_store or AppConfigStore()
         self._poll_interval_seconds = poll_interval_seconds
+        env_refresh_seconds = os.environ.get("CALSLOP_NOTIFICATION_REFRESH_SECONDS")
+        if refresh_interval_seconds is not None:
+            resolved_refresh_seconds = refresh_interval_seconds
+        elif env_refresh_seconds is not None:
+            try:
+                resolved_refresh_seconds = float(env_refresh_seconds)
+            except ValueError:
+                LOGGER.warning(
+                    "invalid CALSLOP_NOTIFICATION_REFRESH_SECONDS=%r, using default",
+                    env_refresh_seconds,
+                )
+                resolved_refresh_seconds = 60.0
+        else:
+            resolved_refresh_seconds = 60.0
+        self._refresh_interval_seconds = max(1.0, resolved_refresh_seconds)
         self._aggregate_fn = aggregate_fn
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._lock = threading.Lock()
         self._armed_alerts: list[ArmedAlert] = []
+        self._alert_heap: list[tuple[int, int, ArmedAlert]] = []
+        self._heap_counter = 0
         self._notified_alerts: set[str] = set()
-        self._last_notification_check_ms = int(time.time() * 1000)
+        now_ms = int(time.time() * 1000)
+        self._last_notification_check_ms = now_ms
+        self._snapshot_events: list[Event] = []
+        self._snapshot_todos: list[Todo] = []
+        self._next_refresh_ms = now_ms
+        self._last_settings_fingerprint: str | None = None
+        self._last_sources_fingerprint: str | None = None
+        self._force_refresh = False
+        self._refresh_count = 0
+        self._refresh_skipped_unchanged = 0
+
+    def request_refresh(self) -> None:
+        self._force_refresh = True
 
     def start(self) -> None:
         with self._lock:
@@ -127,29 +161,69 @@ class NotificationScheduler:
         if thread and thread.is_alive():
             thread.join(timeout=2)
 
-    def tick(self) -> None:
+    def tick(self) -> float:
         raw = self._config_store.load()
         settings = NotificationSettings.model_validate(raw.get("notifications") or {})
+        now_ms = int(time.time() * 1000)
+        settings_fingerprint = self._fingerprint_settings(settings)
+        settings_changed = settings_fingerprint != self._last_settings_fingerprint
+        self._last_settings_fingerprint = settings_fingerprint
+
         if not settings.enabled:
             self._armed_alerts = []
+            self._alert_heap = []
+            self._snapshot_events = []
+            self._snapshot_todos = []
+            self._next_refresh_ms = now_ms
             self._notified_alerts.clear()
-            self._last_notification_check_ms = int(time.time() * 1000)
-            return
+            self._last_notification_check_ms = now_ms
+            self._last_sources_fingerprint = None
+            self._force_refresh = False
+            return self._poll_interval_seconds
 
         sender = create_sender(settings)
-        sources = self._sources_store.list_sources()
-        events, todos, _ = self._aggregate_fn(sources)
-        now_ms = int(time.time() * 1000)
-        self._check_due_notifications(sender, settings, now_ms)
-        self._rebuild_armed_alerts(events, todos, now_ms)
+        should_refresh = self._force_refresh or settings_changed or now_ms >= self._next_refresh_ms
+        if should_refresh:
+            refresh_started = time.perf_counter()
+            sources = self._sources_store.list_sources()
+            events, todos, _ = self._aggregate_fn(sources)
+            self._snapshot_events = events
+            self._snapshot_todos = todos
+            fingerprint = self._fingerprint_snapshot(events, todos)
+            refresh_duration_ms = int((time.perf_counter() - refresh_started) * 1000)
+            if fingerprint != self._last_sources_fingerprint:
+                self._rebuild_armed_alerts(events, todos, now_ms)
+                self._last_sources_fingerprint = fingerprint
+                LOGGER.debug(
+                    "notifications refresh rebuilt alerts count=%d duration_ms=%d refresh_count=%d",
+                    len(self._armed_alerts),
+                    refresh_duration_ms,
+                    self._refresh_count + 1,
+                )
+            else:
+                self._refresh_skipped_unchanged += 1
+                LOGGER.debug(
+                    "notifications refresh unchanged duration_ms=%d skipped_unchanged=%d",
+                    refresh_duration_ms,
+                    self._refresh_skipped_unchanged,
+                )
+            self._refresh_count += 1
+            self._next_refresh_ms = now_ms + int(self._refresh_interval_seconds * 1000)
+            self._force_refresh = False
+
+        sent_count = self._check_due_notifications(sender, settings, now_ms)
+        if sent_count:
+            LOGGER.debug("notifications dispatch sent_count=%d", sent_count)
+        return self._compute_wait_seconds(now_ms)
 
     def _run(self) -> None:
         while not self._stop_event.is_set():
+            wait_seconds = self._poll_interval_seconds
             try:
-                self.tick()
+                wait_seconds = self.tick()
             except Exception:
                 LOGGER.exception("notification scheduler tick failed")
-            self._stop_event.wait(self._poll_interval_seconds)
+            self._stop_event.wait(wait_seconds)
 
     def _rebuild_armed_alerts(
         self,
@@ -215,16 +289,21 @@ class NotificationScheduler:
 
         next_alerts.sort(key=lambda alert: alert.alert_at_ms)
         self._armed_alerts = next_alerts
+        self._alert_heap = []
+        for alert in next_alerts:
+            heapq.heappush(self._alert_heap, (alert.alert_at_ms, self._heap_counter, alert))
+            self._heap_counter += 1
 
         active_keys = {alert.key for alert in next_alerts}
         self._notified_alerts.intersection_update(active_keys)
 
-    def _check_due_notifications(self, sender, settings: NotificationSettings, now_ms: int) -> None:
+    def _check_due_notifications(self, sender, settings: NotificationSettings, now_ms: int) -> int:
         since = self._last_notification_check_ms
         self._last_notification_check_ms = now_ms
+        sent_count = 0
 
-        remaining: list[ArmedAlert] = []
-        for alert in self._armed_alerts:
+        while self._alert_heap and self._alert_heap[0][0] <= now_ms:
+            _, _, alert = heapq.heappop(self._alert_heap)
             is_ongoing_at_time_event = (
                 alert.kind == "event"
                 and alert.minutes == 0
@@ -249,10 +328,58 @@ class NotificationScheduler:
                 )
                 try:
                     sender.send(alert.title, body)
+                    sent_count += 1
                 except Exception:
                     LOGGER.exception("failed to send notification")
 
-            if is_ongoing_at_time_event or alert.alert_at_ms > now_ms:
-                remaining.append(alert)
+        self._armed_alerts = [
+            item[2] for item in sorted(self._alert_heap, key=lambda item: item[0])
+        ]
+        return sent_count
 
-        self._armed_alerts = remaining
+    def _compute_wait_seconds(self, now_ms: int) -> float:
+        refresh_due_ms = max(0, self._next_refresh_ms - now_ms)
+        if self._alert_heap:
+            dispatch_due_ms = max(0, self._alert_heap[0][0] - now_ms)
+            near_term_cap_ms = int(self._poll_interval_seconds * 1000)
+            if dispatch_due_ms <= near_term_cap_ms:
+                return self._poll_interval_seconds
+            wait_ms = min(dispatch_due_ms, refresh_due_ms)
+            return max(0.05, wait_ms / 1000)
+        if refresh_due_ms <= 0:
+            return 0.05
+        return max(self._poll_interval_seconds, refresh_due_ms / 1000)
+
+    def _fingerprint_settings(self, settings: NotificationSettings) -> str:
+        payload = settings.model_dump(mode="json")
+        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        return hashlib.sha1(encoded).hexdigest()
+
+    def _fingerprint_snapshot(self, events: list[Event], todos: list[Todo]) -> str:
+        event_keys = sorted(
+            (
+                event.id,
+                event.start.isoformat(),
+                event.end.isoformat(),
+                event.cancelled,
+                tuple(event.alert_minutes_before or []),
+                event.title,
+            )
+            for event in events
+        )
+        todo_keys = sorted(
+            (
+                todo.id,
+                todo.due.isoformat() if todo.due else "",
+                todo.completed,
+                tuple(todo.alert_minutes_before or []),
+                todo.summary,
+            )
+            for todo in todos
+        )
+        encoded = json.dumps(
+            {"events": event_keys, "todos": todo_keys},
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha1(encoded).hexdigest()
