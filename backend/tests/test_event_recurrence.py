@@ -120,7 +120,9 @@ def test_ics_url_driver_fetches_recurrences_in_window(monkeypatch):
 
     monkeypatch.setattr("app.services.sources.ics_url.httpx.Client", FakeClient)
     driver = IcsUrlDriver()
-    source = Source(id="source-url", type="ics_url", name="ics", config={"url": "https://example.test/cal.ics"})
+    source = Source(
+        id="source-url", type="ics_url", name="ics", config={"url": "https://example.test/cal.ics"}
+    )
     result = driver.fetch(source, start="2026-01-04T00:00:00Z", end="2026-01-05T23:59:00Z")
     assert [e.start.strftime("%Y-%m-%d") for e in result.events] == ["2026-01-04", "2026-01-05"]
 
@@ -129,7 +131,9 @@ def test_local_folder_driver_fetches_recurrences_in_window(tmp_path):
     ics_path = tmp_path / "series.ics"
     ics_path.write_text(_recurring_ics(), encoding="utf-8")
     driver = LocalFolderDriver()
-    source = Source(id="source-local", type="local_folder", name="local", config={"path": str(tmp_path)})
+    source = Source(
+        id="source-local", type="local_folder", name="local", config={"path": str(tmp_path)}
+    )
     result = driver.fetch(source, start="2026-01-04T00:00:00Z", end="2026-01-05T23:59:00Z")
     assert [e.start.strftime("%Y-%m-%d") for e in result.events] == ["2026-01-04", "2026-01-05"]
 
@@ -141,8 +145,8 @@ def test_events_api_returns_recurring_subscribed_instances(tmp_path, monkeypatch
 
     data_dir = tmp_path / "data"
     data_dir.mkdir()
-    sources_json = data_dir / "sources.json"
-    sources_json.write_text(
+    settings_json = data_dir / "settings.json"
+    settings_json.write_text(
         json.dumps(
             {
                 "sources": [

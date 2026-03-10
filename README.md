@@ -19,7 +19,7 @@ uv sync   # or: pip install -e .
 uv run flask --app app.main run --port 8000
 ```
 
-Shared app config is stored in `~/.config/calslop/sources.json` (sources + notifications). To use a different directory (e.g. for development), set `CALSLOP_DATA_DIR` to that path.
+Shared app config is stored in `~/.config/calslop/settings.json` (sources + notifications). To use a different directory (e.g. for development), set `CALSLOP_DATA_DIR` to that path.
 
 Notification targets:
 - `notify_send` (default) for Linux desktop notifications from the backend service
@@ -164,7 +164,7 @@ To run Calslop as a user service (runs as you, no sudo required):
    systemctl --user status calslop
    ```
 
-   The app will be available on port **8765**. Sources and notification settings use the default `~/.config/calslop/sources.json` since the service runs as you.
+   The app will be available on port **8765**. Sources and notification settings use the default `~/.config/calslop/settings.json` since the service runs as you.
 
    To have the service start at boot even when you are not logged in, enable lingering: `loginctl enable-linger $USER`.
 
@@ -183,7 +183,7 @@ To run Calslop as a user service (runs as you, no sudo required):
 
 ## API
 
-- `GET/POST/PUT/DELETE /api/sources` – calendar/todo source configs (stored in `~/.config/calslop/sources.json`).
+- `GET/POST/PUT/DELETE /api/sources` – calendar/todo source configs (stored in `~/.config/calslop/settings.json`).
 - `GET /api/events?start=&end=` – aggregated events.
 - `GET/POST/PATCH/DELETE /api/events[/:id]` – event CRUD (writable sources only).
 - `GET /api/todos` – aggregated todos.

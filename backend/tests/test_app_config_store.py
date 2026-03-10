@@ -4,7 +4,7 @@ from app.db.app_config_store import AppConfigStore
 
 
 def test_app_config_store_round_trip(tmp_path):
-    path = tmp_path / "sources.json"
+    path = tmp_path / "settings.json"
     store = AppConfigStore(path)
 
     payload = {
@@ -20,7 +20,7 @@ def test_app_config_store_round_trip(tmp_path):
 
 
 def test_app_config_store_returns_empty_dict_on_invalid_json(tmp_path):
-    path = tmp_path / "sources.json"
+    path = tmp_path / "settings.json"
     path.write_text("{not json}")
     store = AppConfigStore(path)
 

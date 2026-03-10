@@ -7,7 +7,7 @@ from app.services.notifications.scheduler import NotificationScheduler, render_n
 
 
 def test_scheduler_sends_due_notification_once(monkeypatch, tmp_path):
-    path = tmp_path / "sources.json"
+    path = tmp_path / "settings.json"
     config_store = AppConfigStore(path)
     config_store.save(
         {
@@ -71,7 +71,7 @@ def test_scheduler_sends_due_notification_once(monkeypatch, tmp_path):
 
 
 def test_scheduler_clears_state_when_notifications_disabled(monkeypatch, tmp_path):
-    path = tmp_path / "sources.json"
+    path = tmp_path / "settings.json"
     config_store = AppConfigStore(path)
     config_store.save(
         {

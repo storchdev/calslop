@@ -9,8 +9,8 @@ def default_config_path() -> Path:
     import os
 
     if os.environ.get("CALSLOP_DATA_DIR"):
-        return Path(os.environ["CALSLOP_DATA_DIR"]) / "sources.json"
-    return Path.home() / ".config" / "calslop" / "sources.json"
+        return Path(os.environ["CALSLOP_DATA_DIR"]) / "settings.json"
+    return Path.home() / ".config" / "calslop" / "settings.json"
 
 
 class AppConfigStore:

@@ -5,7 +5,7 @@ from app.models.dtos import SourceCreate
 
 
 def test_sources_store_save_preserves_notifications_and_unknown_keys(tmp_path):
-    path = tmp_path / "sources.json"
+    path = tmp_path / "settings.json"
     path.write_text(
         json.dumps(
             {
