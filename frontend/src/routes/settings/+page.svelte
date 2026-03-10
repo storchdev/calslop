@@ -311,8 +311,10 @@
     <p style="margin: 0;">Loading…</p>
   {:else}
     <div class="form-row" style="max-width: 18rem;">
-      <label for="notifications-enabled">Enabled</label>
-      <input id="notifications-enabled" type="checkbox" bind:checked={notificationsEnabled} />
+      <label for="notifications-enabled" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+        Enabled
+        <input id="notifications-enabled" type="checkbox" bind:checked={notificationsEnabled} />
+      </label>
     </div>
     <div class="form-row" style="max-width: 18rem;">
       <label for="notification-target">Target</label>
