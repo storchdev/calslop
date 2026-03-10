@@ -57,6 +57,12 @@ Type=simple
 WorkingDirectory=$INSTALL_DIR_ABS/backend
 Environment="PYTHONPATH=$INSTALL_DIR_ABS/backend"
 Environment="CALSLOP_STATIC_DIR=$INSTALL_DIR_ABS/frontend/build"
+# Environment="CALSLOP_EMAIL_SMTP_HOST=smtp.example.com"
+# Environment="CALSLOP_EMAIL_SMTP_PORT=587"
+# Environment="CALSLOP_EMAIL_SMTP_USERNAME=you@example.com"
+# Environment="CALSLOP_EMAIL_SMTP_PASSWORD=app-password"
+# Environment="CALSLOP_EMAIL_USE_TLS=1"
+# Environment="CALSLOP_EMAIL_FROM=you@example.com"
 Environment="PATH=$INSTALL_DIR_ABS/backend/.venv/bin:/usr/local/bin:/usr/bin:/bin"
 ExecStart=$INSTALL_DIR_ABS/backend/.venv/bin/python -m flask --app app.main run --port 8765 --host 0.0.0.0
 Restart=on-failure

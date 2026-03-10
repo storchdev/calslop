@@ -102,3 +102,29 @@ class TodoUpdate(BaseModel):
     priority: int | None = None
     recurrence: str | None = None
     alert_minutes_before: list[int] | None = None
+
+
+NotificationTarget = Literal["notify_send", "webhook", "email"]
+
+
+class WebhookSettings(BaseModel):
+    url: str | None = None
+    headers: dict[str, str] = Field(default_factory=dict)
+
+
+class EmailSettings(BaseModel):
+    to: str | None = None
+
+
+class NotificationSettings(BaseModel):
+    enabled: bool = False
+    target: NotificationTarget = "notify_send"
+    webhook: WebhookSettings = Field(default_factory=WebhookSettings)
+    email: EmailSettings = Field(default_factory=EmailSettings)
+
+
+class NotificationSettingsUpdate(BaseModel):
+    enabled: bool | None = None
+    target: NotificationTarget | None = None
+    webhook: WebhookSettings | None = None
+    email: EmailSettings | None = None

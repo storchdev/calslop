@@ -9,10 +9,12 @@ from app.routes import (
     datetime_bp,
     delta_bp,
     events_bp,
+    notifications_bp,
     recurrence_bp,
     sources_bp,
     todos_bp,
 )
+from app.services.notifications.scheduler import NotificationScheduler
 
 app = Flask(__name__)
 CORS(
@@ -34,6 +36,24 @@ app.register_blueprint(datetime_bp, url_prefix="/api/datetime")
 app.register_blueprint(recurrence_bp, url_prefix="/api/recurrence")
 app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
 app.register_blueprint(delta_bp, url_prefix="/api/delta")
+app.register_blueprint(notifications_bp, url_prefix="/api/notifications")
+
+notification_scheduler = NotificationScheduler()
+
+
+def _should_start_scheduler() -> bool:
+    if os.environ.get("CALSLOP_DISABLE_NOTIFICATION_SCHEDULER") == "1":
+        return False
+
+    is_flask_cli = os.environ.get("FLASK_RUN_FROM_CLI") == "true"
+    if is_flask_cli and os.environ.get("WERKZEUG_RUN_MAIN") != "true":
+        return False
+
+    return True
+
+
+if _should_start_scheduler():
+    notification_scheduler.start()
 
 
 # Optional: serve built frontend (single-process install)

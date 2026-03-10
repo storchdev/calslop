@@ -22,8 +22,6 @@
     }
     const navCollapsed = localStorage.getItem('calslop-navbar-collapsed');
     if (navCollapsed === '1') app.setNavbarCollapsed(true);
-    const desktopNotificationsEnabled = localStorage.getItem('calslop-desktop-notifications-enabled');
-    if (desktopNotificationsEnabled === '1') app.setDesktopNotificationsEnabled(true);
     const autoSyncInterval = localStorage.getItem('calslop-auto-sync-interval');
     if (autoSyncInterval === 'off' || autoSyncInterval === '30s' || autoSyncInterval === '1m' || autoSyncInterval === '5m') {
       app.setAutoSyncInterval(autoSyncInterval);

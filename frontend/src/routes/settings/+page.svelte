@@ -1,8 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getSources, createSource, deleteSource, updateSource } from '$lib/api';
+  import {
+    getSources,
+    createSource,
+    deleteSource,
+    getNotificationSettings,
+    sendTestNotification,
+    updateNotificationSettings,
+    updateSource,
+  } from '$lib/api';
   import { app } from '$lib/stores/app.svelte';
-  import type { Source } from '$lib/types';
+  import type { NotificationTarget, Source } from '$lib/types';
   import { sourceColorForIndex } from '$lib/source-colors';
 
   let sources = $state<Source[]>([]);
@@ -12,6 +20,15 @@
   let newType = $state<'ics_url' | 'local_folder' | 'caldav'>('ics_url');
   let newName = $state('');
   let newConfig = $state<Record<string, string>>({});
+  let notificationsEnabled = $state(false);
+  let notificationTarget = $state<NotificationTarget>('notify_send');
+  let webhookUrl = $state('');
+  let webhookHeadersText = $state('{}');
+  let emailTo = $state('');
+  let notificationsLoading = $state(true);
+  let notificationsSaving = $state(false);
+  let testingNotification = $state(false);
+  let notificationsMessage = $state('');
 
   function load() {
     loading = true;
@@ -23,9 +40,78 @@
       .finally(() => (loading = false));
   }
 
+  function loadNotificationSettings() {
+    notificationsLoading = true;
+    getNotificationSettings()
+      .then((settings) => {
+        notificationsEnabled = settings.enabled;
+        notificationTarget = settings.target;
+        webhookUrl = settings.webhook.url ?? '';
+        webhookHeadersText = JSON.stringify(settings.webhook.headers ?? {}, null, 2);
+        emailTo = settings.email.to ?? '';
+        notificationsMessage = settings.health_error ?? '';
+      })
+      .catch((e) => {
+        notificationsMessage = e instanceof Error ? e.message : 'Failed to load notification settings';
+      })
+      .finally(() => {
+        notificationsLoading = false;
+      });
+  }
+
   onMount(() => {
     load();
+    loadNotificationSettings();
   });
+
+  function parseHeadersOrThrow(): Record<string, string> {
+    const text = webhookHeadersText.trim();
+    if (!text) return {};
+    const value = JSON.parse(text);
+    if (!value || Array.isArray(value) || typeof value !== 'object') {
+      throw new Error('Webhook headers must be a JSON object');
+    }
+    const headers: Record<string, string> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      headers[k] = String(v);
+    }
+    return headers;
+  }
+
+  async function saveNotificationSettings() {
+    notificationsSaving = true;
+    notificationsMessage = '';
+    try {
+      const headers = parseHeadersOrThrow();
+      const settings = await updateNotificationSettings({
+        enabled: notificationsEnabled,
+        target: notificationTarget,
+        webhook: { url: webhookUrl || null, headers },
+        email: { to: emailTo || null },
+      });
+      notificationsEnabled = settings.enabled;
+      notificationTarget = settings.target;
+      notificationsMessage = settings.health_error ?? 'Notification settings saved.';
+      app.setDesktopNotificationsEnabled(settings.enabled);
+    } catch (e) {
+      notificationsMessage = e instanceof Error ? e.message : 'Failed to save notification settings';
+    } finally {
+      notificationsSaving = false;
+    }
+  }
+
+  async function testNotification() {
+    testingNotification = true;
+    notificationsMessage = '';
+    try {
+      await sendTestNotification();
+      notificationsMessage = 'Test notification sent.';
+    } catch (e) {
+      notificationsMessage = e instanceof Error ? e.message : 'Failed to send test notification';
+    } finally {
+      testingNotification = false;
+    }
+  }
 
   async function addSource() {
     error = '';
@@ -190,4 +276,48 @@
       <option value="5m">Every 5 minutes</option>
     </select>
   </div>
+
+  <h2>Notifications</h2>
+  {#if notificationsLoading}
+    <p style="margin: 0;">Loading…</p>
+  {:else}
+    <div class="form-row" style="max-width: 18rem;">
+      <label for="notifications-enabled">Enabled</label>
+      <input id="notifications-enabled" type="checkbox" bind:checked={notificationsEnabled} />
+    </div>
+    <div class="form-row" style="max-width: 18rem;">
+      <label for="notification-target">Target</label>
+      <select id="notification-target" bind:value={notificationTarget}>
+        <option value="notify_send">notify-send</option>
+        <option value="webhook">webhook</option>
+        <option value="email">email</option>
+      </select>
+    </div>
+    {#if notificationTarget === 'webhook'}
+      <div class="form-row" style="max-width: 40rem;">
+        <label for="notification-webhook-url">Webhook URL</label>
+        <input id="notification-webhook-url" type="text" bind:value={webhookUrl} placeholder="https://..." />
+      </div>
+      <div class="form-row" style="max-width: 40rem;">
+        <label for="notification-webhook-headers">Headers (JSON)</label>
+        <textarea id="notification-webhook-headers" bind:value={webhookHeadersText} rows="6"></textarea>
+      </div>
+    {:else if notificationTarget === 'email'}
+      <div class="form-row" style="max-width: 30rem;">
+        <label for="notification-email-to">Recipient email</label>
+        <input id="notification-email-to" type="email" bind:value={emailTo} placeholder="you@example.com" />
+      </div>
+    {/if}
+    <div class="form-actions" style="margin-top: 0.5rem;">
+      <button class="btn btn-primary" type="button" onclick={saveNotificationSettings} disabled={notificationsSaving}>
+        {notificationsSaving ? 'Saving…' : 'Save notifications'}
+      </button>
+      <button class="btn btn-ghost" type="button" onclick={testNotification} disabled={testingNotification}>
+        {testingNotification ? 'Sending…' : 'Send test notification'}
+      </button>
+    </div>
+    {#if notificationsMessage}
+      <p style="margin-top: 0.5rem;">{notificationsMessage}</p>
+    {/if}
+  {/if}
 </div>

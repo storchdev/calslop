@@ -1,9 +1,10 @@
 """In-memory + JSON file persistence for calendar sources. Can be replaced with SQLite later."""
 
-from pathlib import Path
 import json
+from pathlib import Path
 import uuid
 
+from app.db.app_config_store import AppConfigStore, default_config_path
 from app.models.dtos import Source, SourceCreate, SourceUpdate
 
 
@@ -19,25 +20,16 @@ DEFAULT_SOURCE_COLORS = [
 ]
 
 
-def _default_path() -> Path:
-    import os
-
-    if os.environ.get("CALSLOP_DATA_DIR"):
-        return Path(os.environ["CALSLOP_DATA_DIR"]) / "sources.json"
-    return Path.home() / ".config" / "calslop" / "sources.json"
-
-
 class SourcesStore:
     def __init__(self, path: Path | None = None):
-        self._path = path or _default_path()
+        self._path = path or default_config_path()
+        self._config_store = AppConfigStore(self._path)
         self._sources: dict[str, Source] = {}
         self._load()
 
     def _load(self) -> None:
         try:
-            if not self._path.exists():
-                return
-            data = json.loads(self._path.read_text())
+            data = self._config_store.load()
             for raw in data.get("sources", []):
                 s = Source.model_validate(raw)
                 self._sources[s.id] = s
@@ -45,16 +37,9 @@ class SourcesStore:
             self._sources = {}
 
     def _save(self) -> None:
-        try:
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._path.write_text(
-                json.dumps(
-                    {"sources": [s.model_dump(mode="json") for s in self._sources.values()]},
-                    indent=2,
-                )
-            )
-        except OSError:
-            pass  # e.g. read-only filesystem
+        data = self._config_store.load()
+        data["sources"] = [s.model_dump(mode="json") for s in self._sources.values()]
+        self._config_store.save(data)
 
     def list_sources(self) -> list[Source]:
         return list(self._sources.values())

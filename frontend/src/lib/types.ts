@@ -81,3 +81,29 @@ export interface TodoUpdate {
   recurrence?: string | null;
   alert_minutes_before?: number[] | null;
 }
+
+export type NotificationTarget = 'notify_send' | 'webhook' | 'email';
+
+export interface WebhookSettings {
+  url?: string | null;
+  headers: Record<string, string>;
+}
+
+export interface EmailSettings {
+  to?: string | null;
+}
+
+export interface NotificationSettings {
+  enabled: boolean;
+  target: NotificationTarget;
+  webhook: WebhookSettings;
+  email: EmailSettings;
+  health_error?: string;
+}
+
+export interface NotificationSettingsUpdate {
+  enabled?: boolean;
+  target?: NotificationTarget;
+  webhook?: WebhookSettings;
+  email?: EmailSettings;
+}

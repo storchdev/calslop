@@ -1,4 +1,14 @@
-import type { Event, Todo, Source, EventCreate, EventUpdate, TodoCreate, TodoUpdate } from '$lib/types';
+import type {
+  Event,
+  Todo,
+  Source,
+  EventCreate,
+  EventUpdate,
+  TodoCreate,
+  TodoUpdate,
+  NotificationSettings,
+  NotificationSettingsUpdate,
+} from '$lib/types';
 import { app } from '$lib/stores/app.svelte';
 
 const API = '/api';
@@ -161,5 +171,25 @@ export async function parseHumanDelta(text: string): Promise<{ seconds: number; 
   return fetchApi<{ seconds: number; label: string }>('/delta/parse', {
     method: 'POST',
     body: JSON.stringify({ text }),
+  });
+}
+
+export async function getNotificationSettings(): Promise<NotificationSettings> {
+  return fetchApi<NotificationSettings>('/notifications/settings');
+}
+
+export async function updateNotificationSettings(
+  data: NotificationSettingsUpdate,
+): Promise<NotificationSettings> {
+  return fetchApi<NotificationSettings>('/notifications/settings', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function sendTestNotification(): Promise<{ ok: boolean }> {
+  return fetchApi<{ ok: boolean }>('/notifications/test', {
+    method: 'POST',
+    body: JSON.stringify({}),
   });
 }

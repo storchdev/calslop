@@ -19,7 +19,20 @@ uv sync   # or: pip install -e .
 uv run flask --app app.main run --port 8000
 ```
 
-Source config is stored in `~/.config/calslop/sources.json`. To use a different directory (e.g. for development), set `CALSLOP_DATA_DIR` to that path.
+Shared app config is stored in `~/.config/calslop/sources.json` (sources + notifications). To use a different directory (e.g. for development), set `CALSLOP_DATA_DIR` to that path.
+
+Notification targets:
+- `notify_send` (default) for Linux desktop notifications from the backend service
+- `webhook` with URL and optional headers
+- `email` with recipient in app settings and SMTP credentials from environment variables only
+
+Email environment variables (required for `email` target):
+- `CALSLOP_EMAIL_SMTP_HOST`
+- `CALSLOP_EMAIL_SMTP_PORT`
+- `CALSLOP_EMAIL_SMTP_USERNAME`
+- `CALSLOP_EMAIL_SMTP_PASSWORD`
+- `CALSLOP_EMAIL_USE_TLS` (`1` or `0`, defaults to `1`)
+- optional `CALSLOP_EMAIL_FROM`
 
 ### Frontend
 
@@ -147,7 +160,7 @@ To run Calslop as a user service (runs as you, no sudo required):
    systemctl --user status calslop
    ```
 
-   The app will be available on port **8765**. Source config uses the default `~/.config/calslop/sources.json` since the service runs as you.
+   The app will be available on port **8765**. Sources and notification settings use the default `~/.config/calslop/sources.json` since the service runs as you.
 
    To have the service start at boot even when you are not logged in, enable lingering: `loginctl enable-linger $USER`.
 

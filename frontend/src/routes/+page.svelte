@@ -8,7 +8,15 @@
   import TodoModal from '$lib/components/TodoModal.svelte';
   import PushOffModal from '$lib/components/PushOffModal.svelte';
   import ShortcutsModal from '$lib/components/ShortcutsModal.svelte';
-  import { getEvents, getTodos, getSources, pushTodosByDateRange, updateTodo } from '$lib/api';
+  import {
+    getEvents,
+    getNotificationSettings,
+    getSources,
+    getTodos,
+    pushTodosByDateRange,
+    updateNotificationSettings,
+    updateTodo,
+  } from '$lib/api';
   import type { Event, Todo, Source } from '$lib/types';
   import { parseUtcIfNeeded } from '$lib/date';
   import { sourceColorMap } from '$lib/source-colors';
@@ -27,90 +35,6 @@
   let cacheReady = $state(false);
 
   const CACHE_KEY = 'calslop-home-cache-v1';
-  const notifiedAlerts = new Set<string>();
-  const ALERT_LATE_GRACE_MS = 15_000;
-  let lastNotificationCheckMs = Date.now();
-  let notificationsPrimed = $state(false);
-
-  type ArmedAlert = {
-    key: string;
-    kind: 'event' | 'todo';
-    title: string;
-    iso: string;
-    minutes: number;
-    alertAtMs: number;
-    ongoingUntilMs: number | null;
-  };
-  let armedAlerts = $state<ArmedAlert[]>([]);
-
-  function rebuildArmedAlerts() {
-    const now = Date.now();
-    const next: ArmedAlert[] = [];
-
-    for (const ev of events) {
-      if (ev.cancelled || !ev.alert_minutes_before?.length) continue;
-      const startMs = parseUtcIfNeeded(ev.start).getTime();
-      const endMs = parseUtcIfNeeded(ev.end).getTime();
-      if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) continue;
-
-      for (const rawMinutes of ev.alert_minutes_before) {
-        const minutes = Number(rawMinutes);
-        if (!Number.isFinite(minutes) || minutes < 0) continue;
-        const alertAtMs = startMs - minutes * 60_000;
-
-        // Keep only alerts that can still fire:
-        // - future reminder alerts
-        // - at-time event reminders when event is still active (for refresh behavior)
-        if (minutes === 0) {
-          if (endMs <= now) continue;
-        } else if (alertAtMs <= now) {
-          continue;
-        }
-
-        next.push({
-          key: `event:${ev.id}:${ev.start}:${minutes}`,
-          kind: 'event',
-          title: ev.title || 'Event reminder',
-          iso: ev.start,
-          minutes,
-          alertAtMs,
-          ongoingUntilMs: minutes === 0 ? endMs : null,
-        });
-      }
-    }
-
-    for (const todo of todos) {
-      if (todo.completed || !todo.due || !todo.alert_minutes_before?.length) continue;
-      const dueMs = parseUtcIfNeeded(todo.due).getTime();
-      if (!Number.isFinite(dueMs)) continue;
-
-      for (const rawMinutes of todo.alert_minutes_before) {
-        const minutes = Number(rawMinutes);
-        if (!Number.isFinite(minutes) || minutes < 0) continue;
-        const alertAtMs = dueMs - minutes * 60_000;
-        if (alertAtMs <= now) continue;
-
-        next.push({
-          key: `todo:${todo.id}:${todo.due}:${minutes}`,
-          kind: 'todo',
-          title: todo.summary || 'Todo reminder',
-          iso: todo.due,
-          minutes,
-          alertAtMs,
-          ongoingUntilMs: null,
-        });
-      }
-    }
-
-    next.sort((a, b) => a.alertAtMs - b.alertAtMs);
-    armedAlerts = next;
-
-    // Keep dedupe set in sync with active alert keys.
-    const keys = new Set(next.map((a) => a.key));
-    for (const k of Array.from(notifiedAlerts)) {
-      if (!keys.has(k)) notifiedAlerts.delete(k);
-    }
-  }
 
   function readCachedData(): { events: Event[]; todos: Todo[] } | null {
     if (typeof localStorage === 'undefined') return null;
@@ -144,12 +68,6 @@
     writeCachedData(events, todos);
   });
 
-  $effect(() => {
-    events;
-    todos;
-    rebuildArmedAlerts();
-  });
-
   /** Fetch events for a wide range (6 months) and all todos. Only called on initial load and manual Sync. */
   async function refresh() {
     const hasData = events.length > 0 || todos.length > 0;
@@ -163,8 +81,6 @@
       todos = t;
       sources = s;
       sourceColors = sourceColorMap(s);
-      notificationsPrimed = true;
-      lastNotificationCheckMs = Date.now();
       app.setUnsyncedChanges(false);
     } finally {
       loading = false;
@@ -208,6 +124,7 @@
     }
     cacheReady = true;
     refresh();
+    void syncNotificationEnabledState();
     function onToggleDayTodo(ev: CustomEvent<{ todoId: string }>) {
       const todo = todos.find((t) => t.id === ev.detail.todoId);
       if (todo) handleToggleTodo(todo);
@@ -230,94 +147,25 @@
 
   async function toggleDesktopNotifications() {
     notificationError = '';
-    if (app.desktopNotificationsEnabled) {
-      app.setDesktopNotificationsEnabled(false);
-      lastNotificationCheckMs = Date.now();
-      return;
-    }
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      notificationError = 'Desktop notifications are not supported in this browser.';
-      return;
-    }
-    if (Notification.permission === 'default') {
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        notificationError = 'Notification permission was not granted.';
-        return;
-      }
-    }
-    if (Notification.permission !== 'granted') {
-      notificationError = 'Enable notification permission in your browser settings first.';
-      return;
-    }
-    app.setDesktopNotificationsEnabled(true);
-    lastNotificationCheckMs = Date.now();
     try {
-      new Notification('Notifications enabled', { body: 'Calslop reminders are active.' });
-    } catch {
-    }
-    checkDueNotifications();
-  }
-
-  function formatNotificationTime(iso: string): string {
-    return parseUtcIfNeeded(iso).toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  }
-
-  function checkDueNotifications() {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-    if (!app.desktopNotificationsEnabled || Notification.permission !== 'granted') return;
-    if (!notificationsPrimed) return;
-    const now = Date.now();
-    const since = lastNotificationCheckMs;
-    lastNotificationCheckMs = now;
-
-    const remaining: ArmedAlert[] = [];
-    for (const alert of armedAlerts) {
-      const isOngoingAtTimeEvent =
-        alert.kind === 'event' &&
-        alert.minutes === 0 &&
-        now >= alert.alertAtMs &&
-        alert.ongoingUntilMs !== null &&
-        now < alert.ongoingUntilMs;
-
-      const isFresh = now - alert.alertAtMs <= ALERT_LATE_GRACE_MS;
-      const isDueNow = alert.alertAtMs <= now && alert.alertAtMs > since && isFresh;
-      const shouldNotify = isOngoingAtTimeEvent || isDueNow;
-
-      if (shouldNotify && !notifiedAlerts.has(alert.key)) {
-        notifiedAlerts.add(alert.key);
-        const body = alert.minutes > 0
-          ? `${formatNotificationTime(alert.iso)} (${alert.minutes}m before)`
-          : formatNotificationTime(alert.iso);
-        try {
-          new Notification(alert.title, { body });
-        } catch {
-          // Ignore per-notification errors and continue checking others.
-        }
-      }
-
-      if (isOngoingAtTimeEvent || alert.alertAtMs > now) {
-        remaining.push(alert);
-      }
-    }
-
-    if (remaining.length !== armedAlerts.length) {
-      armedAlerts = remaining;
+      const settings = await updateNotificationSettings({ enabled: !app.desktopNotificationsEnabled });
+      app.setDesktopNotificationsEnabled(settings.enabled);
+      notificationError = settings.health_error ?? '';
+    } catch (e) {
+      notificationError = e instanceof Error ? e.message : 'Failed to update notification settings.';
     }
   }
 
-  $effect(() => {
-    if (typeof window === 'undefined') return;
-    if (!app.desktopNotificationsEnabled) return;
-    checkDueNotifications();
-    const interval = window.setInterval(checkDueNotifications, 1_000);
-    return () => window.clearInterval(interval);
-  });
+  async function syncNotificationEnabledState() {
+    notificationError = '';
+    try {
+      const settings = await getNotificationSettings();
+      app.setDesktopNotificationsEnabled(settings.enabled);
+      notificationError = settings.health_error ?? '';
+    } catch (e) {
+      notificationError = e instanceof Error ? e.message : 'Failed to load notification settings.';
+    }
+  }
 
   $effect(() => {
     if (typeof window === 'undefined') return;
