@@ -5,6 +5,7 @@ import icalendar
 from caldav.elements import dav
 
 from app.models.dtos import Event, Source, Todo
+from app.services.ical_recurrence import parse_iso_window
 from app.services.ical_utils import (
     parse_events_from_ical,
     parse_todos_from_ical,
@@ -47,6 +48,7 @@ class CalDAVDriver(SourceDriver):
         all_events: list[Event] = []
         all_todos: list[Todo] = []
         errors: list[str] = []
+        window_start, window_end = parse_iso_window(start, end)
         try:
             calendars = principal.calendars()
             for cal in calendars:
@@ -66,7 +68,14 @@ class CalDAVDriver(SourceDriver):
                         if isinstance(ics_data, bytes):
                             ics_data = ics_data.decode("utf-8", errors="replace")
                         cal_id = f"{source.id}::{cal.id}" if getattr(cal, "id", None) else source.id
-                        all_events.extend(parse_events_from_ical(ics_data, cal_id))
+                        all_events.extend(
+                            parse_events_from_ical(
+                                ics_data,
+                                cal_id,
+                                window_start=window_start,
+                                window_end=window_end,
+                            )
+                        )
                 except Exception as e:
                     errors.append(f"Calendar {getattr(cal, 'id', cal)}: {e}")
             # Todo lists (CalDAV supports VTODO in calendar or separate todo list)

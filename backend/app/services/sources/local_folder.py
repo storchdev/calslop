@@ -4,6 +4,7 @@ from pathlib import Path
 import icalendar
 
 from app.models.dtos import Event, Source, Todo
+from app.services.ical_recurrence import parse_iso_window
 from app.services.ical_utils import (
     parse_events_from_ical,
     parse_todos_from_ical,
@@ -37,29 +38,23 @@ class LocalFolderDriver(SourceDriver):
         all_events: list[Event] = []
         all_todos: list[Todo] = []
         errors: list[str] = []
+        window_start, window_end = parse_iso_window(start, end)
         for ics_file in path.glob("*.ics"):
             try:
                 text = ics_file.read_text(encoding="utf-8", errors="replace")
                 # Use file path as part of id for local: source_id + path stem + uid from file
                 file_source_id = f"{source.id}::{ics_file.stem}"
-                events = parse_events_from_ical(text, file_source_id)
+                events = parse_events_from_ical(
+                    text,
+                    file_source_id,
+                    window_start=window_start,
+                    window_end=window_end,
+                )
                 todos = parse_todos_from_ical(text, file_source_id)
                 all_events.extend(events)
                 all_todos.extend(todos)
             except Exception as e:
                 errors.append(f"{ics_file.name}: {e}")
-        if start and end:
-            from datetime import datetime
-            try:
-                start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
-                end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
-                if hasattr(start_dt, "tzinfo") and start_dt.tzinfo:
-                    start_dt = start_dt.replace(tzinfo=None)
-                if hasattr(end_dt, "tzinfo") and end_dt.tzinfo:
-                    end_dt = end_dt.replace(tzinfo=None)
-                all_events = [e for e in all_events if e.end >= start_dt and e.start <= end_dt]
-            except (ValueError, TypeError):
-                pass
         return FetchResult(events=all_events, todos=all_todos, errors=errors or None)
 
     def can_write(self) -> bool:

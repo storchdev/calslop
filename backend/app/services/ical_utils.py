@@ -1,26 +1,29 @@
 """Parse icalendar components into Event/Todo DTOs."""
 import uuid
 from datetime import date, datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
+from typing import Any
 
 import icalendar
 from icalendar import vRecur
 from dateutil.rrule import rrulestr
 
 from app.models.dtos import Event, Todo
+from app.services.ical_recurrence import (
+    iter_occurrences_in_window,
+    merge_exception_component,
+    normalize_rrule,
+    parse_rrule,
+    recurrence_id_keys,
+    recurrence_id_str,
+    to_naive_utc,
+)
 
 
 def _to_naive_utc(dt: datetime | date | None) -> datetime | None:
-    if dt is None:
-        return None
-    if isinstance(dt, date) and not isinstance(dt, datetime):
-        return datetime.combine(dt, datetime.min.time())
-    if getattr(dt, "tzinfo", None):
-        return dt.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
-    return dt
+    return to_naive_utc(dt)
 
 
-def _get_dt(component: icalendar.cal.Component, key: str) -> datetime | None:
+def _get_dt(component: Any, key: str) -> datetime | None:
     val = component.get(key)
     if val is None:
         return None
@@ -35,7 +38,7 @@ def _get_dt(component: icalendar.cal.Component, key: str) -> datetime | None:
     return None
 
 
-def _is_all_day(component: icalendar.cal.Component) -> bool:
+def _is_all_day(component: Any) -> bool:
     dtstart = component.get("dtstart")
     if dtstart is None:
         return False
@@ -44,7 +47,7 @@ def _is_all_day(component: icalendar.cal.Component) -> bool:
 
 
 def _extract_alarm_minutes_before(
-    component: icalendar.cal.Component,
+    component: Any,
     reference_dt: datetime | None,
 ) -> list[int] | None:
     """Extract minutes-before reminders from DISPLAY VALARM triggers."""
@@ -93,7 +96,7 @@ def _extract_alarm_minutes_before(
     return sorted(values)
 
 
-def _set_display_alarm(component: icalendar.cal.Component, minutes_before: list[int] | None) -> None:
+def _set_display_alarm(component: Any, minutes_before: list[int] | None) -> None:
     """Replace VALARM entries with DISPLAY alarms at minutes-before values."""
     if getattr(component, "subcomponents", None):
         component.subcomponents = [
@@ -109,61 +112,264 @@ def _set_display_alarm(component: icalendar.cal.Component, minutes_before: list[
         component.add_component(alarm)
 
 
-def parse_events_from_ical(ical_text: str | bytes, source_id: str) -> list[Event]:
+def _event_intersects_window(
+    start: datetime,
+    end: datetime,
+    window_start: datetime | None,
+    window_end: datetime | None,
+) -> bool:
+    if window_start is None or window_end is None:
+        return True
+    return end >= window_start and start <= window_end
+
+
+def _event_text(component: Any, key: str) -> str | None:
+    value = component.get(key)
+    return str(value) if value is not None else None
+
+
+def _event_cancelled(component: Any) -> bool:
+    return (component.get("status") or "").upper() == "CANCELLED"
+
+
+def _collect_exdate_keys(component: Any) -> set[str]:
+    keys: set[str] = set()
+    exdate_val = component.get("exdate")
+    if exdate_val is None:
+        return keys
+    exdates = exdate_val if isinstance(exdate_val, list) else [exdate_val]
+    for item in exdates:
+        dts = list(getattr(item, "dts", []) or [])
+        for dt_entry in dts:
+            dt_value = to_naive_utc(getattr(dt_entry, "dt", None))
+            if not isinstance(dt_value, datetime):
+                continue
+            dt_key, date_key = recurrence_id_keys(dt_value)
+            keys.add(dt_key)
+            keys.add(date_key)
+    return keys
+
+
+def _build_event(
+    *,
+    source_id: str,
+    uid: str,
+    recurrence_id: str | None,
+    title: str,
+    start: datetime,
+    end: datetime,
+    all_day: bool,
+    description: str | None,
+    recurrence: str | None,
+    location: str | None,
+    url: str | None,
+    alert_minutes_before: list[int] | None,
+    cancelled: bool,
+) -> Event:
+    event_id = f"{source_id}::{uid}::{recurrence_id}" if recurrence_id else f"{source_id}::{uid}"
+    return Event(
+        id=event_id,
+        source_id=source_id,
+        title=title,
+        start=start,
+        end=end,
+        all_day=all_day,
+        description=description,
+        recurrence=recurrence,
+        location=location,
+        url=url,
+        alert_minutes_before=alert_minutes_before,
+        cancelled=cancelled,
+    )
+
+
+def parse_events_from_ical(
+    ical_text: str | bytes,
+    source_id: str,
+    window_start: datetime | None = None,
+    window_end: datetime | None = None,
+) -> list[Event]:
     """Parse VCALENDAR/VEVENT from .ics content. Returns list of Event DTOs."""
     if isinstance(ical_text, str):
         ical_text = ical_text.encode("utf-8")
     cal = icalendar.Calendar.from_ical(ical_text)
     if not cal:
         return []
-    events: list[Event] = []
+    by_uid: dict[str, list[Any]] = {}
     for component in cal.walk():
         if component.name != "VEVENT":
             continue
         uid = str(component.get("uid", ""))
         if not uid:
             continue
-        start = _get_dt(component, "dtstart")
-        end = _get_dt(component, "dtend")
-        if not start:
-            continue
-        if not end:
-            end = start
-        summary = str(component.get("summary", "Untitled"))
-        desc = component.get("description")
-        description = str(desc) if desc is not None else None
-        location = component.get("location")
-        location = str(location) if location is not None else None
-        url_val = component.get("url")
-        url = str(url_val) if url_val is not None else None
-        status = (component.get("status") or "").upper()
-        cancelled = status == "CANCELLED"
-        alert_minutes_before = _extract_alarm_minutes_before(component, start)
-        events.append(
-            Event(
-                id=f"{source_id}::{uid}",
-                source_id=source_id,
-                title=summary,
-                start=start,
-                end=end,
-                all_day=_is_all_day(component),
-                description=description,
-                recurrence=None,  # Could parse RRULE if needed
-                location=location,
-                url=url,
-                alert_minutes_before=alert_minutes_before,
-                cancelled=cancelled,
-            )
-        )
+        by_uid.setdefault(uid, []).append(component)
+
+    events: list[Event] = []
+    for uid, components in by_uid.items():
+        masters = [c for c in components if _recurrence_id_from_component(c) is None]
+        exceptions = [c for c in components if _recurrence_id_from_component(c) is not None]
+
+        exception_index: dict[str, tuple[Any, int]] = {}
+        for component in exceptions:
+            rec_dt = _recurrence_id_from_component(component)
+            if rec_dt is None:
+                continue
+            dt_key, date_key = recurrence_id_keys(rec_dt)
+            merge_exception_component(exception_index, dt_key, component, _event_cancelled(component))
+            merge_exception_component(exception_index, date_key, component, _event_cancelled(component))
+
+        for master in masters:
+            start = _get_dt(master, "dtstart")
+            end = _get_dt(master, "dtend")
+            if not start:
+                continue
+            if not end:
+                end = start
+            summary = str(master.get("summary", "Untitled"))
+            description = _event_text(master, "description")
+            location = _event_text(master, "location")
+            url = _event_text(master, "url")
+            recurrence = normalize_rrule(master.get("rrule"))
+            all_day = _is_all_day(master)
+            cancelled = _event_cancelled(master)
+
+            if not recurrence:
+                if _event_intersects_window(start, end, window_start, window_end):
+                    events.append(
+                        _build_event(
+                            source_id=source_id,
+                            uid=uid,
+                            recurrence_id=None,
+                            title=summary,
+                            start=start,
+                            end=end,
+                            all_day=all_day,
+                            description=description,
+                            recurrence=None,
+                            location=location,
+                            url=url,
+                            alert_minutes_before=_extract_alarm_minutes_before(master, start),
+                            cancelled=cancelled,
+                        )
+                    )
+                continue
+
+            rule = parse_rrule(recurrence, start)
+            if rule is None or window_start is None or window_end is None:
+                if _event_intersects_window(start, end, window_start, window_end):
+                    events.append(
+                        _build_event(
+                            source_id=source_id,
+                            uid=uid,
+                            recurrence_id=None,
+                            title=summary,
+                            start=start,
+                            end=end,
+                            all_day=all_day,
+                            description=description,
+                            recurrence=recurrence,
+                            location=location,
+                            url=url,
+                            alert_minutes_before=_extract_alarm_minutes_before(master, start),
+                            cancelled=cancelled,
+                        )
+                    )
+                continue
+
+            duration = end - start
+            exdate_keys = _collect_exdate_keys(master)
+            for occurrence in iter_occurrences_in_window(rule, window_start, window_end):
+                occ_start = to_naive_utc(occurrence)
+                if not isinstance(occ_start, datetime):
+                    continue
+                rec_key, rec_date_key = recurrence_id_keys(occ_start)
+                if rec_key in exdate_keys or rec_date_key in exdate_keys:
+                    continue
+
+                exc = exception_index.get(rec_key) or exception_index.get(rec_date_key)
+                if exc is not None:
+                    exc_component = exc[0]
+                    if _event_cancelled(exc_component):
+                        continue
+                    exc_start = _get_dt(exc_component, "dtstart") or occ_start
+                    exc_end = _get_dt(exc_component, "dtend") or (exc_start + duration)
+                    exc_summary = str(exc_component.get("summary", summary))
+                    exc_description = _event_text(exc_component, "description")
+                    exc_location = _event_text(exc_component, "location")
+                    exc_url = _event_text(exc_component, "url")
+                    rec_override = _recurrence_id_from_component(exc_component)
+                    rec_id = recurrence_id_str(rec_override) if rec_override else rec_key
+                    events.append(
+                        _build_event(
+                            source_id=source_id,
+                            uid=uid,
+                            recurrence_id=rec_id,
+                            title=exc_summary,
+                            start=exc_start,
+                            end=exc_end,
+                            all_day=_is_all_day(exc_component),
+                            description=exc_description if exc_description is not None else description,
+                            recurrence=recurrence,
+                            location=exc_location if exc_location is not None else location,
+                            url=exc_url if exc_url is not None else url,
+                            alert_minutes_before=_extract_alarm_minutes_before(exc_component, exc_start)
+                            or _extract_alarm_minutes_before(master, start),
+                            cancelled=False,
+                        )
+                    )
+                    continue
+
+                events.append(
+                    _build_event(
+                        source_id=source_id,
+                        uid=uid,
+                        recurrence_id=rec_key,
+                        title=summary,
+                        start=occ_start,
+                        end=occ_start + duration,
+                        all_day=all_day,
+                        description=description,
+                        recurrence=recurrence,
+                        location=location,
+                        url=url,
+                        alert_minutes_before=_extract_alarm_minutes_before(master, start),
+                        cancelled=False,
+                    )
+                )
+
+        if not masters:
+            for component in components:
+                start = _get_dt(component, "dtstart")
+                end = _get_dt(component, "dtend") or start
+                if not start or not end:
+                    continue
+                if not _event_intersects_window(start, end, window_start, window_end):
+                    continue
+                rec_dt = _recurrence_id_from_component(component)
+                rec_id = recurrence_id_str(rec_dt) if rec_dt else None
+                events.append(
+                    _build_event(
+                        source_id=source_id,
+                        uid=uid,
+                        recurrence_id=rec_id,
+                        title=str(component.get("summary", "Untitled")),
+                        start=start,
+                        end=end,
+                        all_day=_is_all_day(component),
+                        description=_event_text(component, "description"),
+                        recurrence=normalize_rrule(component.get("rrule")),
+                        location=_event_text(component, "location"),
+                        url=_event_text(component, "url"),
+                        alert_minutes_before=_extract_alarm_minutes_before(component, start),
+                        cancelled=_event_cancelled(component),
+                    )
+                )
     return events
 
 
 def _recurrence_id_str(dt: datetime) -> str:
     """Format a datetime as RECURRENCE-ID value for instance id (UTC, no spaces)."""
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    dt = dt.astimezone(timezone.utc)
-    return dt.strftime("%Y%m%dT%H%M%SZ")
+    return recurrence_id_str(dt)
 
 
 def _parse_vtodo_component(component) -> tuple[str, datetime | None, bool, str, str | None, int | None, str | None, list[int] | None]:
@@ -176,8 +382,7 @@ def _parse_vtodo_component(component) -> tuple[str, datetime | None, bool, str, 
     description = str(desc) if desc is not None else None
     priority = component.get("priority")
     priority = int(priority) if priority is not None else None
-    rrule = component.get("rrule")
-    recurrence = rrule.to_ical().decode() if rrule and hasattr(rrule, "to_ical") else None
+    recurrence = normalize_rrule(component.get("rrule"))
     due_or_start = due or _get_dt(component, "dtstart")
     alert_minutes_before = _extract_alarm_minutes_before(component, due_or_start)
     return uid, due, completed, summary, description, priority, recurrence, alert_minutes_before
@@ -202,8 +407,22 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
         return []
     components = [c for c in cal.walk() if c.name == "VTODO"]
     # Group by UID: master (has RRULE) + exceptions (have RECURRENCE-ID); exceptions include cancelled flag
-    _exc = tuple[datetime | None, bool, datetime | None, str, str | None, int | None, str, bool, list[int] | None]
-    by_uid: dict[str, list[_exc]] = {}
+    by_uid: dict[
+        str,
+        list[
+            tuple[
+                datetime | None,
+                bool,
+                datetime | None,
+                str,
+                str | None,
+                int | None,
+                str,
+                bool,
+                list[int] | None,
+            ]
+        ],
+    ] = {}
     masters: dict[str, tuple[datetime | None, str, str | None, int | None, str, list[int] | None]] = {}
     for component in components:
         uid, due, completed, summary, description, priority, recurrence, alert_minutes_before = _parse_vtodo_component(component)
@@ -230,10 +449,8 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
             due_start = due or datetime.now(timezone.utc)
             if due_start.tzinfo is None:
                 due_start = due_start.replace(tzinfo=timezone.utc)
-            recurrence_clean = recurrence.strip().replace("\r\n", "\n").replace("\r", "\n")
-            try:
-                rule = rrulestr(recurrence_clean, dtstart=due_start)
-            except Exception:
+            rule = parse_rrule(recurrence, due_start)
+            if rule is None:
                 # Fallback: single todo as before
                 todos.append(
                     Todo(
@@ -254,7 +471,20 @@ def parse_todos_from_ical(ical_text: str | bytes, source_id: str) -> list[Todo]:
             # matching iOS Reminders behavior.
             now = datetime.now(timezone.utc)
             start = max(due_start, now - timedelta(days=1)) if due_start else now
-            exceptions_by_rec: dict[str, _exc] = {}
+            exceptions_by_rec: dict[
+                str,
+                tuple[
+                    datetime | None,
+                    bool,
+                    datetime | None,
+                    str,
+                    str | None,
+                    int | None,
+                    str,
+                    bool,
+                    list[int] | None,
+                ],
+            ] = {}
             for r in by_uid.get(uid, []):
                 rec_dt = r[0]
                 if rec_dt is None:
