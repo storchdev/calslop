@@ -33,26 +33,66 @@
   let sources = $state<Source[]>([]);
   let selectedTodoSource = $state('all');
   let cacheReady = $state(false);
+  let loadedEventStartMs = $state<number | null>(null);
+  let loadedEventEndMs = $state<number | null>(null);
+  let eventRangeFetchInFlight = $state(false);
+  let fullRefreshInFlight = $state(false);
 
-  const CACHE_KEY = 'calslop-home-cache-v1';
+  const EVENT_PRELOAD_MONTHS = 6;
+  const EVENT_PREFETCH_EDGE_MONTHS = 2;
 
-  function readCachedData(): { events: Event[]; todos: Todo[] } | null {
+  const CACHE_KEY = 'calslop-home-cache-v2';
+
+  type CachedHomeData = {
+    events?: Event[];
+    todos?: Todo[];
+    loadedEventStartMs?: number | null;
+    loadedEventEndMs?: number | null;
+  };
+
+  function readCachedData(): {
+    events: Event[];
+    todos: Todo[];
+    loadedEventStartMs: number | null;
+    loadedEventEndMs: number | null;
+  } | null {
     if (typeof localStorage === 'undefined') return null;
     try {
       const raw = localStorage.getItem(CACHE_KEY);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as { events?: Event[]; todos?: Todo[] };
+      const parsed = JSON.parse(raw) as CachedHomeData;
       if (!Array.isArray(parsed.events) || !Array.isArray(parsed.todos)) return null;
-      return { events: parsed.events, todos: parsed.todos };
+      const startMs = typeof parsed.loadedEventStartMs === 'number' && Number.isFinite(parsed.loadedEventStartMs)
+        ? parsed.loadedEventStartMs
+        : null;
+      const endMs = typeof parsed.loadedEventEndMs === 'number' && Number.isFinite(parsed.loadedEventEndMs)
+        ? parsed.loadedEventEndMs
+        : null;
+      return {
+        events: parsed.events,
+        todos: parsed.todos,
+        loadedEventStartMs: startMs,
+        loadedEventEndMs: endMs,
+      };
     } catch {
       return null;
     }
   }
 
-  function writeCachedData(nextEvents: Event[], nextTodos: Todo[]) {
+  function writeCachedData(
+    nextEvents: Event[],
+    nextTodos: Todo[],
+    nextLoadedEventStartMs: number | null,
+    nextLoadedEventEndMs: number | null,
+  ) {
     if (typeof localStorage === 'undefined') return;
     try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ events: nextEvents, todos: nextTodos }));
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        events: nextEvents,
+        todos: nextTodos,
+        loadedEventStartMs: nextLoadedEventStartMs,
+        loadedEventEndMs: nextLoadedEventEndMs,
+      }));
     } catch {
       // ignore quota/storage errors
     }
@@ -65,24 +105,121 @@
 
   $effect(() => {
     if (!cacheReady) return;
-    writeCachedData(events, todos);
+    writeCachedData(events, todos, loadedEventStartMs, loadedEventEndMs);
   });
 
-  /** Fetch events for a wide range (6 months) and all todos. Only called on initial load and manual Sync. */
+  function monthStart(date: Date): Date {
+    return new Date(date.getFullYear(), date.getMonth(), 1);
+  }
+
+  function monthEnd(date: Date): Date {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  }
+
+  function monthIndex(date: Date): number {
+    return date.getFullYear() * 12 + date.getMonth();
+  }
+
+  function toIso(ms: number): string {
+    return new Date(ms).toISOString();
+  }
+
+  function computeTargetWindow(selectedDate: Date): { startMs: number; endMs: number } {
+    const startMs = monthStart(new Date(selectedDate.getFullYear(), selectedDate.getMonth() - EVENT_PRELOAD_MONTHS, 1)).getTime();
+    const endMs = monthEnd(new Date(selectedDate.getFullYear(), selectedDate.getMonth() + EVENT_PRELOAD_MONTHS, 1)).getTime();
+    return { startMs, endMs };
+  }
+
+  function setLoadedEventRange(startMs: number, endMs: number) {
+    loadedEventStartMs = startMs;
+    loadedEventEndMs = endMs;
+  }
+
+  async function fetchEventsOnly(startIso: string, endIso: string): Promise<Event[]> {
+    return getEvents(startIso, endIso);
+  }
+
+  function mergeEventsById(existing: Event[], incoming: Event[]): Event[] {
+    const byId = new Map(existing.map((event) => [event.id, event]));
+    for (const event of incoming) byId.set(event.id, event);
+    return [...byId.values()];
+  }
+
+  function shouldPrefetchForDate(selectedDate: Date): boolean {
+    if (loadedEventStartMs == null || loadedEventEndMs == null) return true;
+    const selectedMonth = monthIndex(selectedDate);
+    const startMonth = monthIndex(new Date(loadedEventStartMs));
+    const endMonth = monthIndex(new Date(loadedEventEndMs));
+    if (selectedMonth < startMonth || selectedMonth > endMonth) return true;
+    return selectedMonth - startMonth <= EVENT_PREFETCH_EDGE_MONTHS
+      || endMonth - selectedMonth <= EVENT_PREFETCH_EDGE_MONTHS;
+  }
+
+  async function ensureEventWindowForDate(selectedDate: Date) {
+    if (eventRangeFetchInFlight || fullRefreshInFlight) return;
+    if (!shouldPrefetchForDate(selectedDate)) return;
+
+    const target = computeTargetWindow(selectedDate);
+    if (loadedEventStartMs == null || loadedEventEndMs == null) {
+      eventRangeFetchInFlight = true;
+      try {
+        const fetched = await fetchEventsOnly(toIso(target.startMs), toIso(target.endMs));
+        events = mergeEventsById(events, fetched);
+        setLoadedEventRange(target.startMs, target.endMs);
+      } finally {
+        eventRangeFetchInFlight = false;
+      }
+      return;
+    }
+
+    const currentStart = loadedEventStartMs;
+    const currentEnd = loadedEventEndMs;
+    const missingLeft = target.startMs < currentStart;
+    const missingRight = target.endMs > currentEnd;
+    if (!missingLeft && !missingRight) return;
+
+    eventRangeFetchInFlight = true;
+    try {
+      const requests: Array<Promise<Event[]>> = [];
+      if (missingLeft) {
+        requests.push(fetchEventsOnly(toIso(target.startMs), toIso(currentStart)));
+      }
+      if (missingRight) {
+        requests.push(fetchEventsOnly(toIso(currentEnd), toIso(target.endMs)));
+      }
+      const fetchedBatches = await Promise.all(requests);
+      for (const fetched of fetchedBatches) {
+        events = mergeEventsById(events, fetched);
+      }
+      setLoadedEventRange(
+        missingLeft ? target.startMs : currentStart,
+        missingRight ? target.endMs : currentEnd,
+      );
+    } finally {
+      eventRangeFetchInFlight = false;
+    }
+  }
+
+  /** Full sync for events, todos, and sources. Used for sync + post-mutation consistency. */
   async function refresh() {
     const hasData = events.length > 0 || todos.length > 0;
     if (!hasData) loading = true;
+    fullRefreshInFlight = true;
+    eventRangeFetchInFlight = true;
     try {
-      const d = app.selectedDate;
-      const start = new Date(d.getFullYear(), d.getMonth() - 2, 1).toISOString();
-      const end = new Date(d.getFullYear(), d.getMonth() + 4, 0).toISOString();
+      const { startMs, endMs } = computeTargetWindow(app.selectedDate);
+      const start = toIso(startMs);
+      const end = toIso(endMs);
       const [e, t, s] = await Promise.all([getEvents(start, end), getTodos(), getSources()]);
       events = e;
       todos = t;
       sources = s;
       sourceColors = sourceColorMap(s);
+      setLoadedEventRange(startMs, endMs);
       app.setUnsyncedChanges(false);
     } finally {
+      fullRefreshInFlight = false;
+      eventRangeFetchInFlight = false;
       loading = false;
     }
   }
@@ -121,6 +258,8 @@
     if (cached) {
       events = cached.events;
       todos = cached.todos;
+      loadedEventStartMs = cached.loadedEventStartMs;
+      loadedEventEndMs = cached.loadedEventEndMs;
     }
     cacheReady = true;
     refresh();
@@ -166,6 +305,11 @@
       notificationError = e instanceof Error ? e.message : 'Failed to load notification settings.';
     }
   }
+
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+    void ensureEventWindowForDate(app.selectedDate);
+  });
 
   $effect(() => {
     if (typeof window === 'undefined') return;
