@@ -424,7 +424,7 @@
         break;
       case 'n':
         if (!e.repeat) {
-          if (app.viewMode === 'calendar') app.setModalOpen('event');
+          if (app.viewMode === 'calendar') app.setModalOpen(e.shiftKey ? 'todo' : 'event');
           else app.setModalOpen('todo');
         }
         e.preventDefault();

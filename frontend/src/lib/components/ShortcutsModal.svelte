@@ -40,8 +40,8 @@
       <dd class="m-0">Upcoming view (calendar)</dd>
       <dt class="font-mono font-semibold">G or Home</dt>
       <dd class="m-0">Go to today</dd>
-      <dt class="font-mono font-semibold">N</dt>
-      <dd class="m-0">New event (in calendar) or new todo (in todos)</dd>
+      <dt class="font-mono font-semibold">N / Shift+N</dt>
+      <dd class="m-0">Calendar: new event / new todo. Todos: new todo</dd>
       <dt class="font-mono font-semibold">Enter</dt>
       <dd class="m-0">Open selected event/todo; in month view open day view for focused day</dd>
       <dt class="font-mono font-semibold">H / Left</dt>
