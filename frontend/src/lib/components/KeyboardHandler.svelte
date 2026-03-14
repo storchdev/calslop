@@ -247,12 +247,26 @@
           ? Math.min(current + 1, categoryHeaders.length - 1)
           : Math.max(current - 1, 0);
         const nextHeader = categoryHeaders[next];
+        app.setFocusedTodoIndex(-1);
         nextHeader?.focus();
         nextHeader?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         return;
       }
 
       const todoItems = Array.from(document.querySelectorAll('[data-todo-item-index]'));
+      if (activeCategoryHeader && !e.shiftKey && (key === 'j' || key === 'k' || key === 'arrowdown' || key === 'arrowup')) {
+        e.preventDefault();
+        if (todoItems.length === 0) return;
+        const firstIndex = Number(activeCategoryHeader.getAttribute('data-todo-category-first-index') ?? '-1');
+        if (!Number.isFinite(firstIndex) || firstIndex < 0 || firstIndex >= todoItems.length) return;
+        const isDown = key === 'j' || key === 'arrowdown';
+        const next = isDown
+          ? Math.min(firstIndex + 1, todoItems.length - 1)
+          : Math.max(firstIndex - 1, 0);
+        app.setFocusedTodoIndex(next);
+        (todoItems[next] as HTMLElement)?.focus();
+        return;
+      }
       if (todoItems.length > 0) {
         if (!e.shiftKey && (key === 'j' || key === 'arrowdown')) {
           e.preventDefault();

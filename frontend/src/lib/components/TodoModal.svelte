@@ -30,7 +30,6 @@
   let summary = $state('');
   let categoryText = $state('');
   let categorySuggestion = $state('');
-  let categoryGhostText = $state('');
   let completed = $state(false);
   let due = $state('');
   let description = $state('');
@@ -233,7 +232,6 @@
 
   function clearCategorySuggestion() {
     categorySuggestion = '';
-    categoryGhostText = '';
   }
 
   function getCategoryTokenContext() {
@@ -282,7 +280,6 @@
       return;
     }
     categorySuggestion = suggestion;
-    categoryGhostText = `${context.value.slice(0, context.rawStart)}${suggestion}${context.value.slice(context.rawEnd)}`;
   }
 
   async function acceptCategorySuggestion(): Promise<boolean> {
@@ -643,14 +640,10 @@
         <span class="field-shortcut">A</span>
       </div>
       <div class="category-input-wrap">
-        {#if categoryGhostText}
-          <span class="category-input-ghost" aria-hidden="true">{categoryGhostText}</span>
-        {/if}
         <input
           type="text"
           bind:value={categoryText}
           bind:this={categoryEl}
-          class="category-input"
           placeholder="e.g. Work, Personal"
           aria-label="Todo categories"
           aria-autocomplete="both"
@@ -661,6 +654,11 @@
           onselect={handleCategoryFieldCursorChange}
           onblur={clearCategorySuggestion}
         />
+        {#if categorySuggestion}
+          <p class="category-suggestion-note">
+            Suggestion: {categorySuggestion}. Press Shift+Space or Ctrl+Space to accept.
+          </p>
+        {/if}
       </div>
     </div>
     <div class="form-row form-row-checkbox">
