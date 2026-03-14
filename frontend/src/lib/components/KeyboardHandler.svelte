@@ -217,6 +217,14 @@
 
     // Todo view: S toggles show completed; j/k move todo focus; Shift+j/k move category headers
     if (app.viewMode === 'todo') {
+      const todoViewEl = document.getElementById('todo-view') as HTMLElement | null;
+      const todoScrollEl = (todoViewEl?.closest('.content-scroll') as HTMLElement | null) ?? todoViewEl;
+      const todoScrollStep = 72;
+      const scrollTodoViewUp = () => {
+        if (!todoScrollEl) return;
+        todoScrollEl.scrollTop = Math.max(0, todoScrollEl.scrollTop - todoScrollStep);
+      };
+
       if (key === 's') {
         app.toggleShowCompletedTodos();
         e.preventDefault();
@@ -260,6 +268,12 @@
         const firstIndex = Number(activeCategoryHeader.getAttribute('data-todo-category-first-index') ?? '-1');
         if (!Number.isFinite(firstIndex) || firstIndex < 0 || firstIndex >= todoItems.length) return;
         const isDown = key === 'j' || key === 'arrowdown';
+        if (!isDown && firstIndex <= 0) {
+          app.setFocusedTodoIndex(0);
+          (todoItems[0] as HTMLElement | undefined)?.focus();
+          scrollTodoViewUp();
+          return;
+        }
         const next = isDown
           ? Math.min(firstIndex + 1, todoItems.length - 1)
           : Math.max(firstIndex - 1, 0);
@@ -279,6 +293,12 @@
         if (!e.shiftKey && (key === 'k' || key === 'arrowup')) {
           e.preventDefault();
           const curr = app.focusedTodoIndex;
+          if (curr === 0) {
+            app.setFocusedTodoIndex(0);
+            (todoItems[0] as HTMLElement | undefined)?.focus();
+            scrollTodoViewUp();
+            return;
+          }
           const next = curr < 0 ? todoItems.length - 1 : Math.max(0, curr - 1);
           app.setFocusedTodoIndex(next);
           (todoItems[next] as HTMLElement)?.focus();
