@@ -124,6 +124,10 @@
       app.setFocusedTodoIndex(-1);
       return;
     }
+    if (focusedCategoryKey !== null) {
+      if (app.focusedTodoIndex !== -1) app.setFocusedTodoIndex(-1);
+      return;
+    }
     if (app.focusedTodoIndex < 0 || app.focusedTodoIndex >= visibleTodoRows.length) {
       app.setFocusedTodoIndex(0);
     }
@@ -185,7 +189,7 @@
             role="listitem"
             class="todo-item flex items-center gap-2"
             class:completed={todo.completed && loadingTodoId !== todo.id}
-            class:focused={app.focusedTodoIndex === i && loadingTodoId !== todo.id}
+            class:focused={focusedCategoryKey === null && app.focusedTodoIndex === i && loadingTodoId !== todo.id}
             class:overdue={isTodoOverdue(todo) && loadingTodoId !== todo.id}
             tabindex={app.focusedTodoIndex === i ? 0 : -1}
             data-todo-item-index={i}

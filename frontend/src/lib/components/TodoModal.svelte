@@ -30,6 +30,8 @@
   let summary = $state('');
   let categoryText = $state('');
   let categorySuggestion = $state('');
+  let categorySuggestionGhostPrefix = $state('');
+  let categorySuggestionGhostSuffix = $state('');
   let completed = $state(false);
   let due = $state('');
   let description = $state('');
@@ -232,6 +234,8 @@
 
   function clearCategorySuggestion() {
     categorySuggestion = '';
+    categorySuggestionGhostPrefix = '';
+    categorySuggestionGhostSuffix = '';
   }
 
   function getCategoryTokenContext() {
@@ -280,6 +284,19 @@
       return;
     }
     categorySuggestion = suggestion;
+    const typedRaw = context.value.slice(context.rawStart, context.caret);
+    const suggestionSuffix = suggestion.slice(Math.min(typedRaw.length, suggestion.length));
+    if (
+      suggestionSuffix
+      && context.caret === context.rawEnd
+      && context.caret === context.value.length
+    ) {
+      categorySuggestionGhostPrefix = context.value.slice(0, context.caret);
+      categorySuggestionGhostSuffix = suggestionSuffix;
+      return;
+    }
+    categorySuggestionGhostPrefix = '';
+    categorySuggestionGhostSuffix = '';
   }
 
   async function acceptCategorySuggestion(): Promise<boolean> {
@@ -640,23 +657,31 @@
         <span class="field-shortcut">A</span>
       </div>
       <div class="category-input-wrap">
-        <input
-          type="text"
-          bind:value={categoryText}
-          bind:this={categoryEl}
-          placeholder="e.g. Work, Personal"
-          aria-label="Todo categories"
-          aria-autocomplete="both"
-          oninput={handleCategoryFieldInput}
-          onfocus={refreshCategorySuggestion}
-          onkeyup={handleCategoryFieldCursorChange}
-          onclick={handleCategoryFieldCursorChange}
-          onselect={handleCategoryFieldCursorChange}
-          onblur={clearCategorySuggestion}
-        />
+        <div class="category-input-shell">
+          {#if categorySuggestionGhostSuffix}
+            <div class="category-input-ghost" aria-hidden="true">
+              <span class="category-input-ghost-prefix">{categorySuggestionGhostPrefix}</span><span class="category-input-ghost-suffix">{categorySuggestionGhostSuffix}</span>
+            </div>
+          {/if}
+          <input
+            type="text"
+            class="category-input"
+            bind:value={categoryText}
+            bind:this={categoryEl}
+            placeholder="e.g. Work, Personal"
+            aria-label="Todo categories"
+            aria-autocomplete="both"
+            oninput={handleCategoryFieldInput}
+            onfocus={refreshCategorySuggestion}
+            onkeyup={handleCategoryFieldCursorChange}
+            onclick={handleCategoryFieldCursorChange}
+            onselect={handleCategoryFieldCursorChange}
+            onblur={clearCategorySuggestion}
+          />
+        </div>
         {#if categorySuggestion}
           <p class="category-suggestion-note">
-            Suggestion: {categorySuggestion}. Press Shift+Space or Ctrl+Space to accept.
+            Press Shift+Space or Ctrl+Space to accept.
           </p>
         {/if}
       </div>

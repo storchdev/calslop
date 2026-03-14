@@ -776,6 +776,57 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   gap: 0.35rem;
 }
 
+.category-input-shell {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.category-input-shell:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.form-row .category-input {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  caret-color: var(--text);
+  border: 0;
+  padding: 0.5rem;
+}
+
+.form-row .category-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.category-input-ghost {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  padding: 0.5rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  white-space: pre;
+  overflow: hidden;
+  pointer-events: none;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.category-input-ghost-prefix {
+  color: transparent;
+}
+
+.category-input-ghost-suffix {
+  color: var(--text-muted);
+}
+
 .category-suggestion-note {
   margin: 0;
   font-size: 0.75rem;
