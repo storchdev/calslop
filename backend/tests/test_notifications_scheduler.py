@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from app.db.app_config_store import AppConfigStore
 from app.db.sources_store import SourcesStore
 from app.models.dtos import Event, SourceCreate
+from app.services.ical_utils import parse_events_from_ical, parse_todos_from_ical
 from app.services.notifications.scheduler import NotificationScheduler, render_notification_body
 
 
@@ -365,3 +366,167 @@ def test_render_notification_body_supports_multiline_and_delta():
     assert body.count("\n") == 2
     assert "Deploy" in body
     assert "in 5m" in body
+
+
+def test_scheduler_passes_window_bounds_to_aggregate_fn(monkeypatch, tmp_path):
+    path = tmp_path / "settings.json"
+    config_store = AppConfigStore(path)
+    config_store.save(
+        {
+            "sources": [],
+            "notifications": {
+                "enabled": True,
+                "target": "notify_send",
+                "webhook": {"url": None, "headers": {}},
+                "email": {"to": None},
+            },
+        }
+    )
+
+    store = SourcesStore(path)
+    store.add_source(SourceCreate(type="ics_url", name="A", config={"url": "https://x.test/ics"}))
+
+    now_ms = 1_700_000_000_000
+    seen: dict[str, str | None] = {"start": None, "end": None}
+
+    class DummySender:
+        def send(self, title: str, body: str) -> None:
+            pass
+
+    def aggregate(_sources, start=None, end=None):
+        seen["start"] = start
+        seen["end"] = end
+        return ([], [], [])
+
+    monkeypatch.setattr(
+        "app.services.notifications.scheduler.create_sender", lambda settings: DummySender()
+    )
+    monkeypatch.setattr("app.services.notifications.scheduler.time.time", lambda: now_ms / 1000)
+
+    scheduler = NotificationScheduler(
+        sources_store=store,
+        config_store=config_store,
+        refresh_interval_seconds=60.0,
+        aggregate_fn=aggregate,
+    )
+
+    scheduler.tick()
+
+    assert seen["start"] is not None
+    assert seen["end"] is not None
+    start_dt = datetime.fromisoformat(str(seen["start"]).replace("Z", "+00:00"))
+    end_dt = datetime.fromisoformat(str(seen["end"]).replace("Z", "+00:00"))
+    assert end_dt > start_dt
+
+
+def test_scheduler_notifies_recurring_event_and_todo_instances(monkeypatch, tmp_path):
+    path = tmp_path / "settings.json"
+    config_store = AppConfigStore(path)
+    config_store.save(
+        {
+            "sources": [],
+            "notifications": {
+                "enabled": True,
+                "target": "notify_send",
+                "webhook": {"url": None, "headers": {}},
+                "email": {"to": None},
+                "time_format": "%Y-%m-%d %H:%M",
+                "body_template": "{title}",
+            },
+        }
+    )
+
+    store = SourcesStore(path)
+    store.add_source(SourceCreate(type="ics_url", name="A", config={"url": "https://x.test/ics"}))
+
+    now_ms = 1_700_000_000_000
+    sent: list[str] = []
+
+    class DummySender:
+        def send(self, title: str, body: str) -> None:
+            sent.append(title)
+
+    event_start = datetime.fromtimestamp((now_ms + 2_000) / 1000, tz=UTC)
+    event_end = event_start + timedelta(minutes=10)
+    todo_due = datetime.fromtimestamp((now_ms + 4_000) / 1000, tz=UTC)
+
+    event_ics = "\n".join(
+        [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//Test//EN",
+            "BEGIN:VEVENT",
+            "UID:recurring-event@example.com",
+            f"DTSTART:{event_start.strftime('%Y%m%dT%H%M%SZ')}",
+            f"DTEND:{event_end.strftime('%Y%m%dT%H%M%SZ')}",
+            "SUMMARY:Recurring Event",
+            "RRULE:FREQ=DAILY;COUNT=2",
+            "BEGIN:VALARM",
+            "ACTION:DISPLAY",
+            "TRIGGER:-PT0M",
+            "END:VALARM",
+            "END:VEVENT",
+            "END:VCALENDAR",
+        ]
+    )
+    todo_ics = "\n".join(
+        [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//Test//EN",
+            "BEGIN:VTODO",
+            "UID:recurring-todo@example.com",
+            f"DTSTART:{todo_due.strftime('%Y%m%dT%H%M%SZ')}",
+            f"DUE:{todo_due.strftime('%Y%m%dT%H%M%SZ')}",
+            "SUMMARY:Recurring Todo",
+            "RRULE:FREQ=DAILY;COUNT=2",
+            "BEGIN:VALARM",
+            "ACTION:DISPLAY",
+            "TRIGGER:-PT0M",
+            "END:VALARM",
+            "END:VTODO",
+            "END:VCALENDAR",
+        ]
+    )
+
+    def aggregate(_sources, start=None, end=None):
+        assert start is not None
+        assert end is not None
+        window_start = datetime.fromisoformat(str(start).replace("Z", "+00:00"))
+        window_end = datetime.fromisoformat(str(end).replace("Z", "+00:00"))
+        events = parse_events_from_ical(
+            event_ics,
+            "src-event",
+            window_start=window_start,
+            window_end=window_end,
+        )
+        todos = parse_todos_from_ical(
+            todo_ics,
+            "src-todo",
+            window_start=window_start,
+            window_end=window_end,
+        )
+        return (events, todos, [])
+
+    monkeypatch.setattr(
+        "app.services.notifications.scheduler.create_sender", lambda settings: DummySender()
+    )
+    monkeypatch.setattr("app.services.notifications.scheduler.time.time", lambda: now_ms / 1000)
+
+    scheduler = NotificationScheduler(
+        sources_store=store,
+        config_store=config_store,
+        refresh_interval_seconds=60.0,
+        aggregate_fn=aggregate,
+    )
+
+    scheduler.tick()
+    assert sent == []
+
+    now_ms += 2_500
+    scheduler.tick()
+    assert "Recurring Event" in sent
+
+    now_ms += 2_000
+    scheduler.tick()
+    assert "Recurring Todo" in sent

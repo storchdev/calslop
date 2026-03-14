@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import hashlib
 import logging
 import os
@@ -21,6 +21,8 @@ LOGGER = logging.getLogger(__name__)
 ALERT_LATE_GRACE_MS = 15_000
 DEFAULT_NOTIFICATION_TIME_FORMAT = "%b %d %H:%M %Z"
 DEFAULT_NOTIFICATION_BODY_TEMPLATE = "{time}"
+SCHEDULER_WINDOW_LOOKBACK_DAYS = 1
+SCHEDULER_WINDOW_LOOKAHEAD_DAYS = 365
 
 
 @dataclass(slots=True)
@@ -186,7 +188,16 @@ class NotificationScheduler:
         if should_refresh:
             refresh_started = time.perf_counter()
             sources = self._sources_store.list_sources()
-            events, todos, _ = self._aggregate_fn(sources)
+            window_start_iso, window_end_iso = self._build_refresh_window_iso(now_ms)
+            try:
+                events, todos, _ = self._aggregate_fn(
+                    sources,
+                    start=window_start_iso,
+                    end=window_end_iso,
+                )
+            except TypeError:
+                # Backward compatibility for injected aggregate fns in tests.
+                events, todos, _ = self._aggregate_fn(sources)
             self._snapshot_events = events
             self._snapshot_todos = todos
             fingerprint = self._fingerprint_snapshot(events, todos)
@@ -336,6 +347,14 @@ class NotificationScheduler:
             item[2] for item in sorted(self._alert_heap, key=lambda item: item[0])
         ]
         return sent_count
+
+    def _build_refresh_window_iso(self, now_ms: int) -> tuple[str, str]:
+        now_dt = datetime.fromtimestamp(now_ms / 1000, tz=UTC)
+        window_start = now_dt - timedelta(days=SCHEDULER_WINDOW_LOOKBACK_DAYS)
+        window_end = now_dt + timedelta(days=SCHEDULER_WINDOW_LOOKAHEAD_DAYS)
+        return window_start.isoformat().replace("+00:00", "Z"), window_end.isoformat().replace(
+            "+00:00", "Z"
+        )
 
     def _compute_wait_seconds(self, now_ms: int) -> float:
         refresh_due_ms = max(0, self._next_refresh_ms - now_ms)
