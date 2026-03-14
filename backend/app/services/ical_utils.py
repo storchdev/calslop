@@ -1,8 +1,12 @@
 """Parse icalendar components into Event/Todo DTOs."""
 
+from functools import lru_cache
+import os
+from pathlib import Path
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import icalendar
 from icalendar import vRecur
@@ -24,6 +28,58 @@ from app.services.ical_recurrence import (
 
 def _to_naive_utc(dt: datetime | date | None) -> datetime | None:
     return to_naive_utc(dt)
+
+
+def _to_aware_utc(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+@lru_cache(maxsize=1)
+def _local_timezone():
+    tz_name = os.environ.get("TZ", "").strip()
+    if tz_name:
+        try:
+            return ZoneInfo(tz_name)
+        except ZoneInfoNotFoundError:
+            pass
+
+    timezone_file = Path("/etc/timezone")
+    if timezone_file.exists():
+        try:
+            name = timezone_file.read_text(encoding="utf-8").strip()
+            if name:
+                return ZoneInfo(name)
+        except Exception:
+            pass
+
+    localtime_path = Path("/etc/localtime")
+    try:
+        if localtime_path.exists() and localtime_path.is_symlink():
+            target = localtime_path.resolve()
+            marker = "/zoneinfo/"
+            target_str = str(target)
+            if marker in target_str:
+                name = target_str.split(marker, 1)[1]
+                if name:
+                    return ZoneInfo(name)
+    except Exception:
+        pass
+
+    local_tz = datetime.now().astimezone().tzinfo
+    return local_tz or timezone.utc
+
+
+def _to_aware_local(dt: datetime | None) -> datetime | None:
+    if dt is None:
+        return None
+    local_tz = _local_timezone()
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(local_tz)
 
 
 def _get_dt(component: Any, key: str) -> datetime | None:
@@ -860,8 +916,12 @@ def event_to_ical(event: Event) -> bytes:
         vevent.add("dtstart", start_date)
         vevent.add("dtend", end_exclusive)
     else:
-        vevent.add("dtstart", event.start)
-        vevent.add("dtend", event.end)
+        start_utc = _to_aware_utc(event.start)
+        end_utc = _to_aware_utc(event.end)
+        if start_utc is not None:
+            vevent.add("dtstart", start_utc)
+        if end_utc is not None:
+            vevent.add("dtend", end_utc)
     if event.description:
         vevent.add("description", event.description)
     if event.location:
@@ -894,7 +954,10 @@ def todo_to_ical(todo: Todo) -> bytes:
     if todo.completed:
         vtodo.add("completed", datetime.now(timezone.utc))
     if todo.due:
-        vtodo.add("due", todo.due)
+        due_local = _to_aware_local(todo.due)
+        if due_local is not None:
+            vtodo.add("dtstart", due_local)
+            vtodo.add("due", due_local)
     if todo.description:
         vtodo.add("description", todo.description)
     if todo.priority is not None:
@@ -983,11 +1046,16 @@ def merge_instance_todo_into_ical(ical_bytes: bytes, todo: Todo, recurrence_id_s
     vtodo.add("uid", uid)
     vtodo.add("dtstamp", datetime.now(timezone.utc))
     vtodo.add("summary", todo.summary)
-    vtodo.add("recurrence-id", rec_dt)
+    rec_local = _to_aware_local(rec_dt)
+    if rec_local is not None:
+        vtodo.add("recurrence-id", rec_local)
     if todo.completed:
         vtodo.add("completed", datetime.now(timezone.utc))
     if todo.due:
-        vtodo.add("due", todo.due)
+        due_local = _to_aware_local(todo.due)
+        if due_local is not None:
+            vtodo.add("dtstart", due_local)
+            vtodo.add("due", due_local)
     if todo.description:
         vtodo.add("description", todo.description)
     if todo.priority is not None:
@@ -1046,10 +1114,15 @@ def build_exception_vtodo(
     vtodo.add("summary", summary)
     rec_dt = recurrence_id_str_to_dt(recurrence_id_str)
     if rec_dt:
-        vtodo.add("recurrence-id", rec_dt)
+        rec_local = _to_aware_local(rec_dt)
+        if rec_local is not None:
+            vtodo.add("recurrence-id", rec_local)
     vtodo.add("completed", datetime.now(timezone.utc))
     if due:
-        vtodo.add("due", due)
+        due_local = _to_aware_local(due)
+        if due_local is not None:
+            vtodo.add("dtstart", due_local)
+            vtodo.add("due", due_local)
     if description:
         vtodo.add("description", description)
     if priority is not None:
@@ -1070,7 +1143,9 @@ def build_cancelled_exception_vtodo(uid: str, recurrence_id_str: str) -> bytes:
     vtodo.add("summary", "")
     rec_dt = recurrence_id_str_to_dt(recurrence_id_str)
     if rec_dt:
-        vtodo.add("recurrence-id", rec_dt)
+        rec_local = _to_aware_local(rec_dt)
+        if rec_local is not None:
+            vtodo.add("recurrence-id", rec_local)
     vtodo.add("status", "CANCELLED")
     cal.add_component(vtodo)
     return cal.to_ical()

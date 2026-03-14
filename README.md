@@ -19,6 +19,22 @@ uv sync   # or: pip install -e .
 uv run flask --app app.main run --port 8000
 ```
 
+Standalone helper script to rewrite local vdirsyncer `.ics` files for iOS Reminders compatibility:
+
+- rewrites VTODO scheduling date-times (`DUE`, `DTSTART`, `RECURRENCE-ID`, `RDATE`, `EXDATE`) into your system local timezone (`TZID=...`)
+- rewrites recurring VEVENT UTC date-times (`DTSTART`, `DTEND`, `RECURRENCE-ID`, `RDATE`, `EXDATE`) into your local timezone so weekly events stay at the same wall-clock time across DST
+- leaves VEVENT values that already use local `TZID` unchanged
+
+```bash
+cd backend
+uv run python scripts/normalize_vdirsyncer_ics_to_utc.py ~/.vdirsyncer
+```
+
+Useful options:
+- `--dry-run` to preview changes
+- `--backup-ext .bak` to keep original copies before rewriting
+- `--tz America/New_York` to force a specific IANA timezone instead of system local
+
 Shared app config is stored in `~/.config/calslop/settings.json` (sources + notifications). To use a different directory (e.g. for development), set `CALSLOP_DATA_DIR` to that path.
 
 Notification targets:
