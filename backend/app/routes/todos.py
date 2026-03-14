@@ -226,6 +226,7 @@ def update_todo():
                         description=current.description,
                         priority=current.priority,
                         recurrence=recurrence,
+                        categories=current.categories,
                         alert_minutes_before=current.alert_minutes_before,
                     ),
                 )
@@ -240,6 +241,7 @@ def update_todo():
                         description=current.description,
                         priority=current.priority,
                         recurrence=None,
+                        categories=current.categories,
                         alert_minutes_before=current.alert_minutes_before,
                     ),
                 )
@@ -261,6 +263,7 @@ def update_todo():
             current.due,
             current.description,
             current.priority,
+            current.categories,
             current.alert_minutes_before,
         ):
             updated = Todo(**{**current.model_dump(), "completed": True, "recurrence": None})

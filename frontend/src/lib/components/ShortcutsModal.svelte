@@ -49,19 +49,23 @@
       <dt class="font-mono font-semibold">L / Right</dt>
       <dd class="m-0">Next day (calendar); Upcoming: next day column</dd>
       <dt class="font-mono font-semibold">J / Down</dt>
-      <dd class="m-0">Month: next week. Day/Upcoming: next event/todo (jump). Todos: focus next</dd>
+      <dd class="m-0">Month: next week. Day/Upcoming: next event/todo (jump). Todos: focus next visible todo</dd>
       <dt class="font-mono font-semibold">K / Up</dt>
-      <dd class="m-0">Month: previous week. Day/Upcoming: previous event/todo (jump). Todos: focus prev</dd>
+      <dd class="m-0">Month: previous week. Day/Upcoming: previous event/todo (jump). Todos: focus previous visible todo</dd>
+      <dt class="font-mono font-semibold">Shift+J / Shift+K</dt>
+      <dd class="m-0">Todo view: move between category headers. Month view: change month. Day view: change week</dd>
       <dt class="font-mono font-semibold">j / k</dt>
       <dd class="m-0">Day view: scroll timeline down / up</dd>
+      <dt class="font-mono font-semibold">Enter / Space</dt>
+      <dd class="m-0">Todo category header: collapse/expand section</dd>
       <dt class="font-mono font-semibold">X or Space</dt>
       <dd class="m-0">Todos / Day view: toggle focused todo completed</dd>
       <dt class="font-mono font-semibold">S</dt>
       <dd class="m-0">Todo view: toggle show/hide completed todos</dd>
       <dt class="font-mono font-semibold">P</dt>
       <dd class="m-0">Todo view: open Push off modal</dd>
-      <dt class="font-mono font-semibold">Shift+H/J/K/L</dt>
-      <dd class="m-0">Month view: change month. Day view: change week</dd>
+      <dt class="font-mono font-semibold">Shift+H / Shift+L</dt>
+      <dd class="m-0">Month view: previous/next month. Day view: previous/next week</dd>
       <dt class="font-mono font-semibold">V</dt>
       <dd class="m-0">Cycle calendar density (minimal → balanced → dense)</dd>
       <dt class="font-mono font-semibold">Y</dt>
@@ -85,7 +89,7 @@
       <dt class="font-mono font-semibold">j / k</dt>
       <dd class="m-0">Modals: scroll content</dd>
       <dt class="font-mono font-semibold">Event/todo modals</dt>
-      <dd class="m-0">Ctrl+Enter save, Ctrl+Shift+D delete (when editing), Esc cancel. Single key (T, S, …, F) jumps to field. In date/repeat/alert inputs, H opens Human-friendly parse; Enter applies; Esc exits. Shift by: Enter parses and locks date fields. Shift+J / Shift+K cycle dropdown options.</dd>
+      <dd class="m-0">Ctrl+Enter save, Ctrl+Shift+D delete (when editing), Esc cancel. Single key (T, S, ... , F) jumps to field. In date/repeat/alert inputs, H opens Human-friendly parse; Enter applies; Esc exits. Shift by: Enter parses and locks date fields. Shift+J / Shift+K cycle dropdown options. Todo category input: Shift+Space or Ctrl+Space accepts autocomplete suggestion.</dd>
     </dl>
     <div class="form-actions">
       <button class="btn btn-primary" onclick={onclose} type="button">Close</button>

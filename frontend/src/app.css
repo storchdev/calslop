@@ -239,6 +239,67 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   border: 1px solid transparent;
 }
 
+.todo-item {
+  scroll-margin-top: 2.2rem;
+}
+
+.todo-category-section {
+  margin-top: 1rem;
+  padding: 0.1rem 0.25rem 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+}
+
+.todo-category-section:first-of-type {
+  margin-top: 0.2rem;
+}
+
+.todo-category-section.is-focused {
+  border-color: color-mix(in srgb, var(--accent) 62%, var(--border));
+  box-shadow: var(--focus-ring);
+}
+
+.todo-category-header {
+  width: 100%;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.4rem 0.4rem;
+  margin: 0 -0.25rem 0.25rem;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.todo-category-header:focus-visible {
+  box-shadow: none;
+}
+
+.todo-category-caret {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 0.9rem;
+}
+
+.todo-category-title {
+  font-size: 1rem;
+  font-weight: 700;
+  min-width: 0;
+}
+
+.todo-category-count {
+  margin-left: 0.2rem;
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
 .event-item:focus-visible, .todo-item:focus-visible {
   background: var(--bg-elevated);
 }
@@ -714,6 +775,69 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   border-radius: 4px;
   background: var(--bg);
   color: var(--text);
+}
+
+.category-input-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.category-input-shell {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+}
+
+.category-input-shell:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.form-row .category-input {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  caret-color: var(--text);
+  border: 0;
+  padding: 0.5rem;
+}
+
+.form-row .category-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.category-input-ghost {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  padding: 0.5rem;
+  font-size: 1rem;
+  line-height: 1.5;
+  white-space: pre;
+  overflow: hidden;
+  pointer-events: none;
+  font: inherit;
+  letter-spacing: inherit;
+}
+
+.category-input-ghost-prefix {
+  color: transparent;
+}
+
+.category-input-ghost-suffix {
+  color: var(--text-muted);
+}
+
+.category-suggestion-note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 .repeat-human-input {

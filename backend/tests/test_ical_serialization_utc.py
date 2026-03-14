@@ -35,12 +35,14 @@ def test_todo_to_ical_serializes_due_with_local_tzid_for_ios(monkeypatch):
         source_id="src-1",
         summary="Submit report",
         due=datetime(2026, 3, 7, 9, 30, tzinfo=ZoneInfo("America/New_York")),
+        categories=["Work", "Urgent"],
     )
 
     ics_text = todo_to_ical(todo).decode("utf-8")
 
     assert "DTSTART;TZID=America/New_York:20260307T093000" in ics_text
     assert "DUE;TZID=America/New_York:20260307T093000" in ics_text
+    assert "CATEGORIES:Work,Urgent" in ics_text
 
 
 def test_instance_todo_serializers_keep_due_in_local_tzid(monkeypatch):
@@ -64,6 +66,7 @@ def test_instance_todo_serializers_keep_due_in_local_tzid(monkeypatch):
         source_id="src-1",
         summary="Series",
         due=due_local,
+        categories=["Work", "Follow Up"],
     )
 
     merged_text = merge_instance_todo_into_ical(base_ical, todo, "20260308T130000Z").decode("utf-8")
@@ -74,6 +77,7 @@ def test_instance_todo_serializers_keep_due_in_local_tzid(monkeypatch):
         due=due_local,
         description=None,
         priority=None,
+        categories=["Work", "Follow Up"],
     ).decode("utf-8")
 
     assert "RECURRENCE-ID;TZID=America/New_York:20260308T090000" in merged_text
@@ -82,3 +86,5 @@ def test_instance_todo_serializers_keep_due_in_local_tzid(monkeypatch):
     assert "RECURRENCE-ID;TZID=America/New_York:20260308T090000" in exception_text
     assert "DUE;TZID=America/New_York:20260308T111500" in exception_text
     assert "DTSTART;TZID=America/New_York:20260308T111500" in exception_text
+    assert "CATEGORIES:Work,Follow Up" in merged_text
+    assert "CATEGORIES:Work,Follow Up" in exception_text

@@ -22,6 +22,7 @@ export interface Todo {
   description?: string | null;
   priority?: number | null;
   recurrence?: string | null; // RRULE e.g. FREQ=DAILY
+  categories?: string[] | null;
   alert_minutes_before?: number[] | null;
 }
 
@@ -69,6 +70,7 @@ export interface TodoCreate {
   description?: string | null;
   priority?: number | null;
   recurrence?: string | null;
+  categories?: string[] | null;
   alert_minutes_before?: number[] | null;
 }
 
@@ -79,6 +81,7 @@ export interface TodoUpdate {
   description?: string | null;
   priority?: number | null;
   recurrence?: string | null;
+  categories?: string[] | null;
   alert_minutes_before?: number[] | null;
 }
 

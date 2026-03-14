@@ -185,6 +185,8 @@ class LocalFolderDriver(SourceDriver):
             description=todo.description,
             priority=todo.priority,
             recurrence=getattr(todo, "recurrence", None),
+            categories=getattr(todo, "categories", None),
+            alert_minutes_before=getattr(todo, "alert_minutes_before", None),
         )
         ics_path = path / f"{stem}.ics"
         ics_path.write_bytes(todo_to_ical(new_todo))
@@ -222,6 +224,7 @@ class LocalFolderDriver(SourceDriver):
         due,
         description: str | None,
         priority: int | None,
+        categories: list[str] | None,
         alert_minutes_before: list[int] | None,
     ) -> bool:
         parts = master_todo_id.split("::")
@@ -241,14 +244,21 @@ class LocalFolderDriver(SourceDriver):
             if not cal:
                 return False
             exc_bytes = build_exception_vtodo(
-                uid, recurrence_id_str, summary, due, description, priority, alert_minutes_before
+                uid,
+                recurrence_id_str,
+                summary,
+                due,
+                description,
+                priority,
+                categories,
+                alert_minutes_before,
             )
             exc_cal = icalendar.Calendar.from_ical(exc_bytes)
             for comp in exc_cal.walk():
                 if comp.name == "VTODO":
                     cal.add_component(comp)
                     break
-            _update_master_vtodo_metadata(cal, uid, summary, description, priority)
+            _update_master_vtodo_metadata(cal, uid, summary, description, priority, categories)
             ics_path.write_bytes(cal.to_ical())
             invalidate_source_cache(source.id)
             return True
