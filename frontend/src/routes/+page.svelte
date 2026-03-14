@@ -253,6 +253,22 @@
       : todos.filter((todo) => baseSourceId(todo.source_id) === selectedTodoSource)
   );
 
+  const existingTodoCategories = $derived.by(() => {
+    const seen = new Set<string>();
+    const categories: string[] = [];
+    for (const todo of todos) {
+      for (const category of todo.categories ?? []) {
+        const normalized = category.trim();
+        if (!normalized) continue;
+        const key = normalized.toLocaleLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        categories.push(normalized);
+      }
+    }
+    return categories.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  });
+
   onMount(() => {
     const cached = readCachedData();
     if (cached) {
@@ -632,6 +648,7 @@
   <TodoModal
     todoId={app.editingId}
     initialTodo={selectedTodo}
+    existingCategories={existingTodoCategories}
     onclose={() => { app.setModalOpen(null); app.setEditingId(null); selectedTodo = null; }}
     onsave={handleTodoSave}
   />

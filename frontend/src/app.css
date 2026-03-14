@@ -239,6 +239,47 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   border: 1px solid transparent;
 }
 
+.todo-category-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  margin: 0.3rem 0 0.1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-elevated) 60%, transparent);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.todo-category-header:hover {
+  background: color-mix(in srgb, var(--bg-elevated) 76%, transparent);
+}
+
+.todo-category-header:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.todo-category-caret {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 0.9rem;
+}
+
+.todo-category-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-width: 0;
+}
+
+.todo-category-count {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
 .event-item:focus-visible, .todo-item:focus-visible {
   background: var(--bg-elevated);
 }
@@ -714,6 +755,29 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
   border-radius: 4px;
   background: var(--bg);
   color: var(--text);
+}
+
+.category-input-wrap {
+  position: relative;
+}
+
+.category-input-wrap .category-input-ghost {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0.5rem;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+}
+
+.category-input-wrap .category-input {
+  position: relative;
+  z-index: 1;
+  background: transparent;
 }
 
 .repeat-human-input {

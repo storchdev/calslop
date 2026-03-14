@@ -212,6 +212,45 @@ def _event_text(component: Any, key: str) -> str | None:
     return str(value) if value is not None else None
 
 
+def _parse_categories(component: Any) -> list[str] | None:
+    value = component.get("categories")
+    if value is None:
+        return None
+
+    parsed: list[str] = []
+
+    def _append_token(token: Any) -> None:
+        text = str(token).strip()
+        if text:
+            parsed.append(text)
+
+    if hasattr(value, "cats") and getattr(value, "cats", None) is not None:
+        for item in list(value.cats):
+            _append_token(item)
+    elif isinstance(value, (list, tuple, set)):
+        for item in value:
+            if isinstance(item, str) and "," in item:
+                for part in item.split(","):
+                    _append_token(part)
+            else:
+                _append_token(item)
+    else:
+        for part in str(value).split(","):
+            _append_token(part)
+
+    return parsed or None
+
+
+def _set_categories(component: Any, categories: list[str] | None) -> None:
+    if "categories" in component:
+        del component["categories"]
+    if not categories:
+        return
+    cleaned = [str(category).strip() for category in categories if str(category).strip()]
+    if cleaned:
+        component.add("categories", cleaned)
+
+
 def _event_cancelled(component: Any) -> bool:
     return (component.get("status") or "").upper() == "CANCELLED"
 
@@ -473,8 +512,18 @@ def _recurrence_id_str(dt: datetime) -> str:
 
 def _parse_vtodo_component(
     component,
-) -> tuple[str, datetime | None, bool, str, str | None, int | None, str | None, list[int] | None]:
-    """Extract (uid, due, completed, summary, description, priority, recurrence, alert_minutes_before) from a VTODO."""
+) -> tuple[
+    str,
+    datetime | None,
+    bool,
+    str,
+    str | None,
+    int | None,
+    str | None,
+    list[str] | None,
+    list[int] | None,
+]:
+    """Extract (uid, due, completed, summary, description, priority, recurrence, categories, alert_minutes_before) from a VTODO."""
     uid = str(component.get("uid", ""))
     summary = str(component.get("summary", "Untitled"))
     completed = str(component.get("completed", "")).strip() != ""
@@ -484,9 +533,20 @@ def _parse_vtodo_component(
     priority = component.get("priority")
     priority = int(priority) if priority is not None else None
     recurrence = normalize_rrule(component.get("rrule"))
+    categories = _parse_categories(component)
     due_or_start = due or _get_dt(component, "dtstart")
     alert_minutes_before = _extract_alarm_minutes_before(component, due_or_start)
-    return uid, due, completed, summary, description, priority, recurrence, alert_minutes_before
+    return (
+        uid,
+        due,
+        completed,
+        summary,
+        description,
+        priority,
+        recurrence,
+        categories,
+        alert_minutes_before,
+    )
 
 
 def _recurrence_id_from_component(component) -> datetime | None:
@@ -630,24 +690,50 @@ def parse_todos_from_ical(
                 int | None,
                 str,
                 bool,
+                list[str] | None,
                 list[int] | None,
             ]
         ],
     ] = {}
     masters: dict[
-        str, tuple[datetime | None, str, str | None, int | None, str, list[int] | None]
+        str,
+        tuple[
+            datetime | None,
+            str,
+            str | None,
+            int | None,
+            str,
+            list[str] | None,
+            list[int] | None,
+        ],
     ] = {}
     for component in components:
-        uid, due, completed, summary, description, priority, recurrence, alert_minutes_before = (
-            _parse_vtodo_component(component)
-        )
+        (
+            uid,
+            due,
+            completed,
+            summary,
+            description,
+            priority,
+            recurrence,
+            categories,
+            alert_minutes_before,
+        ) = _parse_vtodo_component(component)
         if not uid:
             continue
         rec_id = _recurrence_id_from_component(component)
         status = (component.get("status") or "").upper()
         cancelled = status == "CANCELLED"
         if recurrence:
-            masters[uid] = (due, summary, description, priority, recurrence, alert_minutes_before)
+            masters[uid] = (
+                due,
+                summary,
+                description,
+                priority,
+                recurrence,
+                categories,
+                alert_minutes_before,
+            )
         if rec_id is not None:
             if uid not in by_uid:
                 by_uid[uid] = []
@@ -661,15 +747,24 @@ def parse_todos_from_ical(
                     priority,
                     recurrence or "",
                     cancelled,
+                    categories,
                     alert_minutes_before,
                 )
             )
     todos: list[Todo] = []
     seen_uid_no_rrule: set[str] = set()
     for component in components:
-        uid, due, completed, summary, description, priority, recurrence, alert_minutes_before = (
-            _parse_vtodo_component(component)
-        )
+        (
+            uid,
+            due,
+            completed,
+            summary,
+            description,
+            priority,
+            recurrence,
+            categories,
+            alert_minutes_before,
+        ) = _parse_vtodo_component(component)
         if not uid:
             continue
         rec_id = _recurrence_id_from_component(component)
@@ -691,6 +786,7 @@ def parse_todos_from_ical(
                         description=description,
                         priority=priority,
                         recurrence=recurrence,
+                        categories=categories,
                         alert_minutes_before=alert_minutes_before,
                     )
                 )
@@ -731,6 +827,7 @@ def parse_todos_from_ical(
                     int | None,
                     str,
                     bool,
+                    list[str] | None,
                     list[int] | None,
                 ],
             ] = {}
@@ -748,7 +845,15 @@ def parse_todos_from_ical(
                 if existing_d is None or r[7] or r[1]:
                     exceptions_by_rec[rec_date_k] = r
             completed_list: list[
-                tuple[str, str, datetime | None, str | None, int | None, list[int] | None]
+                tuple[
+                    str,
+                    str,
+                    datetime | None,
+                    str | None,
+                    int | None,
+                    list[str] | None,
+                    list[int] | None,
+                ]
             ] = []
             occ = (
                 _simple_occurrence_on_or_after(due_start, simple_rule_spec, start)
@@ -772,6 +877,7 @@ def parse_todos_from_ical(
                         exc_pri,
                         _,
                         exc_cancelled,
+                        exc_categories,
                         exc_alert,
                     ) = exc
                     if exc_cancelled:
@@ -794,6 +900,7 @@ def parse_todos_from_ical(
                                     due_val,
                                     exc_desc if exc_desc is not None else description,
                                     exc_pri if exc_pri is not None else priority,
+                                    exc_categories if exc_categories is not None else categories,
                                     exc_alert if exc_alert is not None else alert_minutes_before,
                                 )
                             )
@@ -808,7 +915,15 @@ def parse_todos_from_ical(
                     due_val = exc_due or occ
                     if due_val and getattr(due_val, "tzinfo", None):
                         due_val = _to_naive_utc(due_val)
-                    for lc_id, lc_sum, lc_due, lc_desc, lc_pri, lc_alert in completed_list:
+                    for (
+                        lc_id,
+                        lc_sum,
+                        lc_due,
+                        lc_desc,
+                        lc_pri,
+                        lc_categories,
+                        lc_alert,
+                    ) in completed_list:
                         todos.append(
                             Todo(
                                 id=f"{source_id}::{uid}::{lc_id}",
@@ -819,6 +934,7 @@ def parse_todos_from_ical(
                                 description=lc_desc,
                                 priority=lc_pri,
                                 recurrence=None,
+                                categories=lc_categories,
                                 alert_minutes_before=lc_alert,
                             )
                         )
@@ -833,6 +949,9 @@ def parse_todos_from_ical(
                                 description=exc_desc if exc_desc is not None else description,
                                 priority=exc_pri if exc_pri is not None else priority,
                                 recurrence=recurrence,
+                                categories=exc_categories
+                                if exc_categories is not None
+                                else categories,
                                 alert_minutes_before=exc_alert
                                 if exc_alert is not None
                                 else alert_minutes_before,
@@ -841,7 +960,15 @@ def parse_todos_from_ical(
                     break
                 # No exception: next instance from rule
                 due_val = _to_naive_utc(occ) if (occ and getattr(occ, "tzinfo", None)) else occ
-                for lc_id, lc_sum, lc_due, lc_desc, lc_pri, lc_alert in completed_list:
+                for (
+                    lc_id,
+                    lc_sum,
+                    lc_due,
+                    lc_desc,
+                    lc_pri,
+                    lc_categories,
+                    lc_alert,
+                ) in completed_list:
                     todos.append(
                         Todo(
                             id=f"{source_id}::{uid}::{lc_id}",
@@ -852,6 +979,7 @@ def parse_todos_from_ical(
                             description=lc_desc,
                             priority=lc_pri,
                             recurrence=None,
+                            categories=lc_categories,
                             alert_minutes_before=lc_alert,
                         )
                     )
@@ -866,6 +994,7 @@ def parse_todos_from_ical(
                             description=description,
                             priority=priority,
                             recurrence=recurrence,
+                            categories=categories,
                             alert_minutes_before=alert_minutes_before,
                         )
                     )
@@ -888,6 +1017,7 @@ def parse_todos_from_ical(
                     description=description,
                     priority=priority,
                     recurrence=None,
+                    categories=categories,
                     alert_minutes_before=alert_minutes_before,
                 )
             )
@@ -962,6 +1092,7 @@ def todo_to_ical(todo: Todo) -> bytes:
         vtodo.add("description", todo.description)
     if todo.priority is not None:
         vtodo.add("priority", todo.priority)
+    _set_categories(vtodo, getattr(todo, "categories", None))
     recurrence = getattr(todo, "recurrence", None)
     if recurrence:
         try:
@@ -1060,16 +1191,29 @@ def merge_instance_todo_into_ical(ical_bytes: bytes, todo: Todo, recurrence_id_s
         vtodo.add("description", todo.description)
     if todo.priority is not None:
         vtodo.add("priority", todo.priority)
+    _set_categories(vtodo, getattr(todo, "categories", None))
     _set_display_alarm(vtodo, getattr(todo, "alert_minutes_before", None))
     cal.add_component(vtodo)
-    _update_master_vtodo_metadata(cal, uid, todo.summary, todo.description, todo.priority)
+    _update_master_vtodo_metadata(
+        cal,
+        uid,
+        todo.summary,
+        todo.description,
+        todo.priority,
+        getattr(todo, "categories", None),
+    )
     return cal.to_ical()
 
 
 def _update_master_vtodo_metadata(
-    cal, uid: str, summary: str, description: str | None, priority: int | None
+    cal,
+    uid: str,
+    summary: str,
+    description: str | None,
+    priority: int | None,
+    categories: list[str] | None,
 ) -> None:
-    """Update the master VTODO (same UID, no RECURRENCE-ID) so series summary/description/priority stay in sync."""
+    """Update the master VTODO (same UID, no RECURRENCE-ID) so series metadata stays in sync."""
     for component in list(cal.subcomponents):
         if getattr(component, "name", None) != "VTODO":
             continue
@@ -1092,6 +1236,7 @@ def _update_master_vtodo_metadata(
             component.add("priority", priority)
         elif "priority" in component:
             del component["priority"]
+        _set_categories(component, categories)
         break
 
 
@@ -1102,6 +1247,7 @@ def build_exception_vtodo(
     due: datetime | None,
     description: str | None,
     priority: int | None,
+    categories: list[str] | None = None,
     alert_minutes_before: list[int] | None = None,
 ) -> bytes:
     """Build a VTODO component for a completed RECURRENCE-ID exception (same UID as master)."""
@@ -1127,6 +1273,7 @@ def build_exception_vtodo(
         vtodo.add("description", description)
     if priority is not None:
         vtodo.add("priority", priority)
+    _set_categories(vtodo, categories)
     _set_display_alarm(vtodo, alert_minutes_before)
     cal.add_component(vtodo)
     return cal.to_ical()

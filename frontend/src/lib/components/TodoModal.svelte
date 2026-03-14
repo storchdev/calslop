@@ -20,13 +20,17 @@
   interface Props {
     todoId: string | null;
     initialTodo?: Todo | null;
+    existingCategories?: string[];
     onclose: () => void;
     onsave: () => void | Promise<void>;
   }
 
-  let { todoId, initialTodo = null, onclose, onsave }: Props = $props();
+  let { todoId, initialTodo = null, existingCategories = [], onclose, onsave }: Props = $props();
 
   let summary = $state('');
+  let categoryText = $state('');
+  let categorySuggestion = $state('');
+  let categoryGhostText = $state('');
   let completed = $state(false);
   let due = $state('');
   let description = $state('');
@@ -60,6 +64,35 @@
     customAlertOption = state.customOption;
   }
 
+  function normalizeCategory(value: string): string {
+    return value.trim().replace(/\s+/g, ' ');
+  }
+
+  function normalizeCategoriesFromText(text: string): string[] | null {
+    const seen = new Set<string>();
+    const parsed: string[] = [];
+    for (const part of text.split(',')) {
+      const normalized = normalizeCategory(part);
+      if (!normalized) continue;
+      const key = normalized.toLocaleLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      parsed.push(normalized);
+    }
+    return parsed.length > 0 ? parsed : null;
+  }
+
+  const normalizedExistingCategories = $derived.by(() => {
+    const map = new Map<string, string>();
+    for (const category of existingCategories) {
+      const normalized = normalizeCategory(category);
+      if (!normalized) continue;
+      const key = normalized.toLocaleLowerCase();
+      if (!map.has(key)) map.set(key, normalized);
+    }
+    return [...map.values()].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  });
+
   const isInstance = $derived(todoId ? todoId.split('::').length >= 4 : false);
 
   $effect(() => {
@@ -70,6 +103,7 @@
       if (initialTodo && initialTodo.id === todoId) {
         fetchedTodoId = todoId;
         summary = initialTodo.summary;
+        categoryText = (initialTodo.categories ?? []).join(', ');
         completed = initialTodo.completed;
         due = initialTodo.due ? toLocalDatetimeInput(initialTodo.due, tz) : '';
         description = initialTodo.description ?? '';
@@ -88,6 +122,7 @@
       getTodo(currentId).then((t) => {
         if (todoId !== currentId) return;
         summary = t.summary;
+        categoryText = (t.categories ?? []).join(', ');
         completed = t.completed;
         due = t.due ? toLocalDatetimeInput(t.due, tz) : '';
         description = t.description ?? '';
@@ -104,6 +139,7 @@
       });
     } else {
       fetchedTodoId = null;
+      categoryText = '';
       recurrence = '';
       setAlertMinutes(null);
       shiftHuman = '';
@@ -139,12 +175,14 @@
 
     const currentTodoId = todoId;
     const resolvedAlertMinutes = resolveAlertMinutesForSave();
+    const resolvedCategories = normalizeCategoriesFromText(categoryText);
     const payload = {
       summary: summary.trim(),
       completed,
       due: due ? new Date(due).toISOString() : null,
       description: description || null,
       recurrence: recurrence || null,
+      categories: resolvedCategories,
       alert_minutes_before: resolvedAlertMinutes.length ? resolvedAlertMinutes : null,
     };
 
@@ -181,6 +219,7 @@
 
   let modalEl: HTMLDivElement | undefined;
   let summaryEl: HTMLInputElement | undefined;
+  let categoryEl: HTMLInputElement | undefined;
   let completedEl: HTMLInputElement | undefined;
   let dueEl: HTMLInputElement | undefined;
   let dueHumanEl = $state<HTMLInputElement | undefined>(undefined);
@@ -191,6 +230,88 @@
   let repeatHumanEl = $state<HTMLInputElement | undefined>(undefined);
   let shiftHumanEl = $state<HTMLInputElement | undefined>(undefined);
   let sourceIdEl = $state<HTMLSelectElement | undefined>(undefined);
+
+  function clearCategorySuggestion() {
+    categorySuggestion = '';
+    categoryGhostText = '';
+  }
+
+  function getCategoryTokenContext() {
+    const input = categoryEl;
+    if (!input) return null;
+    const value = categoryText;
+    const caret = input.selectionStart ?? value.length;
+    const left = value.slice(0, caret);
+    const tokenStart = left.lastIndexOf(',') + 1;
+    const right = value.slice(caret);
+    const nextComma = right.indexOf(',');
+    const tokenEnd = nextComma === -1 ? value.length : caret + nextComma;
+    const token = value.slice(tokenStart, tokenEnd);
+    const leading = token.match(/^\s*/)?.[0] ?? '';
+    const trailing = token.match(/\s*$/)?.[0] ?? '';
+    const rawStart = tokenStart + leading.length;
+    const rawEnd = tokenEnd - trailing.length;
+    const typedPrefix = normalizeCategory(value.slice(rawStart, caret));
+    const normalizedToken = normalizeCategory(value.slice(rawStart, rawEnd));
+    return {
+      value,
+      caret,
+      tokenStart,
+      tokenEnd,
+      rawStart,
+      rawEnd,
+      typedPrefix,
+      normalizedToken,
+    };
+  }
+
+  function refreshCategorySuggestion() {
+    const context = getCategoryTokenContext();
+    if (!context || !context.typedPrefix) {
+      clearCategorySuggestion();
+      return;
+    }
+    const typedLower = context.typedPrefix.toLocaleLowerCase();
+    const tokenLower = context.normalizedToken.toLocaleLowerCase();
+    const suggestion = normalizedExistingCategories.find((candidate) => {
+      const lower = candidate.toLocaleLowerCase();
+      return lower.startsWith(typedLower) && lower !== tokenLower;
+    });
+    if (!suggestion) {
+      clearCategorySuggestion();
+      return;
+    }
+    categorySuggestion = suggestion;
+    categoryGhostText = `${context.value.slice(0, context.rawStart)}${suggestion}${context.value.slice(context.rawEnd)}`;
+  }
+
+  async function acceptCategorySuggestion(): Promise<boolean> {
+    const context = getCategoryTokenContext();
+    if (!context || !categorySuggestion) return false;
+    const nextText = `${context.value.slice(0, context.rawStart)}${categorySuggestion}${context.value.slice(context.rawEnd)}`;
+    if (nextText === categoryText) return false;
+    categoryText = nextText;
+    await tick();
+    const caret = context.rawStart + categorySuggestion.length;
+    categoryEl?.setSelectionRange(caret, caret);
+    refreshCategorySuggestion();
+    return true;
+  }
+
+  function handleCategoryFieldInput() {
+    refreshCategorySuggestion();
+  }
+
+  function handleCategoryFieldCursorChange() {
+    refreshCategorySuggestion();
+  }
+
+  $effect(() => {
+    if (!categoryEl) return;
+    normalizedExistingCategories;
+    categoryText;
+    refreshCategorySuggestion();
+  });
 
   $effect(() => {
     if (app.modalOpen === 'todo') {
@@ -357,6 +478,29 @@
     const target = e.target as HTMLElement;
     const inTextInput = isTextInputTarget(target);
 
+    if (
+      target === categoryEl
+      && e.code === 'Space'
+      && (e.shiftKey || e.ctrlKey)
+    ) {
+      e.preventDefault();
+      void acceptCategorySuggestion();
+      return;
+    }
+
+    if (e.key === 'Enter' && target === categoryEl) {
+      e.preventDefault();
+      void acceptCategorySuggestion().then((accepted) => {
+        if (accepted) return;
+        if (!todoId) {
+          completedEl?.focus();
+          return;
+        }
+        blurInputAndFocusModal(categoryEl, modalEl);
+      });
+      return;
+    }
+
     if (e.key === 'Enter' && target === dueHumanEl) {
       e.preventDefault();
       void applyHumanDue().then((ok) => {
@@ -426,6 +570,9 @@
     if (key === 's') {
       e.preventDefault();
       summaryEl?.focus();
+    } else if (key === 'a') {
+      e.preventDefault();
+      categoryEl?.focus();
     } else if (key === 'c') {
       e.preventDefault();
       completedEl?.focus();
@@ -489,6 +636,32 @@
         <span class="field-shortcut">S</span>
       </div>
       <input type="text" bind:value={summary} bind:this={summaryEl} />
+    </div>
+    <div class="form-row">
+      <div class="form-row-header">
+        <span class="field-label">Category</span>
+        <span class="field-shortcut">A</span>
+      </div>
+      <div class="category-input-wrap">
+        {#if categoryGhostText}
+          <span class="category-input-ghost" aria-hidden="true">{categoryGhostText}</span>
+        {/if}
+        <input
+          type="text"
+          bind:value={categoryText}
+          bind:this={categoryEl}
+          class="category-input"
+          placeholder="e.g. Work, Personal"
+          aria-label="Todo categories"
+          aria-autocomplete="both"
+          oninput={handleCategoryFieldInput}
+          onfocus={refreshCategorySuggestion}
+          onkeyup={handleCategoryFieldCursorChange}
+          onclick={handleCategoryFieldCursorChange}
+          onselect={handleCategoryFieldCursorChange}
+          onblur={clearCategorySuggestion}
+        />
+      </div>
     </div>
     <div class="form-row form-row-checkbox">
       <div class="form-row-header">

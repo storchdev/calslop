@@ -28,6 +28,7 @@ class Todo(BaseModel):
     description: str | None = None
     priority: int | None = None
     recurrence: str | None = None
+    categories: list[str] | None = None
     alert_minutes_before: list[int] | None = None
 
 
@@ -91,6 +92,7 @@ class TodoCreate(BaseModel):
     description: str | None = None
     priority: int | None = None
     recurrence: str | None = None
+    categories: list[str] | None = None
     alert_minutes_before: list[int] | None = None
 
 
@@ -101,6 +103,7 @@ class TodoUpdate(BaseModel):
     description: str | None = None
     priority: int | None = None
     recurrence: str | None = None
+    categories: list[str] | None = None
     alert_minutes_before: list[int] | None = None
 
 

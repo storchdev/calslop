@@ -215,16 +215,46 @@
       }
     }
 
-    // Todo view: S toggles show completed; j/k move focus, Enter opens, Space/x toggle completed
+    // Todo view: S toggles show completed; j/k move todo focus; Shift+j/k move category headers
     if (app.viewMode === 'todo') {
       if (key === 's') {
         app.toggleShowCompletedTodos();
         e.preventDefault();
         return;
       }
+
+      const active = document.activeElement as HTMLElement | null;
+      const activeCategoryHeader = active?.matches('[data-todo-category-index]')
+        ? active
+        : null;
+
+      if (activeCategoryHeader && (key === 'enter' || key === ' ')) {
+        e.preventDefault();
+        activeCategoryHeader.click();
+        return;
+      }
+
+      if (e.shiftKey && (key === 'j' || key === 'k')) {
+        e.preventDefault();
+        const categoryHeaders = Array.from(document.querySelectorAll('[data-todo-category-index]')) as HTMLElement[];
+        if (categoryHeaders.length === 0) return;
+        const activeCategoryIndex = Number(active?.getAttribute('data-todo-category-index'));
+        const hasActiveCategory = Number.isFinite(activeCategoryIndex) && activeCategoryIndex >= 0;
+        const current = hasActiveCategory
+          ? activeCategoryIndex
+          : (key === 'j' ? -1 : categoryHeaders.length);
+        const next = key === 'j'
+          ? Math.min(current + 1, categoryHeaders.length - 1)
+          : Math.max(current - 1, 0);
+        const nextHeader = categoryHeaders[next];
+        nextHeader?.focus();
+        nextHeader?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        return;
+      }
+
       const todoItems = Array.from(document.querySelectorAll('[data-todo-item-index]'));
       if (todoItems.length > 0) {
-        if (key === 'j' || key === 'arrowdown') {
+        if (!e.shiftKey && (key === 'j' || key === 'arrowdown')) {
           e.preventDefault();
           const curr = app.focusedTodoIndex;
           const next = curr < 0 ? 0 : Math.min(curr + 1, todoItems.length - 1);
@@ -232,7 +262,7 @@
           (todoItems[next] as HTMLElement)?.focus();
           return;
         }
-        if (key === 'k' || key === 'arrowup') {
+        if (!e.shiftKey && (key === 'k' || key === 'arrowup')) {
           e.preventDefault();
           const curr = app.focusedTodoIndex;
           const next = curr < 0 ? todoItems.length - 1 : Math.max(0, curr - 1);
