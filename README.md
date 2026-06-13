@@ -75,12 +75,25 @@ Run the app as one process: Flask serves the built Svelte frontend and the API. 
 
 ### Recommended: install and update scripts
 
-Clone the repo, then run the install script. It installs to `~/.local/share/calslop` by default (override with a path). Use `--service` to install and enable the systemd user unit.
+Clone the repo, then run the install script. It installs to `~/.local/share/calslop` by default (override with a path argument). The systemd user service is installed and enabled by default; pass `--no-service` to skip it.
+
+After install, a `calslop` management script is placed at `~/.local/bin/calslop` (make sure that directory is in your `PATH`).
 
 ```bash
 git clone https://github.com/storchdev/calslop.git
 cd calslop
-./install.sh [INSTALL_DIR] [--service]
+./install.sh [INSTALL_DIR] [--no-service]
+```
+
+Common management commands:
+
+```bash
+calslop start       # start the service
+calslop stop        # stop the service
+calslop status      # check service status
+calslop logs -f     # follow service logs
+calslop update      # pull latest code and rebuild
+calslop help        # show all commands
 ```
 
 To update an existing install (pull and rebuild), run from the install directory or pass the path:
@@ -89,10 +102,20 @@ To update an existing install (pull and rebuild), run from the install directory
 ./update.sh [INSTALL_DIR]
 ```
 
-Example: install with systemd user service enabled:
+### Arch Linux (PKGBUILD)
+
+A `PKGBUILD` is included for Arch Linux. It installs the app to `/opt/calslop`, places the management script at `/usr/bin/calslop`, and installs a systemd user unit to `/usr/lib/systemd/user/`.
 
 ```bash
-./install.sh --service
+git clone https://github.com/storchdev/calslop.git
+cd calslop
+makepkg -si
+```
+
+After install, enable and start the service as your normal user:
+
+```bash
+systemctl --user enable --now calslop
 ```
 
 ### Manual install
