@@ -29,6 +29,18 @@ if [[ -d "$INSTALL_DIR" ]]; then
   exit 1
 fi
 
+missing_deps=()
+for dep in git uv npm; do
+  if ! command -v "$dep" &>/dev/null; then
+    missing_deps+=("$dep")
+  fi
+done
+if [[ ${#missing_deps[@]} -gt 0 ]]; then
+  echo "Error: the following required dependencies are not installed: ${missing_deps[*]}" >&2
+  echo "Please install them and re-run this script." >&2
+  exit 1
+fi
+
 echo "Installing calslop to $INSTALL_DIR ..."
 mkdir -p "$(dirname "$INSTALL_DIR")"
 git clone "$REPO_URL" "$INSTALL_DIR"
