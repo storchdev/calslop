@@ -1,0 +1,19 @@
+post_install() {
+    echo ""
+    echo "calslop has been installed to /opt/calslop."
+    echo ""
+    echo "To enable the systemd user service, run as your normal user:"
+    echo "  systemctl --user enable --now calslop"
+    echo ""
+    echo "The management script is available at /usr/bin/calslop."
+    echo "  calslop start          Start the service"
+    echo "  calslop stop           Stop the service"
+    echo "  calslop status         Check service status"
+    echo "  calslop logs -f        Follow service logs"
+    echo "  calslop help           Show all commands"
+    echo ""
+}
+
+post_upgrade() {
+    post_install
+}
