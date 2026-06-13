@@ -1,0 +1,246 @@
+#!/usr/bin/env bash
+set -e
+
+INSTALL_DIR="${CALSLOP_INSTALL_DIR:-$HOME/.local/share/calslop}"
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+die() { echo "error: $*" >&2; exit 1; }
+
+require_install() {
+  [[ -f "$INSTALL_DIR/backend/pyproject.toml" ]] \
+    || die "calslop installation not found at $INSTALL_DIR. Re-run install.sh."
+}
+
+service_exists() {
+  systemctl --user cat calslop.service &>/dev/null
+}
+
+usage() {
+  cat <<EOF
+Usage: calslop <command> [options]
+
+Commands:
+  service             Manage the calslop systemd user service (default)
+    start               Start the service
+    stop                Stop the service
+    restart             Restart the service
+    status              Show service status
+    enable              Enable the service to start on login
+    disable             Disable the service from starting on login
+    logs [-f]           Show service journal (pass -f to follow)
+    install             Write/refresh the systemd unit and enable it
+    uninstall-unit      Remove the systemd unit file
+
+  update              Pull latest code and rebuild (restarts service if running)
+
+  uninstall           Remove calslop completely (app files + systemd unit)
+
+  run                 Start the app directly in the foreground (no systemd)
+
+  help                Show this help
+
+Environment:
+  CALSLOP_INSTALL_DIR   Override install directory (default: \$HOME/.local/share/calslop)
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# Service helpers
+# ---------------------------------------------------------------------------
+
+write_unit() {
+  local install_abs
+  install_abs="$(cd "$INSTALL_DIR" && pwd)"
+  local unit_dir="$HOME/.config/systemd/user"
+  mkdir -p "$unit_dir"
+  cat > "$unit_dir/calslop.service" <<EOF
+[Unit]
+Description=Calslop calendar and todo app
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=$install_abs/backend
+Environment="PYTHONPATH=$install_abs/backend"
+Environment="CALSLOP_STATIC_DIR=$install_abs/frontend/build"
+# Environment="CALSLOP_EMAIL_SMTP_HOST=smtp.example.com"
+# Environment="CALSLOP_EMAIL_SMTP_PORT=587"
+# Environment="CALSLOP_EMAIL_SMTP_USERNAME=you@example.com"
+# Environment="CALSLOP_EMAIL_SMTP_PASSWORD=app-password"
+# Environment="CALSLOP_EMAIL_USE_TLS=1"
+# Environment="CALSLOP_EMAIL_FROM=you@example.com"
+Environment="PATH=$install_abs/backend/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=$install_abs/backend/.venv/bin/python -m flask --app app.main run --port 8765 --host 0.0.0.0
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+  systemctl --user daemon-reload
+}
+
+cmd_service() {
+  local sub="${1:-status}"
+  shift || true
+
+  case "$sub" in
+    start)
+      require_install
+      service_exists || die "Service unit not installed. Run: calslop service install"
+      systemctl --user start calslop
+      echo "calslop started."
+      ;;
+    stop)
+      service_exists || die "Service unit not installed."
+      systemctl --user stop calslop
+      echo "calslop stopped."
+      ;;
+    restart)
+      require_install
+      service_exists || die "Service unit not installed. Run: calslop service install"
+      systemctl --user restart calslop
+      echo "calslop restarted."
+      ;;
+    status)
+      service_exists || { echo "Service unit is not installed. Run: calslop service install"; exit 0; }
+      systemctl --user status calslop || true
+      ;;
+    enable)
+      service_exists || die "Service unit not installed. Run: calslop service install"
+      systemctl --user enable calslop
+      echo "calslop service enabled."
+      ;;
+    disable)
+      service_exists || die "Service unit not installed."
+      systemctl --user disable calslop
+      echo "calslop service disabled."
+      ;;
+    logs)
+      service_exists || die "Service unit not installed."
+      journalctl --user -u calslop "$@"
+      ;;
+    install)
+      require_install
+      write_unit
+      systemctl --user enable calslop
+      echo "calslop service installed and enabled."
+      echo "Start it with: calslop service start"
+      ;;
+    uninstall-unit)
+      if service_exists; then
+        systemctl --user stop calslop 2>/dev/null || true
+        systemctl --user disable calslop 2>/dev/null || true
+        rm -f "$HOME/.config/systemd/user/calslop.service"
+        systemctl --user daemon-reload
+        echo "calslop systemd unit removed."
+      else
+        echo "No calslop systemd unit found."
+      fi
+      ;;
+    *)
+      echo "Unknown service subcommand: $sub" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
+# Update
+# ---------------------------------------------------------------------------
+
+cmd_update() {
+  require_install
+  echo "Updating calslop in $INSTALL_DIR ..."
+  cd "$INSTALL_DIR"
+  git pull
+
+  echo "Building backend ..."
+  cd backend && uv sync && cd ..
+
+  echo "Building frontend ..."
+  cd frontend && npm ci && npm run build && cd ..
+
+  if systemctl --user is-active --quiet calslop 2>/dev/null; then
+    echo "Restarting systemd user service ..."
+    systemctl --user restart calslop
+  fi
+
+  echo "Update complete."
+}
+
+# ---------------------------------------------------------------------------
+# Uninstall
+# ---------------------------------------------------------------------------
+
+cmd_uninstall() {
+  require_install
+
+  echo "This will remove the calslop application files at $INSTALL_DIR"
+  if service_exists; then
+    echo "and its systemd user service."
+  fi
+  printf "Continue? [y/N] "
+  read -r answer
+  [[ "$answer" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
+
+  if service_exists; then
+    systemctl --user stop calslop 2>/dev/null || true
+    systemctl --user disable calslop 2>/dev/null || true
+    rm -f "$HOME/.config/systemd/user/calslop.service"
+    systemctl --user daemon-reload
+    echo "Systemd unit removed."
+  fi
+
+  rm -rf "$INSTALL_DIR"
+  echo "calslop uninstalled from $INSTALL_DIR."
+
+  # Remove this script from ~/.local/bin if it lives there
+  local script_path
+  script_path="$(command -v calslop 2>/dev/null || true)"
+  if [[ -n "$script_path" && "$script_path" == "$HOME/.local/bin/calslop" ]]; then
+    rm -f "$script_path"
+    echo "Removed calslop from $script_path."
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Run (foreground, no systemd)
+# ---------------------------------------------------------------------------
+
+cmd_run() {
+  require_install
+  local install_abs
+  install_abs="$(cd "$INSTALL_DIR" && pwd)"
+  export CALSLOP_STATIC_DIR="$install_abs/frontend/build"
+  cd "$install_abs/backend"
+  exec .venv/bin/python -m flask --app app.main run --port 8765 --host 0.0.0.0
+}
+
+# ---------------------------------------------------------------------------
+# Entry point — default to "service" when no command given
+# ---------------------------------------------------------------------------
+
+CMD="${1:-service}"
+[[ $# -gt 0 ]] && shift || true
+
+case "$CMD" in
+  service)   cmd_service "$@" ;;
+  update)    cmd_update ;;
+  uninstall) cmd_uninstall ;;
+  run)       cmd_run ;;
+  help|--help|-h) usage ;;
+  # Convenience: allow top-level service subcommands directly
+  start|stop|restart|status|enable|disable|logs)
+    cmd_service "$CMD" "$@" ;;
+  *)
+    echo "Unknown command: $CMD" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
+
