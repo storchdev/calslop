@@ -1,7 +1,19 @@
 #!/usr/bin/env bash
 set -e
 
-INSTALL_DIR="${CALSLOP_INSTALL_DIR:-$HOME/.local/share/calslop}"
+# When installed via pacman the script lives at /usr/bin/calslop and the app
+# files are at /opt/calslop.  When installed manually via install.sh the script
+# lives at ~/.local/bin/calslop and the app files are at ~/.local/share/calslop.
+_script_dir="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+if [[ -z "${CALSLOP_INSTALL_DIR:-}" ]]; then
+  if [[ "$_script_dir" == "/usr/bin" ]]; then
+    INSTALL_DIR="/opt/calslop"
+  else
+    INSTALL_DIR="$HOME/.local/share/calslop"
+  fi
+else
+  INSTALL_DIR="$CALSLOP_INSTALL_DIR"
+fi
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -186,6 +198,7 @@ cmd_uninstall() {
   fi
   printf "Continue? [y/N] "
   read -r answer
+  answer="${answer%$'\r'}"
   [[ "$answer" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 0; }
 
   if service_exists; then

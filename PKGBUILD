@@ -1,13 +1,14 @@
 # Maintainer: storchdev
 pkgname=calslop
-pkgver=r1
+pkgver=r102.143ab2c
 pkgrel=1
 pkgdesc="Personal calendar and todo app"
 arch=('any')
 url="https://github.com/storchdev/calslop"
 license=('MIT')
-depends=('python' 'uv' 'nodejs' 'npm')
-makedepends=('git')
+depends=('python' 'nodejs' 'npm')
+makedepends=('git' 'uv')
+options=('!debug' '!strip')
 install=calslop.install
 source=("${pkgname}::git+https://github.com/storchdev/calslop.git")
 sha256sums=('SKIP')
