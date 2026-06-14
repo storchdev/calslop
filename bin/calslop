@@ -15,6 +15,8 @@ else
   INSTALL_DIR="$CALSLOP_INSTALL_DIR"
 fi
 
+PORT="${CALSLOP_PORT:-8765}"
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -49,6 +51,8 @@ Commands:
   update              Pull latest code and rebuild (restarts service if running)
 
   uninstall           Remove calslop completely (app files + systemd unit)
+
+  open                Open the app in the default browser
 
   run                 Start the app directly in the foreground (no systemd)
 
@@ -85,7 +89,7 @@ Environment="CALSLOP_STATIC_DIR=$install_abs/frontend/build"
 # Environment="CALSLOP_EMAIL_USE_TLS=1"
 # Environment="CALSLOP_EMAIL_FROM=you@example.com"
 Environment="PATH=$install_abs/backend/.venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=$install_abs/backend/.venv/bin/python -m flask --app app.main run --port 8765 --host 0.0.0.0
+ExecStart=$install_abs/backend/.venv/bin/python -m flask --app app.main run --port $PORT --host 0.0.0.0
 Restart=on-failure
 RestartSec=5
 
@@ -167,6 +171,12 @@ cmd_service() {
 
 cmd_update() {
   require_install
+  if [[ ! -d "$INSTALL_DIR/.git" ]]; then
+    echo "error: $INSTALL_DIR is not a git repository." >&2
+    echo "This installation was managed by pacman. Update it with:" >&2
+    echo "  cd <path-to-PKGBUILD> && makepkg -si" >&2
+    exit 1
+  fi
   echo "Updating calslop in $INSTALL_DIR ..."
   cd "$INSTALL_DIR"
   git pull
@@ -222,6 +232,14 @@ cmd_uninstall() {
 }
 
 # ---------------------------------------------------------------------------
+# Open
+# ---------------------------------------------------------------------------
+
+cmd_open() {
+  xdg-open "http://localhost:$PORT"
+}
+
+# ---------------------------------------------------------------------------
 # Run (foreground, no systemd)
 # ---------------------------------------------------------------------------
 
@@ -231,7 +249,7 @@ cmd_run() {
   install_abs="$(cd "$INSTALL_DIR" && pwd)"
   export CALSLOP_STATIC_DIR="$install_abs/frontend/build"
   cd "$install_abs/backend"
-  exec .venv/bin/python -m flask --app app.main run --port 8765 --host 0.0.0.0
+  exec .venv/bin/python -m flask --app app.main run --port "$PORT" --host 0.0.0.0
 }
 
 # ---------------------------------------------------------------------------
@@ -245,6 +263,7 @@ case "$CMD" in
   service)   cmd_service "$@" ;;
   update)    cmd_update ;;
   uninstall) cmd_uninstall ;;
+  open)      cmd_open ;;
   run)       cmd_run ;;
   help|--help|-h) usage ;;
   # Convenience: allow top-level service subcommands directly

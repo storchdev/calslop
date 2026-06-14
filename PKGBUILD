@@ -1,6 +1,6 @@
 # Maintainer: storchdev
 pkgname=calslop
-pkgver=r102.143ab2c
+pkgver=r103.39a5e16
 pkgrel=1
 pkgdesc="Personal calendar and todo app"
 arch=('any')
@@ -12,6 +12,8 @@ options=('!debug' '!strip')
 install=calslop.install
 source=("${pkgname}::git+https://github.com/storchdev/calslop.git")
 sha256sums=('SKIP')
+
+_port=8765
 
 pkgver() {
     cd "$srcdir/$pkgname"
@@ -59,7 +61,7 @@ WorkingDirectory=/opt/calslop/backend
 Environment="PYTHONPATH=/opt/calslop/backend"
 Environment="CALSLOP_STATIC_DIR=/opt/calslop/frontend/build"
 Environment="PATH=/opt/calslop/backend/.venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/opt/calslop/backend/.venv/bin/python -m flask --app app.main run --port 8765 --host 0.0.0.0
+ExecStart=/opt/calslop/backend/.venv/bin/python -m flask --app app.main run --port $_port --host 0.0.0.0
 Restart=on-failure
 RestartSec=5
 
